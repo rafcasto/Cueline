@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Cueline for Google Slides",
+  "version": "0.1.0",
+  "description": "Reports the slide you are presenting to Cueline and draws poll results over it.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage", "alarms"],
+  "host_permissions": ["https://*.supabase.co/*", "http://127.0.0.1:54321/*", "http://localhost:54321/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "content_scripts": [
+    {
+      "matches": ["https://docs.google.com/presentation/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "Cueline" },
+  "externally_connectable": { "matches": ["https://cueline.app/*"] },
+  "icons": { "128": "icons/icon128.png" }
+}
