@@ -21,13 +21,13 @@ export async function POST(req: Request) {
       .update({ status: "paid", amount_total: cs.amount_total, currency: cs.currency, updated_at: new Date().toISOString() })
       .eq("stripe_session_id", cs.id);
     const m = cs.metadata ?? {};
-    if (m.cta_id && m.session_id && m.user_id) {
-      const { data: session } = await admin.from("sessions").select("started_at").eq("id", m.session_id).maybeSingle();
-      const offset = session ? Math.max(0, Math.round((Date.now() - new Date(session.started_at).getTime()) / 1000)) : 0;
+    if (m.run_id && m.session_id && m.user_id) {
+      const { data: session } = await admin.from("sessions").select("started_at, created_at").eq("id", m.session_id).maybeSingle();
+      const offset = session ? Math.max(0, Math.round((Date.now() - new Date(session.started_at ?? session.created_at).getTime()) / 1000)) : 0;
       await admin.from("cta_events").insert({
         org_id: m.org_id,
         session_id: m.session_id,
-        cta_id: m.cta_id,
+        run_id: m.run_id,
         user_id: m.user_id,
         offset_seconds: offset,
         action: "conversion",

@@ -1,10 +1,12 @@
 # Cueline — Platform Design
 
-27 Sep 2026 · Rafael Castillo
+27 Sep 2026, revised 30 Sep 2026 · Rafael Castillo
+
+> **Revision 30 Sep 2026.** The Chrome extension and the speaker-note cue model are dropped. Engagement is authored and launched inside the app: the presenter creates polls, quizzes and word clouds, activates them at any point, sets a timer, and reveals the results as an overlay when it runs out. The deck is uploaded as a PDF and presented in the room. Reactions are always on. A waiting room with image, video or image plus audio and slide-like text opens the session. Reference: univid.io.
 
 ## Overview
 
-Cueline is a webinar platform where the slides drive the engagement: a presenter types a cue into a Google Slides speaker note, and when that slide comes up the poll or call-to-action pops for every viewer, with results rendered over the slide they are already watching.
+Cueline is a webinar platform with the engagement built in: the presenter uploads a deck, presents it in the room, and launches polls, quizzes, word clouds and calls to action as overlays that every participant answers on the slide they are already watching.
 
 The wedge is price and ownership. Incumbents charge ~$100/month with capped webinars and bolt on Slido-style tools; Cueline owns the engagement layer, streams broadcast-only viewers over HLS to keep cost at $3–10 per 100-person hour, and sells at $29–79/month.
 
@@ -12,7 +14,7 @@ Build for your own business first, productise later. Three components:
 
 1. **Video room** — 2–3 presenters on WebRTC, 50–100 listen-only viewers on HLS, promote-to-stage in ~1s.
 2. **Engagement layer** — polls, Q&A, reactions, hand-raising as Supabase rows with realtime, front end on Vercel. Fully owned.
-3. **Slides integration** — a Chrome extension that reports the current slide and draws results over it, plus a Slides API sync that reads the cues from speaker notes. No Apps Script add-on.
+3. **Presentation and activities** — a PDF deck presented in the room, and presenter-authored activities (poll, quiz, word cloud, CTA) with timers and a results overlay. No Google Slides integration, no extension.
 
 ## Component 1 — Video room
 
@@ -46,65 +48,63 @@ Every table carries `org_id`; every session-scoped table also carries `session_i
 | `org_members` | Who can host | org_id, user_id, role (owner / host / presenter) |
 | `rooms` | Persistent room, belongs to an org | org_id, slug, branding |
 | `sessions` | One live run of a room | room_id, started_at, ended_at, recording_url, presentation_id |
-| `deck_slides` | Synced from Slides API | presentation_id, slide_object_id, index, poll_payload, cta_payload |
+| `presentations` | Uploaded PDF deck | org_id, room_id, storage_path, page_count |
+| `participants` | Who is in the session, with the name they entered | session_id, user_id, display_name |
+| `activities` | Presenter-authored poll / quiz / word cloud / CTA | room_id, kind, title, options (with `correct`), config, timer_seconds, points |
+| `activity_runs` | One activation of an activity in a session | session_id, activity_id, opened_at, closes_at, closed_at, results_shown_at, hidden_at |
+| `activity_responses` | Answers; unique on (run_id, user_id); rejected after close; quizzes scored by trigger | run_id, option_ids, text_answer, is_correct, answered_ms |
 | `stage_roster` | Promote-to-stage state | session_id, user_id, state (viewer / invited / live / revoked) |
-| `slide_events` | Slide changes | session_id, slide_object_id, index, server_ts, forced |
-| `polls`, `poll_options`, `poll_responses` | Polls; unique on (poll_id, user_id) | — |
+| `slide_events` | Presenter navigated the deck | session_id, presentation_id, page_index, server_ts |
 | `questions`, `question_votes` | Q&A with upvotes and moderation flag | — |
 | `reactions` | Batched counts per second, not per tap | session_id, kind, count, bucket_ts |
 | `hand_raises` | Queue | session_id, user_id, raised_at, cleared_at |
-| `ctas`, `cta_events` | CTA definitions and every view/tap/conversion | user_id, cta_id, slide_id, offset_seconds, action |
+| `cta_events` | Every view/tap/conversion of a CTA run | user_id, run_id, page_index, offset_seconds, action |
 | `orders` | Stripe outcome | stripe_session_id, status, cta_event_id |
 
-**Realtime pattern.** Do not have 100 clients subscribe to `postgres_changes` with RLS; Supabase evaluates policies per subscriber per change and it slows down. Instead: write to the table, and a trigger using `realtime.broadcast_changes` pushes to a `session:{id}` broadcast channel that clients listen to. Poll tallies come from a `poll_tallies` view or a trigger-maintained counter, so the overlay reads one row.
+**Realtime pattern.** Do not have 100 clients subscribe to `postgres_changes` with RLS; Supabase evaluates policies per subscriber per change and it slows down. Instead: write to the table, and a trigger using `realtime.broadcast_changes` pushes to a `session:{id}` broadcast channel that clients listen to. Tallies come from a `run_tallies` view and quiz standings from `quiz_scores`, so the overlay reads a small result set.
 
 **RLS.** Host-side tables: `org_id in (select org_id from org_members where user_id = auth.uid())`. Viewers get a session-scoped anonymous identity (Supabase anonymous auth) with insert-only rights on responses, questions, reactions and hand-raises.
 
-**Front end.** Next.js on Vercel: viewer room, host panel, slide-in engagement panel. Vercel functions handle anything that needs a service key: token minting, stage changes, deck sync, Stripe.
+**Front end.** Next.js on Vercel: participant room, host panel, activity overlay. Vercel functions handle anything that needs a service key: token minting, stage changes, session lifecycle, Stripe. Everything else (activities, runs, answers, questions, deck navigation) is a direct Supabase write under RLS.
 
-## Component 3 — Chrome extension + Slides API sync
+## Component 3 — Presentation and activities
 
-**Decision:** a Chrome extension replaces the Google Slides add-on. Apps Script has no presentation-mode API, so an add-on cannot see which slide is showing, and its edits do not reliably re-render in an open presentation window. The extension fixes both and removes the polling-interval caveat.
+**Decision:** no Google Slides integration. The deck is a PDF uploaded to Supabase Storage and presented inside the room. The presenter navigates it in the host panel; participants render the same page from the same PDF with pdf.js. The presenter's video sits in a corner of the slide. This removes the extension, the Slides API, the URL-polling assumption and the Chrome Web Store review from the critical path.
 
-The extension is the only thing that knows the current slide; everything downstream is ordinary Supabase realtime.
+### Deck
 
-### Three jobs
+- Upload a PDF; the client counts pages and stores `storage_path` and `page_count` on `presentations`.
+- Each Prev/Next (or arrow key) inserts a `slide_events` row with `page_index`; the broadcast reaches participants, who wait their measured HLS latency before switching pages so the slide changes with the audio.
+- Going live inserts the presenter's current page so late joiners land on the right slide.
 
-1. **Report the current slide.** Content script on `docs.google.com/presentation/*` detects present mode and polls `location.href` every ~200ms for the `slide=id.xxx` parameter. Debounce 150ms, dedupe identical ids.
-2. **Send it.** POST `{presentation_id, slide_object_id, client_ts}` to `/api/slide-event`. The function validates the host, resolves the active session for that deck, looks up the slide's cue in `deck_slides`, inserts `slide_events`, and the trigger broadcasts.
-3. **Render results in present mode.** The content script injects a positioned div over the slide canvas and subscribes to the session channel: tallies, word clouds, hand-raise count, all instant, on the exact window being screen-shared. A small host strip in Google's presenter-view window carries the hand-raise queue, replay-poll and promote-to-stage.
+### Activities
 
-**Deck sync (no add-on).** When a host links a deck, a Vercel function calls the Slides API with `presentations.readonly`, walks `slides[].objectId` and notes text, parses cues into `deck_slides`. Re-sync on session start and via a refresh button.
+Authored in the host panel and stored per room, so they are reusable across sessions.
 
-**Auth handoff.** Declare the web app's origin in `externally_connectable`; one click in the host panel sends a session token via `chrome.runtime.sendMessage`. Store in `chrome.storage.session`. Popup shows "Connected as X · Room Y · Live".
+| Kind | Options | Timer | Results |
+| --- | --- | --- | --- |
+| Poll | 2–10 options, single choice | optional | bars with percentages |
+| Quiz | 2–10 options, one or more marked correct; points | optional | bars with correct answers marked, plus a leaderboard |
+| Word cloud | free text, up to 80 characters | optional | word cloud sized by frequency |
+| Call to action | destination (Stripe / embed / tab) and target | none | interactions count |
 
-### Edge cases
+**Run lifecycle.** Activate inserts an `activity_runs` row. A trigger sets `closes_at = opened_at + timer`. The overlay counts down; the database rejects answers after `closes_at` (2 s grace) or after the presenter closes the run, so the timer is enforced server-side. When time is up the presenter sees "Show results to participants", which sets `results_shown_at` and flips every overlay to the results view. "Hide results" and "Dismiss overlay" follow. Activating a new activity dismisses the previous one.
 
-- Presenter view and audience window both exist; server-side dedupe by slide id.
-- Rehearsal with no live session: extension shows "no active session", sends nothing.
-- Skipped or reordered slides: index comes from Google's position via re-sync, never a local counter.
-- URL not updating in some mode: DOM fallback on the slide counter / aria labels.
-- Distribution: load unpacked now; submit an unlisted Chrome Web Store listing early in Phase 2 (review takes days).
+**Scoring.** A quiz answer is correct when its option set equals the correct set. Points scale from full down to half by how much of the timer was used, so the quickest correct answer wins. `quiz_scores` sums across the session for the leaderboard.
 
-## Slide-tag interaction model
+**Overlay.** One component renders every phase: answering, "time's up, waiting for results", results. It sits over the slide, so the participant never leaves the presentation.
 
-Authoring a poll is typing a cue into the slide's speaker notes. Nothing else to configure.
+### Reactions
 
-```
-#poll: Which channel brings you the most leads? | Email | LinkedIn | Referrals | Paid
-#cta: Join the waitlist | embed | https://cueline.app/waitlist
-#cta: Buy the course | stripe | price_1Abc...
-```
+Always on: like, heart, laugh, sad, wow, clap. Taps batch client-side and flush once per second through `bump_reaction()`, which upserts a per-second bucket; everyone, host included, sees them float across the video.
 
-**Flow.** Presenter advances to a tagged slide → extension reports the slide id → function finds the cue in `deck_slides` and inserts a `slide_events` row → broadcast → each viewer's client waits for its measured HLS latency, then slides in the panel with the question → answers land in `poll_responses` → tallies appear on the overlay and in the panel.
+### Waiting room
 
-**Manual override.** A replay button per poll in the host panel and in the presenter-view strip. It inserts a new `slide_events` row with `forced: true`, so a question can be re-run without touching the deck.
-
-Cue types for Phase 1: single-choice poll, multi-choice poll, open text (word cloud), CTA. Ratings and quizzes can come later with the same parser.
+Per room, edited in the host panel like a slide: a background that is an image, a video, or an image plus a looping audio track, and text boxes with size, colour, alignment and weight positioned in percent on a 16:9 canvas by dragging. Shown from "Open waiting room" until "Go live", and whenever the room is closed. Participants enter a display name to join and can see how many are waiting.
 
 ## Calls to action and payments
 
-Same cue mechanism as polls, different payload. Prefer the embedded panel: a new tab mid-presentation kills conversion.
+A CTA is an activity like any other. Prefer the embedded overlay: a new tab mid-presentation kills conversion.
 
 | Destination | How | Notes |
 | --- | --- | --- |
@@ -112,7 +112,7 @@ Same cue mechanism as polls, different payload. Prefer the embedded panel: a new
 | Embedded external | Target URL in an iframe inside the panel | Only works if the site allows framing; most SaaS signup pages send `X-Frame-Options: DENY`. Test at authoring time and fall back automatically |
 | New tab | `window.open` | Last resort |
 
-**Own the conversion data.** Log a `cta_events` row on view and on tap, before the checkout loads, so abandonment is captured. Every row carries user, CTA, slide id and `offset_seconds` from session start, which answers "who tapped, at what minute, on which slide".
+**Own the conversion data.** Log a `cta_events` row on view and on tap, before the checkout loads, so abandonment is captured. Every row carries user, run, page index and `offset_seconds` from session start, which answers "who tapped, at what minute, on which slide".
 
 ## Pricing, free tier and economics
 
@@ -134,8 +134,8 @@ Rooms belong to an organisation, not a person, from the first migration. Create 
 
 | Phase | Scope | Effort | Done when |
 | --- | --- | --- | --- |
-| 1 | One room, presenters, HLS viewers, chat, Q&A, polls via extension, recording. No tiers, billing or signup | 3–4 weekends | You run your own webinar on it end to end |
-| 2 | Accounts, org auto-created on signup, scheduling page, email invites, unlisted Chrome Web Store listing | — | A second host can run a webinar without you |
+| 1 | One room, presenters, HLS viewers, PDF deck, activities with timers and results, Q&A, reactions, waiting room, recording. No tiers, billing or signup | 3–4 weekends | You run your own webinar on it end to end |
+| 2 | Accounts, org auto-created on signup, scheduling page, email invites, PPTX import | — | A second host can run a webinar without you |
 | 3 | Pricing tiers, Stripe billing, multi-tenancy hardening, analytics | — | First paying org |
 
 Name every project `cueline` from day one: repo, Supabase, Vercel, video vendor app, Stripe account.
@@ -160,27 +160,25 @@ Chosen 27 Sep 2026. "The line in your notes that cues the audience": explains th
 - [ ] WHOIS cueline.com and cueline.io; make an offer or broker request
 - [ ] Grab @cueline on X, LinkedIn, YouTube, GitHub, Chrome Web Store developer name
 - [ ] Trademark clearance search in NZ (IPONZ) and US (USPTO) for classes 9, 41, 42; file NZ first
-- [ ] Use the word in-product: a "cue" in notes, the "cue panel", "Cueline for Google Slides"
+- [ ] Use the word in-product: "cue" an activity, the "cue panel"
 - [x] Name repo, Supabase, Vercel, video vendor and Stripe projects cueline
 
 Not legal advice; have an IP lawyer confirm before spending on branding.
 
 ## Open decisions and prototype checklist
 
-The load-bearing assumption is that the present-mode URL updates with the slide id. Verify it before writing anything else.
-
-- [ ] Afternoon prototype: open a deck in present mode, confirm `slide=` changes in `location.href` on advance, on both the audience and presenter-view windows
-- [ ] Confirm a content script can inject an overlay div above the slide canvas in present mode and that it appears in a screen share
 - [ ] Pick the video vendor after a pricing check: participant-minute rate, HLS egress rate, recording storage
 - [ ] Measure real HLS latency on the chosen vendor and confirm the player exposes live-edge latency
-- [x] Decide reactions storage: broadcast-only vs batched rows (recommendation: batched per second) — batched per second via `bump_reaction()`
-- [x] Decide whether Phase 1 viewers need any identity beyond anonymous auth — no; anonymous auth only
+- [ ] Check pdf.js render time for a 60-page deck with photos on a mid-range phone
+- [x] Decide reactions storage: batched per second via `bump_reaction()`
+- [x] Decide participant identity: anonymous auth plus a display name on join
 - [ ] Test X-Frame-Options on the first two external CTA targets you plan to embed
+- [ ] Decide whether to import PPTX/Google Slides by converting to PDF server-side (Phase 2)
 
 ## Implementation notes (what the Phase 1 code does)
 
-- **Extension architecture.** The background service worker owns all network traffic (slide-event POSTs with the host's bearer token, and the realtime subscription); the content script owns the DOM (URL polling, DOM fallback, Shadow DOM overlay). The content script pings the worker every 20 s over a port to keep it alive while a deck is open.
-- **Replay = forced slide event.** `/api/poll/replay` and `/api/slide-event` share `recordSlideEvent`; a forced event opens a fresh poll, a normal one reuses the poll already open for that slide in that session.
-- **Dedupe window.** Same slide id reported within 5 s is dropped server-side (audience + presenter-view windows).
-- **Viewer inserts** never carry `org_id`; a `before insert` trigger fills it from the session so RLS stays simple.
-- **HLS latency.** `delayForEvent` clamps the reading to 0–15 s and falls back to 3 s when the player has no estimate (Safari native HLS).
+- **Session lifecycle.** `waiting` (room open, waiting room shown) → `live` (egress and recording started, deck and activities flow) → `ended`. One open session per room, enforced by a partial unique index.
+- **Timer enforcement.** `set_run_close` sets `closes_at` on insert; `check_response` rejects late or closed answers, fills `org_id`/`session_id` from the run, stamps `answered_ms` and scores quizzes. Clients only display the countdown.
+- **Dedupe of delayed events.** Participants schedule slide changes and run openings at `server_ts + latency`; the scheduler dedupes by row id.
+- **Deck access.** `presentations` are readable by authenticated users only; a participant's anonymous identity is created client-side, so the room fetches the deck after sign-in rather than relying on the server render.
+- **Storage.** Public buckets `presentations` (PDF, 50 MB) and `media` (images, video, audio, 100 MB); org members write under `<org_id>/…` and paths are random.

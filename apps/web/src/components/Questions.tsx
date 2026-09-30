@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
-import type { SessionState } from "@/lib/session-state";
+import type { SessionData } from "@/lib/session-state";
 import type { Question } from "@/lib/supabase/types";
 
 type Props = {
-  state: SessionState;
+  state: SessionData;
   userId: string | null;
   onAsk: (body: string) => Promise<void>;
   onUpvote: (id: string) => Promise<void>;

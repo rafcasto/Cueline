@@ -1,38 +1,47 @@
 import { describe, expect, it } from "vitest";
-import { emptyState, fromSnapshot, reduce, tallyFor, wordCloud } from "./session-state";
-import type { SessionBroadcast } from "./supabase/types";
+import { currentRun, emptyState, fromSnapshot, reduce, runPhase, tallyFor, timeLeftMs, wordCloud } from "./session-state";
+import type { Activity, ActivityRun, SessionBroadcast } from "./supabase/types";
 
 const msg = (table: string, operation: "INSERT" | "UPDATE" | "DELETE", record: Record<string, unknown> | null, old_record: Record<string, unknown> | null = null): SessionBroadcast => ({
   event: table,
   payload: { operation, table, schema: "public", record, old_record },
 });
 
-describe("reduce", () => {
-  it("opens a poll from a slide event, collects options and tallies votes", () => {
-    let s = emptyState;
-    s = reduce(s, msg("polls", "INSERT", { id: "p1", session_id: "s", kind: "poll", question: "Q?", slide_object_id: "g1", opened_at: "", closed_at: null }));
-    s = reduce(s, msg("poll_options", "INSERT", { id: "o2", poll_id: "p1", index: 1, label: "B" }));
-    s = reduce(s, msg("poll_options", "INSERT", { id: "o1", poll_id: "p1", index: 0, label: "A" }));
-    s = reduce(s, msg("slide_events", "INSERT", { id: "e1", session_id: "s", slide_object_id: "g1", index: 3, server_ts: "", forced: false, poll_id: "p1", cta_id: null }));
-    expect(s.activePollId).toBe("p1");
-    expect(s.options.p1.map((o) => o.label)).toEqual(["A", "B"]);
+const quiz: Activity = {
+  id: "a1", org_id: "o", room_id: "r", kind: "quiz", title: "Capital?", timer_seconds: 30, points: 1000, sort_order: 0, created_at: "",
+  options: [{ id: "x", label: "Auckland" }, { id: "y", label: "Wellington", correct: true }], config: {},
+};
+const run = (over: Partial<ActivityRun> = {}): ActivityRun => ({
+  id: "run1", org_id: "o", session_id: "s", activity_id: "a1", opened_at: "2026-09-30T10:00:00Z", closes_at: "2026-09-30T10:00:30Z",
+  closed_at: null, results_shown_at: null, hidden_at: null, ...over,
+});
 
-    s = reduce(s, msg("poll_responses", "INSERT", { id: "r1", poll_id: "p1", user_id: "u1", option_ids: ["o1"], text_answer: null }));
-    s = reduce(s, msg("poll_responses", "INSERT", { id: "r2", poll_id: "p1", user_id: "u2", option_ids: ["o1"], text_answer: null }));
-    s = reduce(s, msg("poll_responses", "INSERT", { id: "r3", poll_id: "p1", user_id: "u3", option_ids: ["o2"], text_answer: null }));
-    const dup = reduce(s, msg("poll_responses", "INSERT", { id: "r4", poll_id: "p1", user_id: "u3", option_ids: ["o2"], text_answer: null }));
+describe("reduce", () => {
+  it("tracks a run, tallies votes and dedupes users", () => {
+    let s = fromSnapshot({ activities: [quiz] });
+    s = reduce(s, msg("activity_runs", "INSERT", run() as unknown as Record<string, unknown>));
+    expect(currentRun(s)?.id).toBe("run1");
+    s = reduce(s, msg("activity_responses", "INSERT", { id: "r1", run_id: "run1", user_id: "u1", option_ids: ["y"], text_answer: null }), "u1");
+    s = reduce(s, msg("activity_responses", "INSERT", { id: "r2", run_id: "run1", user_id: "u2", option_ids: ["y"], text_answer: null }), "u1");
+    s = reduce(s, msg("activity_responses", "INSERT", { id: "r3", run_id: "run1", user_id: "u3", option_ids: ["x"], text_answer: null }), "u1");
+    const dup = reduce(s, msg("activity_responses", "INSERT", { id: "r4", run_id: "run1", user_id: "u3", option_ids: ["x"], text_answer: null }), "u1");
     expect(dup).toBe(s);
-    const t = tallyFor(s, "p1");
+    expect(s.myResponses.run1?.id).toBe("r1");
+    const t = tallyFor(s, s.runs.run1);
     expect(t.total).toBe(3);
-    expect(t.rows.map((r) => [r.label, r.votes, r.pct])).toEqual([["A", 2, 67], ["B", 1, 33]]);
+    expect(t.rows.map((r) => [r.label, r.votes, r.pct, r.correct ?? false])).toEqual([["Auckland", 1, 33, false], ["Wellington", 2, 67, true]]);
   });
 
-  it("a slide without a cue clears the active poll and cta", () => {
-    let s = reduce(emptyState, msg("slide_events", "INSERT", { id: "e1", poll_id: "p1", cta_id: "c1", slide_object_id: "g1" }));
-    expect(s.activePollId).toBe("p1");
-    s = reduce(s, msg("slide_events", "INSERT", { id: "e2", poll_id: null, cta_id: null, slide_object_id: "g2" }));
-    expect(s.activePollId).toBeNull();
-    expect(s.activeCtaId).toBeNull();
+  it("a hidden run is no longer current; the newest visible one is", () => {
+    let s = fromSnapshot({ activities: [quiz], runs: [run(), run({ id: "run2", opened_at: "2026-09-30T10:05:00Z" })] });
+    expect(currentRun(s)?.id).toBe("run2");
+    s = reduce(s, msg("activity_runs", "UPDATE", run({ id: "run2", opened_at: "2026-09-30T10:05:00Z", hidden_at: "2026-09-30T10:06:00Z" }) as unknown as Record<string, unknown>));
+    expect(currentRun(s)?.id).toBe("run1");
+  });
+
+  it("session state changes flow through", () => {
+    const s = reduce(emptyState, msg("sessions", "UPDATE", { id: "s", state: "live" }));
+    expect(s.session?.state).toBe("live");
   });
 
   it("tracks the hand-raise queue in raise order and clears on update", () => {
@@ -43,25 +52,30 @@ describe("reduce", () => {
     expect(s.handRaises.map((h) => h.user_id)).toEqual(["b"]);
   });
 
-  it("keeps roster state per user and ignores unknown tables", () => {
+  it("keeps roster and participants per user and ignores unknown tables", () => {
     let s = reduce(emptyState, msg("stage_roster", "INSERT", { id: "r", user_id: "u", state: "invited" }));
     s = reduce(s, msg("stage_roster", "UPDATE", { id: "r", user_id: "u", state: "live" }));
+    s = reduce(s, msg("participants", "INSERT", { session_id: "s", user_id: "u", display_name: "Ada" }));
     expect(s.roster.u.state).toBe("live");
+    expect(s.participants.u.display_name).toBe("Ada");
     expect(reduce(s, msg("orders", "INSERT", { id: "x" }))).toBe(s);
   });
 });
 
-describe("fromSnapshot and wordCloud", () => {
-  it("builds state from an initial fetch", () => {
-    const s = fromSnapshot({
-      polls: [{ id: "p1", session_id: "s", kind: "text", question: "Q", slide_object_id: null, opened_at: "", closed_at: null }],
-      tallies: [{ poll_id: "p1", option_id: "o1", votes: 4 }],
-      lastSlide: { id: "e", session_id: "s", slide_object_id: "g", index: 0, server_ts: "", forced: false, poll_id: "p1", cta_id: null },
-    });
-    expect(s.activePollId).toBe("p1");
-    expect(s.votes.p1.o1).toBe(4);
+describe("run phases and timers", () => {
+  const t0 = new Date("2026-09-30T10:00:10Z").getTime();
+  it("is open before the timer, closed after, results when shown", () => {
+    expect(runPhase(run(), t0)).toBe("open");
+    expect(timeLeftMs(run(), t0)).toBe(20_000);
+    expect(runPhase(run(), t0 + 25_000)).toBe("closed");
+    expect(timeLeftMs(run(), t0 + 25_000)).toBe(0);
+    expect(runPhase(run({ closed_at: "2026-09-30T10:00:15Z" }), t0)).toBe("closed");
+    expect(runPhase(run({ closed_at: "2026-09-30T10:00:15Z", results_shown_at: "2026-09-30T10:00:16Z" }), t0)).toBe("results");
+    expect(timeLeftMs(run({ closes_at: null }), t0)).toBeNull();
   });
+});
 
+describe("wordCloud", () => {
   it("counts words, drops stop words, sorts by frequency", () => {
     expect(wordCloud(["Hiring is the blocker", "hiring and budget", "Budget"]).slice(0, 2)).toEqual([
       { word: "budget", count: 2 },

@@ -3,50 +3,62 @@
  * stream (plus an initial snapshot). Both the viewer room and the host panel
  * apply the same reducer, so what the host sees is what viewers see.
  */
-import type { Cta, HandRaise, Poll, PollOption, Question, SessionBroadcast, SlideEvent, StageRoster } from "@/lib/supabase/types";
+import type {
+  Activity,
+  ActivityResponse,
+  ActivityRun,
+  HandRaise,
+  Participant,
+  Question,
+  Session,
+  SessionBroadcast,
+  SlideEvent,
+  StageRoster,
+} from "@/lib/supabase/types";
 
-export type PollResponseRecord = { id: string; poll_id: string; user_id: string; option_ids: string[]; text_answer: string | null };
-
-export type SessionState = {
-  polls: Record<string, Poll>;
-  options: Record<string, PollOption[]>; // by poll_id, sorted by index
-  votes: Record<string, Record<string, number>>; // poll_id -> option_id -> count
-  textAnswers: Record<string, string[]>; // poll_id -> answers
-  responded: Record<string, string[]>; // poll_id -> user ids (for dedupe)
-  ctas: Record<string, Cta>;
+export type SessionData = {
+  session: Session | null;
+  activities: Record<string, Activity>;
+  runs: Record<string, ActivityRun>;
+  votes: Record<string, Record<string, number>>; // run_id -> option_id -> count
+  textAnswers: Record<string, string[]>; // run_id -> answers
+  responded: Record<string, string[]>; // run_id -> user ids
+  myResponses: Record<string, ActivityResponse>; // run_id -> my row
+  participants: Record<string, Participant>;
   questions: Record<string, Question>;
   questionVotes: Record<string, number>;
   handRaises: HandRaise[];
-  roster: Record<string, StageRoster>; // by user_id
-  reactions: Record<string, number>; // kind -> count in the last bucket
+  roster: Record<string, StageRoster>;
+  reactions: Record<string, number>; // kind -> count in the latest bucket
+  lastReaction: { kind: string; count: number; bucket_ts: string } | null;
   lastSlide: SlideEvent | null;
-  /** Latest slide event carrying a poll or CTA; what the panel should show. */
-  activePollId: string | null;
-  activeCtaId: string | null;
 };
 
-export const emptyState: SessionState = {
-  polls: {},
-  options: {},
+export const emptyState: SessionData = {
+  session: null,
+  activities: {},
+  runs: {},
   votes: {},
   textAnswers: {},
   responded: {},
-  ctas: {},
+  myResponses: {},
+  participants: {},
   questions: {},
   questionVotes: {},
   handRaises: [],
   roster: {},
   reactions: {},
+  lastReaction: null,
   lastSlide: null,
-  activePollId: null,
-  activeCtaId: null,
 };
 
 export type Snapshot = Partial<{
-  polls: Poll[];
-  options: PollOption[];
-  tallies: { poll_id: string; option_id: string; votes: number }[];
-  ctas: Cta[];
+  session: Session | null;
+  activities: Activity[];
+  runs: ActivityRun[];
+  tallies: { run_id: string; option_id: string; votes: number }[];
+  myResponses: ActivityResponse[];
+  participants: Participant[];
   questions: Question[];
   questionVotes: { question_id: string }[];
   handRaises: HandRaise[];
@@ -54,78 +66,72 @@ export type Snapshot = Partial<{
   lastSlide: SlideEvent | null;
 }>;
 
-export function fromSnapshot(s: Snapshot): SessionState {
-  const st: SessionState = structuredClone(emptyState);
-  for (const p of s.polls ?? []) st.polls[p.id] = p;
-  for (const o of s.options ?? []) (st.options[o.poll_id] ??= []).push(o);
-  for (const list of Object.values(st.options)) list.sort((a, b) => a.index - b.index);
-  for (const t of s.tallies ?? []) (st.votes[t.poll_id] ??= {})[t.option_id] = t.votes;
-  for (const c of s.ctas ?? []) st.ctas[c.id] = c;
+export function fromSnapshot(s: Snapshot): SessionData {
+  const st: SessionData = structuredClone(emptyState);
+  st.session = s.session ?? null;
+  for (const a of s.activities ?? []) st.activities[a.id] = a;
+  for (const r of s.runs ?? []) st.runs[r.id] = r;
+  for (const t of s.tallies ?? []) (st.votes[t.run_id] ??= {})[t.option_id] = t.votes;
+  for (const r of s.myResponses ?? []) st.myResponses[r.run_id] = r;
+  for (const p of s.participants ?? []) st.participants[p.user_id] = p;
   for (const q of s.questions ?? []) st.questions[q.id] = q;
   for (const v of s.questionVotes ?? []) st.questionVotes[v.question_id] = (st.questionVotes[v.question_id] ?? 0) + 1;
   st.handRaises = (s.handRaises ?? []).filter((h) => !h.cleared_at);
   for (const r of s.roster ?? []) st.roster[r.user_id] = r;
-  if (s.lastSlide) {
-    st.lastSlide = s.lastSlide;
-    st.activePollId = s.lastSlide.poll_id;
-    st.activeCtaId = s.lastSlide.cta_id;
-  }
+  st.lastSlide = s.lastSlide ?? null;
   return st;
 }
 
 /** Apply one broadcast message. Returns a new state object only when something changed. */
-export function reduce(state: SessionState, msg: SessionBroadcast): SessionState {
+export function reduce(state: SessionData, msg: SessionBroadcast, me: string | null = null): SessionData {
   const { operation, table, record, old_record } = msg.payload;
   switch (table) {
+    case "sessions": {
+      if (!record) return state;
+      return { ...state, session: record as unknown as Session };
+    }
     case "slide_events": {
       if (operation !== "INSERT" || !record) return state;
-      const ev = record as unknown as SlideEvent;
-      return {
-        ...state,
-        lastSlide: ev,
-        // A slide with no cue clears the panel; a cue slide replaces it.
-        activePollId: ev.poll_id,
-        activeCtaId: ev.cta_id,
-      };
+      return { ...state, lastSlide: record as unknown as SlideEvent };
     }
-    case "polls": {
+    case "activity_runs": {
       if (operation === "DELETE") {
-        const id = (old_record as unknown as Poll | null)?.id;
-        if (!id || !state.polls[id]) return state;
-        const polls = { ...state.polls };
-        delete polls[id];
-        return { ...state, polls, activePollId: state.activePollId === id ? null : state.activePollId };
+        const id = (old_record as unknown as ActivityRun | null)?.id;
+        if (!id || !state.runs[id]) return state;
+        const runs = { ...state.runs };
+        delete runs[id];
+        return { ...state, runs };
       }
-      const p = record as unknown as Poll;
-      return { ...state, polls: { ...state.polls, [p.id]: p } };
+      const r = record as unknown as ActivityRun;
+      return { ...state, runs: { ...state.runs, [r.id]: r } };
     }
-    case "poll_options": {
+    case "activity_responses": {
       if (operation !== "INSERT" || !record) return state;
-      const o = record as unknown as PollOption;
-      const list = [...(state.options[o.poll_id] ?? []).filter((x) => x.id !== o.id), o].sort((a, b) => a.index - b.index);
-      return { ...state, options: { ...state.options, [o.poll_id]: list } };
-    }
-    case "poll_responses": {
-      if (operation !== "INSERT" || !record) return state;
-      const r = record as unknown as PollResponseRecord;
-      const seen = state.responded[r.poll_id] ?? [];
-      if (seen.includes(r.user_id)) return state; // unique (poll_id, user_id) server-side; belt and braces here
-      const votes = { ...(state.votes[r.poll_id] ?? {}) };
+      const r = record as unknown as ActivityResponse;
+      const seen = state.responded[r.run_id] ?? [];
+      if (seen.includes(r.user_id)) return state;
+      const votes = { ...(state.votes[r.run_id] ?? {}) };
       for (const id of r.option_ids ?? []) votes[id] = (votes[id] ?? 0) + 1;
       const textAnswers = r.text_answer
-        ? { ...state.textAnswers, [r.poll_id]: [...(state.textAnswers[r.poll_id] ?? []), r.text_answer] }
+        ? { ...state.textAnswers, [r.run_id]: [...(state.textAnswers[r.run_id] ?? []), r.text_answer] }
         : state.textAnswers;
+      const myResponses = me && r.user_id === me ? { ...state.myResponses, [r.run_id]: r } : state.myResponses;
       return {
         ...state,
-        votes: { ...state.votes, [r.poll_id]: votes },
+        votes: { ...state.votes, [r.run_id]: votes },
         textAnswers,
-        responded: { ...state.responded, [r.poll_id]: [...seen, r.user_id] },
+        responded: { ...state.responded, [r.run_id]: [...seen, r.user_id] },
+        myResponses,
       };
     }
-    case "ctas": {
-      if (operation !== "INSERT" && operation !== "UPDATE") return state;
-      const c = record as unknown as Cta;
-      return { ...state, ctas: { ...state.ctas, [c.id]: c } };
+    case "participants": {
+      const p = (record ?? old_record) as unknown as Participant;
+      if (operation === "DELETE") {
+        const participants = { ...state.participants };
+        delete participants[p.user_id];
+        return { ...state, participants };
+      }
+      return { ...state, participants: { ...state.participants, [p.user_id]: p } };
     }
     case "questions": {
       if (operation === "DELETE") {
@@ -161,30 +167,61 @@ export function reduce(state: SessionState, msg: SessionBroadcast): SessionState
     case "reactions": {
       if (!record) return state;
       const r = record as { kind: string; count: number; bucket_ts: string };
-      // Newest bucket wins; the UI animates the delta.
-      return { ...state, reactions: { ...state.reactions, [r.kind]: r.count } };
+      return { ...state, reactions: { ...state.reactions, [r.kind]: r.count }, lastReaction: r };
     }
     default:
       return state;
   }
 }
 
-export function tallyFor(state: SessionState, pollId: string) {
-  const options = state.options[pollId] ?? [];
-  const votes = state.votes[pollId] ?? {};
+/** The run the overlay should show: the newest one that is not hidden. */
+export function currentRun(state: SessionData): ActivityRun | null {
+  let best: ActivityRun | null = null;
+  for (const r of Object.values(state.runs)) {
+    if (r.hidden_at) continue;
+    if (!best || r.opened_at > best.opened_at) best = r;
+  }
+  return best;
+}
+
+export type RunPhase = "open" | "closed" | "results";
+
+/** Where a run is in its life: answering, waiting for results, or results on screen. */
+export function runPhase(run: ActivityRun, now = Date.now()): RunPhase {
+  if (run.results_shown_at) return "results";
+  if (run.closed_at) return "closed";
+  if (run.closes_at && now > new Date(run.closes_at).getTime()) return "closed";
+  return "open";
+}
+
+/** Milliseconds left on a timed run, or null when untimed. */
+export function timeLeftMs(run: ActivityRun, now = Date.now()): number | null {
+  if (!run.closes_at) return null;
+  return Math.max(0, new Date(run.closes_at).getTime() - now);
+}
+
+export function tallyFor(state: SessionData, run: ActivityRun) {
+  const activity = state.activities[run.activity_id];
+  const options = activity?.options ?? [];
+  const votes = state.votes[run.id] ?? {};
   const total = options.reduce((n, o) => n + (votes[o.id] ?? 0), 0);
   return {
     total,
-    rows: options.map((o) => ({ ...o, votes: votes[o.id] ?? 0, pct: total ? Math.round(((votes[o.id] ?? 0) / total) * 100) : 0 })),
+    responses: (state.responded[run.id] ?? []).length,
+    rows: options.map((o) => ({
+      ...o,
+      votes: votes[o.id] ?? 0,
+      pct: total ? Math.round(((votes[o.id] ?? 0) / total) * 100) : 0,
+    })),
   };
 }
 
-/** Word frequencies for the open-text word cloud. */
-export function wordCloud(answers: string[], limit = 30) {
+/** Word frequencies for the word cloud. */
+export function wordCloud(answers: string[], limit = 40) {
   const stop = new Set(["the", "a", "an", "and", "or", "of", "to", "in", "is", "it", "we", "i", "our", "for", "on", "with", "that", "this"]);
   const counts = new Map<string, number>();
   for (const a of answers) {
-    for (const w of a.toLowerCase().split(/[^a-z0-9']+/)) {
+    for (const w of a.toLowerCase().split(/[^\p{L}\p{N}']+/u)) {
       if (w.length < 2 || stop.has(w)) continue;
       counts.set(w, (counts.get(w) ?? 0) + 1);
     }

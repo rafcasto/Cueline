@@ -20,10 +20,10 @@ export const POST = handler(async (req) => {
 
   const { data: session } = await admin
     .from("sessions")
-    .select("id, org_id, ended_at, rooms(livekit_room)")
+    .select("id, org_id, state, rooms(livekit_room)")
     .eq("id", body.session_id)
     .maybeSingle();
-  if (!session || session.ended_at) return json({ error: "no live session" }, { status: 404 });
+  if (!session || session.state === "ended") return json({ error: "no open session" }, { status: 404 });
   const room = (session.rooms as unknown as { livekit_room: string } | null)?.livekit_room ?? "";
 
   if (body.action === "token") {

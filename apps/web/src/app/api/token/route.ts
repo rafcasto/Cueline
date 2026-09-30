@@ -15,10 +15,10 @@ export const POST = handler(async (req) => {
 
   const { data: session } = await admin
     .from("sessions")
-    .select("id, org_id, hls_url, ended_at, rooms(livekit_room)")
+    .select("id, org_id, hls_url, state, rooms(livekit_room)")
     .eq("id", body.session_id)
     .maybeSingle();
-  if (!session || session.ended_at) return json({ error: "no live session" }, { status: 404 });
+  if (!session || session.state === "ended") return json({ error: "no open session" }, { status: 404 });
 
   if (body.role === "viewer") return json({ mode: "hls", hls_url: session.hls_url });
 

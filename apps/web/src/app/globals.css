@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+.cq { container-type: size; }
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -23,4 +25,10 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes float {
+  0% { transform: translateY(0) scale(0.8); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(-11rem) scale(1.3); opacity: 0; }
 }

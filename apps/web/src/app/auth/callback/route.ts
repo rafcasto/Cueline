@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 
-/** Google OAuth (PKCE) callback. The provider token is kept client-side for the Slides API sync. */
+/** Google OAuth (PKCE) callback for hosts. */
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   const next = req.nextUrl.searchParams.get("next") ?? "/host";

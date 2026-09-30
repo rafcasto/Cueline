@@ -2,10 +2,35 @@
 // local stack is running; keep the names identical so call sites don't change.
 
 export type OrgRole = "owner" | "host" | "presenter";
+export type SessionState = "waiting" | "live" | "ended";
 export type StageState = "viewer" | "invited" | "live" | "revoked";
-export type CueKind = "poll" | "multipoll" | "text" | "cta";
+export type ActivityKind = "poll" | "quiz" | "wordcloud" | "cta";
 export type CtaDestination = "stripe" | "embed" | "tab";
 export type CtaAction = "view" | "tap" | "conversion";
+export const REACTION_KINDS = ["like", "heart", "laugh", "sad", "wow", "clap"] as const;
+export type ReactionKind = (typeof REACTION_KINDS)[number];
+
+export type WaitingRoomBackground = {
+  type: "image" | "video" | "image_audio";
+  image_url?: string;
+  video_url?: string;
+  audio_url?: string;
+};
+export type WaitingRoomElement = {
+  id: string;
+  type: "text";
+  /** Percent of the 16:9 canvas. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  text: string;
+  fontSize: number; // percent of canvas height
+  color: string;
+  align: "left" | "center" | "right";
+  weight: "normal" | "bold";
+};
+export type WaitingRoom = { background: WaitingRoomBackground; elements: WaitingRoomElement[] };
 
 export type Room = {
   id: string;
@@ -13,7 +38,18 @@ export type Room = {
   slug: string;
   name: string;
   branding: Record<string, unknown>;
+  waiting_room: WaitingRoom;
   livekit_room: string;
+};
+
+export type Presentation = {
+  id: string;
+  org_id: string;
+  room_id: string;
+  name: string;
+  storage_path: string;
+  page_count: number;
+  created_at: string;
 };
 
 export type Session = {
@@ -21,55 +57,62 @@ export type Session = {
   org_id: string;
   room_id: string;
   presentation_id: string | null;
-  started_at: string;
+  state: SessionState;
+  created_at: string;
+  started_at: string | null;
   ended_at: string | null;
   hls_url: string | null;
   egress_id: string | null;
   recording_url: string | null;
 };
 
-export type DeckSlide = {
+export type ActivityOption = { id: string; label: string; correct?: boolean };
+export type CtaConfig = { destination: CtaDestination; target: string };
+
+export type Activity = {
   id: string;
   org_id: string;
-  presentation_id: string;
-  slide_object_id: string;
-  index: number;
-  notes: string | null;
-  poll_payload: { kind: "poll" | "multipoll"; question: string; options: string[] } | { kind: "text"; question: string } | null;
-  cta_payload: { kind: "cta"; label: string; destination: CtaDestination; target: string } | null;
+  room_id: string;
+  kind: ActivityKind;
+  title: string;
+  options: ActivityOption[];
+  config: Partial<CtaConfig> & { max_words?: number };
+  timer_seconds: number | null;
+  points: number;
+  sort_order: number;
+  created_at: string;
 };
 
-export type StageRoster = {
+export type ActivityRun = {
   id: string;
+  org_id: string;
   session_id: string;
-  user_id: string;
-  state: StageState;
-  updated_at: string;
-};
-
-export type SlideEvent = {
-  id: string;
-  session_id: string;
-  slide_object_id: string;
-  index: number | null;
-  server_ts: string;
-  forced: boolean;
-  poll_id: string | null;
-  cta_id: string | null;
-};
-
-export type Poll = {
-  id: string;
-  session_id: string;
-  slide_object_id: string | null;
-  kind: CueKind;
-  question: string;
+  activity_id: string;
   opened_at: string;
+  closes_at: string | null;
   closed_at: string | null;
+  results_shown_at: string | null;
+  hidden_at: string | null;
 };
 
-export type PollOption = { id: string; poll_id: string; index: number; label: string };
-export type PollTally = { poll_id: string; option_id: string; index: number; label: string; votes: number };
+export type ActivityResponse = {
+  id: string;
+  session_id: string;
+  run_id: string;
+  user_id: string;
+  option_ids: string[];
+  text_answer: string | null;
+  is_correct: boolean | null;
+  answered_ms: number | null;
+  created_at: string;
+};
+
+export type RunTally = { run_id: string; index: number; option_id: string; label: string; correct: boolean; votes: number };
+export type QuizScore = { session_id: string; user_id: string; display_name: string | null; points: number; correct: number; total_ms: number };
+
+export type Participant = { session_id: string; user_id: string; display_name: string; joined_at: string };
+export type StageRoster = { id: string; session_id: string; user_id: string; state: StageState; updated_at: string };
+export type SlideEvent = { id: string; session_id: string; presentation_id: string | null; page_index: number; server_ts: string };
 
 export type Question = {
   id: string;
@@ -82,15 +125,6 @@ export type Question = {
 };
 
 export type HandRaise = { id: string; session_id: string; user_id: string; raised_at: string; cleared_at: string | null };
-
-export type Cta = {
-  id: string;
-  session_id: string;
-  slide_object_id: string | null;
-  label: string;
-  destination: CtaDestination;
-  target: string;
-};
 
 /** Shape of one message on the `session:{id}` broadcast channel (from realtime.broadcast_changes). */
 export type SessionBroadcast<T = Record<string, unknown>> = {

@@ -13,7 +13,7 @@ export class HttpError extends Error {
 
 /**
  * Resolve the calling user from either the auth cookie (web app) or a bearer
- * token (Chrome extension, which stores the session token in chrome.storage.session).
+ * token (any non-browser client, e.g. a future companion app).
  */
 export async function currentUser(req: Request): Promise<{ user: User; client: SupabaseClient } | null> {
   const bearer = req.headers.get("authorization")?.match(/^Bearer (.+)$/i)?.[1];
