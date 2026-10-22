@@ -11,3 +11,7 @@ coverage/
 .vercel
 supabase/.temp/
 supabase/.branches/
+
+# Filled-in copies of docs/DEPLOY_ENV_TEMPLATE.env
+*.env.filled
+.env.deploy
