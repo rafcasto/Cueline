@@ -147,6 +147,8 @@ export type Invite = {
   title: string;
   description: string | null;
   starts_at: string | null;
+  /** IANA zone the host scheduled in; emails format the start time in it. */
+  timezone: string;
   created_by: string | null;
   created_at: string;
   revoked_at: string | null;
@@ -160,5 +162,40 @@ export type Registration = {
   user_id: string;
   name: string;
   email: string;
+  /** Six-character join code, typed with the email at /join. */
+  code: string;
+  /** Magic-link token, /a/<token>; never shown to other attendees. */
+  access_token: string;
   created_at: string;
+};
+
+export type InviteEmailKind = "confirmation" | "reminder";
+export type RegistrationEmailStatus = "queued" | "scheduled" | "sent" | "cancelled" | "failed";
+
+/** One step of an event's email sequence. Confirmation goes out on registration; reminders at minutes_before the start. */
+export type InviteEmail = {
+  id: string;
+  org_id: string;
+  invite_id: string;
+  kind: InviteEmailKind;
+  minutes_before: number | null;
+  subject: string;
+  body: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** What Resend was asked to do for one registrant and one step. */
+export type RegistrationEmail = {
+  id: string;
+  org_id: string;
+  registration_id: string;
+  invite_email_id: string;
+  send_at: string;
+  status: RegistrationEmailStatus;
+  resend_id: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
 };

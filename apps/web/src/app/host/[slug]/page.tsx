@@ -29,6 +29,7 @@ export default async function HostRoomPage({ params }: { params: Promise<{ slug:
       room={room as Room}
       initialSession={(session as Session | null) ?? null}
       userId={auth.user.id}
+      userEmail={auth.user.email ?? null}
       presentations={(presentations as Presentation[] | null) ?? []}
       activities={(activities as Activity[] | null) ?? []}
       invites={(invites as Invite[] | null) ?? []}

@@ -1,9 +1,16 @@
 import { notFound } from "next/navigation";
+import { PublicShell } from "@/components/AppShell";
 import { RegisterForm } from "@/components/RegisterForm";
 import { inviteByToken, registrationFor } from "@/lib/invites";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const found = await inviteByToken(token);
+  return { title: found ? found.invite.title : "Invite" };
+}
 
 /**
  * The invite link. One page does the whole attendee side: what the webinar is, when it is,
@@ -21,17 +28,19 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
   const registration = auth.user ? await registrationFor(room.id, auth.user.id) : null;
 
   return (
-    <RegisterForm
-      token={invite.token}
-      title={invite.title}
-      description={invite.description}
-      startsAt={invite.starts_at}
-      revoked={!!invite.revoked_at}
-      roomName={room.name}
-      roomSlug={room.slug}
-      waitingRoom={room.waiting_room}
-      sessionState={session?.state ?? null}
-      registered={registration ? { name: registration.name, email: registration.email } : null}
-    />
+    <PublicShell>
+      <RegisterForm
+        token={invite.token}
+        title={invite.title}
+        description={invite.description}
+        startsAt={invite.starts_at}
+        revoked={!!invite.revoked_at}
+        roomName={room.name}
+        roomSlug={room.slug}
+        waitingRoom={room.waiting_room}
+        sessionState={session?.state ?? null}
+        registered={registration ? { name: registration.name, email: registration.email, code: registration.code } : null}
+      />
+    </PublicShell>
   );
 }

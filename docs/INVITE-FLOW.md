@@ -11,8 +11,8 @@ The open door at `/r/<slug>` (type a name, you are in) is replaced by an invite 
 | A1 | Organisers want attendee emails before the webinar, and will accept fewer walk-ins to get them | High: the gate costs attendance | Medium | **Yes** |
 | A2 | Attendees will give a name and email for a free webinar when the page shows what it is and when | High: zero registrations means zero attendance | Medium | **Yes** |
 | A3 | One link that is both the registration page and the door on the day is less confusing than two links (register here, join there) | Medium | High | **Yes** |
-| A4 | An anonymous browser identity is enough to recognise a registrant on return; no password, no magic link | Medium: a second device needs re-registration with the same email | Low (handled: re-registering re-binds the email) | No |
-| A5 | Organisers need a live registrant list more than they need email confirmations | Low | Medium | No, later |
+| A4 | An anonymous browser identity is enough to recognise a registrant on return; no password, no magic link | Medium: a second device needs re-registration with the same email | Low (handled 24 Oct: the personal link `/a/<token>` and email + code at `/join` re-bind the registration) | No |
+| A5 | Organisers need a live registrant list more than they need email confirmations | Low | Medium | Superseded 24 Oct: confirmation and reminders shipped, see [EMAILS.md](EMAILS.md) |
 | A6 | Organisers run several events per room and want a fresh link per event rather than one permanent link | Low | High | No, observe |
 
 ## Hypotheses

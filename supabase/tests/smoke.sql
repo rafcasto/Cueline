@@ -81,3 +81,25 @@ select 'attendee cannot list invites' as check, count(*) = 0 as pass from public
 select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
 select 'host sees all registrations' as check, count(*) = 2 as pass from public.registrations where invite_id = '66666666-6666-6666-6666-666666666666';
 reset role;
+
+-- Join codes, magic links and the seeded email sequence.
+select 'join code is six safe chars' as check, bool_and(code ~ '^[23456789A-HJ-NP-Z]{6}$') as pass from public.registrations;
+select 'access token per registration' as check, count(distinct access_token) = count(*) as pass from public.registrations;
+select 'invite seeds the default sequence' as check,
+  count(*) = 5 and bool_and(enabled) and count(*) filter (where kind = 'confirmation') = 1 as pass
+  from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
+select 'reminder offsets' as check, array_agg(minutes_before order by minutes_before desc) = '{2880,1440,120,15}'::int[] as pass
+  from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666' and kind = 'reminder';
+do $$ begin
+  insert into public.invite_emails(org_id, invite_id, kind, minutes_before, subject, body)
+  values ('00000000-0000-0000-0000-000000000001', '66666666-6666-6666-6666-666666666666', 'confirmation', 5, 'x', 'y');
+  raise exception 'confirmation with an offset should be rejected';
+exception when check_violation then null; end $$;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+select 'attendee cannot read the sequence' as check, count(*) = 0 as pass from public.invite_emails;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+update public.invite_emails set enabled = false where invite_id = '66666666-6666-6666-6666-666666666666' and minutes_before = 15;
+select 'host edits the sequence' as check, bool_or(not enabled) and bool_and(updated_at >= created_at) as pass
+  from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
+reset role;

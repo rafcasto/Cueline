@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { ResultsView } from "@/components/ResultsView";
+import { cx } from "@/components/ui";
 import { useNow } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { runPhase, timeLeftMs, type SessionData } from "@/lib/session-state";
@@ -29,27 +30,25 @@ export function ActivityOverlay({ state, run, activity, userId, roomSlug, readOn
   const mine = state.myResponses[run.id];
 
   return (
-    <div className="pointer-events-auto w-full max-w-lg rounded-2xl bg-neutral-950/90 p-5 text-white shadow-2xl backdrop-blur">
-      <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-wide text-neutral-400">
+    <div className="pointer-events-auto w-full max-w-lg animate-rise rounded-2xl border border-white/10 bg-slate-950/90 p-6 text-white shadow-overlay backdrop-blur">
+      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
         <span>{label(activity.kind)}</span>
-        {left !== null && phase === "open" && (
-          <span className={`tabular-nums ${left < 5000 ? "text-red-400" : ""}`}>{Math.ceil(left / 1000)}s</span>
-        )}
+        {left !== null && phase === "open" && <span className={cx("tabular-nums", left < 5000 && "text-red-400")}>{Math.ceil(left / 1000)}s</span>}
         {phase === "closed" && <span>Time&apos;s up</span>}
         {phase === "results" && <span>Results</span>}
       </div>
-      <h3 className="text-lg font-semibold">{activity.title}</h3>
+      <h3 className="mt-2 text-lg font-semibold leading-snug">{activity.title}</h3>
 
       {phase === "results" ? (
         <ResultsView state={state} run={run} activity={activity} userId={userId} dark />
       ) : activity.kind === "cta" ? (
         <CtaBody run={run} activity={activity} roomSlug={roomSlug} pageIndex={state.lastSlide?.page_index ?? null} readOnly={readOnly} />
       ) : phase === "closed" ? (
-        <p className="mt-3 text-sm text-neutral-300">
+        <p className="mt-4 text-sm leading-relaxed text-slate-300">
           {mine ? "Answer received. Waiting for the presenter to reveal the results." : "Answers are closed. Waiting for the results."}
         </p>
       ) : mine || readOnly ? (
-        <p className="mt-3 text-sm text-neutral-300">
+        <p className="mt-4 text-sm leading-relaxed text-slate-300">
           {readOnly ? `${(state.responded[run.id] ?? []).length} answered so far.` : "Answer received."}
         </p>
       ) : (
@@ -62,6 +61,9 @@ export function ActivityOverlay({ state, run, activity, userId, roomSlug, readOn
 function label(kind: Activity["kind"]) {
   return { poll: "Poll", quiz: "Quiz", wordcloud: "Word cloud", cta: "Call to action" }[kind];
 }
+
+const overlayPrimary =
+  "inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-lg bg-white px-4 font-semibold text-slate-900 transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50";
 
 function AnswerForm({ run, activity, userId }: { run: ActivityRun; activity: Activity; userId: string | null }) {
   const [picked, setPicked] = useState<string[]>([]);
@@ -87,34 +89,50 @@ function AnswerForm({ run, activity, userId }: { run: ActivityRun; activity: Act
   if (activity.kind === "wordcloud") {
     return (
       <form
-        className="mt-3 flex gap-2"
+        className="mt-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (text.trim()) void submit();
         }}
       >
-        <input autoFocus value={text} onChange={(e) => setText(e.target.value)} maxLength={80} placeholder="One or two words" className="flex-1 rounded-lg bg-white/10 px-3 py-2 text-white placeholder:text-neutral-400" />
-        <button disabled={busy || !text.trim()} className="rounded-lg bg-indigo-500 px-4 py-2 font-medium disabled:opacity-50">Send</button>
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        <div className="flex gap-2">
+          <input
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            maxLength={80}
+            placeholder="One or two words"
+            className="h-11 flex-1 rounded-lg border border-white/10 bg-white/10 px-3 text-white placeholder:text-slate-400 focus:border-white/30 focus-visible:outline-none focus:ring-2 focus:ring-white/20"
+          />
+          <button type="submit" disabled={busy || !text.trim()} className={cx(overlayPrimary, "w-auto px-5")}>
+            Send
+          </button>
+        </div>
+        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
       </form>
     );
   }
 
   return (
-    <div className="mt-3">
+    <div className="mt-4">
       <ul className="space-y-2">
-        {activity.options.map((o) => (
-          <li key={o.id}>
-            <button
-              onClick={() => toggle(o.id)}
-              className={`w-full rounded-lg px-3 py-2 text-left transition ${picked.includes(o.id) ? "bg-indigo-500" : "bg-white/10 hover:bg-white/20"}`}
-            >
-              {o.label}
-            </button>
-          </li>
-        ))}
+        {activity.options.map((o) => {
+          const on = picked.includes(o.id);
+          return (
+            <li key={o.id}>
+              <button
+                type="button"
+                onClick={() => toggle(o.id)}
+                aria-pressed={on}
+                className={cx("w-full cursor-pointer rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors", on ? "bg-brand text-white" : "bg-white/10 hover:bg-white/15")}
+              >
+                {o.label}
+              </button>
+            </li>
+          );
+        })}
       </ul>
-      <button onClick={() => void submit()} disabled={busy || picked.length === 0} className="mt-3 w-full rounded-lg bg-white px-4 py-2 font-medium text-neutral-900 disabled:opacity-50">
+      <button type="button" onClick={() => void submit()} disabled={busy || picked.length === 0} className={cx(overlayPrimary, "mt-4")}>
         {activity.kind === "quiz" ? "Lock in" : "Vote"}
       </button>
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
@@ -151,11 +169,16 @@ function CtaBody({ run, activity, roomSlug, pageIndex, readOnly }: { run: Activi
     }
   };
 
-  if (readOnly) return <p className="mt-2 text-xs text-neutral-400">{dest} · {target}</p>;
-  if (clientSecret) return <div className="mt-3 rounded-lg bg-white"><StripeCheckout clientSecret={clientSecret} /></div>;
+  if (readOnly) return <p className="mt-2 text-xs text-slate-400">{dest} · {target}</p>;
+  if (clientSecret) return <div className="mt-4 overflow-hidden rounded-lg bg-white"><StripeCheckout clientSecret={clientSecret} /></div>;
   if (embed) return <EmbedFrame url={target} onBlocked={() => { setEmbed(false); window.open(target, "_blank", "noopener"); }} />;
   return (
-    <button onClick={() => void tap()} disabled={busy} className="mt-3 w-full rounded-lg bg-amber-400 px-4 py-2 font-semibold text-neutral-900 disabled:opacity-50">
+    <button
+      type="button"
+      onClick={() => void tap()}
+      disabled={busy}
+      className="mt-4 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-lg bg-amber-400 px-4 font-semibold text-slate-900 transition-colors hover:bg-amber-300 disabled:pointer-events-none disabled:opacity-50"
+    >
       {dest === "stripe" ? "Buy now" : "Open"}
     </button>
   );
@@ -170,5 +193,5 @@ function EmbedFrame({ url, onBlocked }: { url: string; onBlocked: () => void }) 
     }, 4000);
     return () => clearTimeout(t);
   }, [loaded, onBlocked]);
-  return <iframe src={url} onLoad={() => setLoaded(true)} className="mt-3 h-[420px] w-full rounded-lg bg-white" sandbox="allow-forms allow-scripts allow-same-origin allow-popups" />;
+  return <iframe src={url} onLoad={() => setLoaded(true)} className="mt-4 h-[420px] w-full rounded-lg bg-white" sandbox="allow-forms allow-scripts allow-same-origin allow-popups" />;
 }

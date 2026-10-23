@@ -1,34 +1,98 @@
 @import "tailwindcss";
 
-.cq { container-type: size; }
-
+/*
+ * Design tokens. Semantic names (surface, ink, line, brand) are what components use, so a
+ * component carries no dark: variants: the variables flip with the colour scheme instead.
+ * Greys are slate (cool tint), the brand is indigo, and the scales are Tailwind's own.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --surface: #ffffff;
+  --surface-sunken: #f8fafc; /* slate-50: page background behind cards */
+  --surface-raised: #ffffff;
+  --surface-inset: #f1f5f9; /* slate-100: inputs on cards, muted panels */
+  --ink: #0f172a; /* slate-900 */
+  --ink-muted: #475569; /* slate-600: 7:1 on white */
+  --ink-faint: #94a3b8; /* slate-400: placeholders, decorative only */
+  --line: #e2e8f0; /* slate-200 */
+  --line-strong: #cbd5e1; /* slate-300 */
+  --brand: #4f46e5; /* indigo-600 */
+  --brand-hover: #4338ca; /* indigo-700 */
+  --brand-soft: #eef2ff; /* indigo-50 */
+  --brand-ink: #3730a3; /* indigo-800 on brand-soft */
+  --focus: #6366f1; /* indigo-500 */
+  --shadow-color: 15 23 42;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --surface: #0f172a;
+    --surface-sunken: #020617;
+    --surface-raised: #1e293b;
+    --surface-inset: #1e293b;
+    --ink: #f1f5f9;
+    --ink-muted: #94a3b8;
+    --ink-faint: #64748b;
+    --line: #1e293b;
+    --line-strong: #334155;
+    --brand: #6366f1;
+    --brand-hover: #818cf8;
+    --brand-soft: #1e1b4b;
+    --brand-ink: #c7d2fe;
+    --focus: #818cf8;
+    --shadow-color: 0 0 0;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-inset: var(--surface-inset);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  --color-focus: var(--focus);
+  --shadow-card: 0 1px 2px rgb(var(--shadow-color) / 0.06), 0 1px 3px rgb(var(--shadow-color) / 0.04);
+  --shadow-float: 0 4px 6px -1px rgb(var(--shadow-color) / 0.08), 0 10px 15px -3px rgb(var(--shadow-color) / 0.08);
+  --shadow-overlay: 0 10px 15px -3px rgb(var(--shadow-color) / 0.2), 0 25px 50px -12px rgb(var(--shadow-color) / 0.35);
 }
 
+body {
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Container queries for the waiting-room canvas (font sizes in cqh). */
+.cq { container-type: size; }
+
+/* One focus style everywhere: a 2px ring offset from the control. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Reactions floating up from the bar. */
 @keyframes float {
   0% { transform: translateY(0) scale(0.8); opacity: 0; }
   10% { opacity: 1; }
   100% { transform: translateY(-11rem) scale(1.3); opacity: 0; }
+}
+
+/* Overlays entering. */
+@keyframes rise {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.animate-rise { animation: rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise, .animate-\[float_2\.4s_ease-out_forwards\] { animation: none; }
 }

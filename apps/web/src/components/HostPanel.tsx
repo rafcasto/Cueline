@@ -1,6 +1,8 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ActivityLibrary } from "@/components/ActivityLibrary";
+import { AppShell } from "@/components/AppShell";
+import { EmailSequence } from "@/components/EmailSequence";
 import { InviteCard } from "@/components/InviteCard";
 import { PresenterDeck } from "@/components/PresenterDeck";
 import { Questions } from "@/components/Questions";
@@ -8,6 +10,7 @@ import { ReactionBar } from "@/components/ReactionBar";
 import { RoomStage } from "@/components/RoomStage";
 import { RunControls } from "@/components/RunControls";
 import { WaitingRoomEditor } from "@/components/WaitingRoomEditor";
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, Select, Tabs, type Tone } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { currentRun } from "@/lib/session-state";
@@ -18,19 +21,22 @@ type Props = {
   room: Room;
   initialSession: Session | null;
   userId: string;
+  userEmail: string | null;
   presentations: Presentation[];
   activities: Activity[];
   invites: Invite[];
   registrations: Registration[];
 };
 
+type Tab = "live" | "event" | "emails" | "waiting";
+
 /**
- * Host panel: share the invite link and watch registrations, open the room
- * (waiting room), go live, navigate the deck, activate activities with timers
- * and reveal results, run the hand-raise queue with promote-to-stage, moderate
- * Q&A, and edit the waiting room.
+ * Host panel: share the invite link and watch registrations, edit the email sequence, open
+ * the room (waiting room), go live, navigate the deck, activate activities with timers and
+ * reveal results, run the hand-raise queue with promote-to-stage, moderate Q&A, and edit
+ * the waiting room.
  */
-export function HostPanel({ room: initialRoom, initialSession, userId, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations }: Props) {
+export function HostPanel({ room: initialRoom, initialSession, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations }: Props) {
   const [room, setRoom] = useState(initialRoom);
   const [invites, setInvites] = useState(initialInvites);
   const [registrations, setRegistrations] = useState(initialRegistrations);
@@ -42,8 +48,9 @@ export function HostPanel({ room: initialRoom, initialSession, userId, presentat
   );
   const [page, setPage] = useState(0);
   const [stage, setStage] = useState<{ url: string; token: string } | null>(null);
-  // Start on the invite tab until there is a link to share; the live panel is useless without attendees.
-  const [tab, setTab] = useState<"live" | "invite" | "waiting">(initialInvites.some((i) => !i.revoked_at) ? "live" : "invite");
+  // Start on the event tab until there is a link to share; the live panel is useless without attendees.
+  const [tab, setTab] = useState<Tab>(initialInvites.some((i) => !i.revoked_at) ? "live" : "event");
+  const [emailInviteId, setEmailInviteId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { state, status } = useSession(session?.id ?? null, { userId, roomId: room.id });
@@ -77,11 +84,15 @@ export function HostPanel({ room: initialRoom, initialSession, userId, presentat
   const end = () =>
     run(async () => {
       if (!live) return;
+      if (!confirm("End the session for everyone? The recording stops and attendees see the waiting room.")) return;
       await api("/api/session/end", { session_id: live.id });
       setSession(null);
       setStage(null);
     });
-  const joinStage = () => run(async () => { if (live) setStage(await api<{ url: string; token: string }>("/api/token", { session_id: live.id, role: "presenter" })); });
+  const joinStage = () =>
+    run(async () => {
+      if (live) setStage(await api<{ url: string; token: string }>("/api/token", { session_id: live.id, role: "presenter" }));
+    });
 
   const selectDeck = async (p: Presentation | null) => {
     setDeck(p);
@@ -104,123 +115,195 @@ export function HostPanel({ room: initialRoom, initialSession, userId, presentat
     if (error) setMsg(error.message);
   };
 
-  const stageAction = (action: "invite" | "confirm" | "revoke", user_id: string) => run(async () => { if (live) await api("/api/stage", { action, session_id: live.id, user_id }); });
-  const clearHand = (id: string) => run(async () => { await sb.from("hand_raises").update({ cleared_at: new Date().toISOString() }).eq("id", id); });
-  const approve = async (q: Question, approved: boolean) => { await sb.from("questions").update({ approved }).eq("id", q.id); };
-  const answered = async (q: Question) => { await sb.from("questions").update({ answered_at: new Date().toISOString() }).eq("id", q.id); };
-  const react = useCallback(async (kind: ReactionKind, count: number) => { if (live) await sb.rpc("bump_reaction", { p_session: live.id, p_kind: kind, p_count: count }); }, [sb, live]);
+  const stageAction = (action: "invite" | "confirm" | "revoke", user_id: string) =>
+    run(async () => {
+      if (live) await api("/api/stage", { action, session_id: live.id, user_id });
+    });
+  const clearHand = (id: string) =>
+    run(async () => {
+      await sb.from("hand_raises").update({ cleared_at: new Date().toISOString() }).eq("id", id);
+    });
+  const approve = async (q: Question, approved: boolean) => {
+    await sb.from("questions").update({ approved }).eq("id", q.id);
+  };
+  const answered = async (q: Question) => {
+    await sb.from("questions").update({ answered_at: new Date().toISOString() }).eq("id", q.id);
+  };
+  const react = useCallback(
+    async (kind: ReactionKind, count: number) => {
+      if (live) await sb.rpc("bump_reaction", { p_session: live.id, p_kind: kind, p_count: count });
+    },
+    [sb, live],
+  );
 
   const currentRunRow = currentRun(state);
-  const currentActivity = currentRunRow ? state.activities[currentRunRow.activity_id] ?? activities.find((a) => a.id === currentRunRow.activity_id) : null;
+  const currentActivity = currentRunRow ? (state.activities[currentRunRow.activity_id] ?? activities.find((a) => a.id === currentRunRow.activity_id)) : null;
   const participantsCount = Object.keys(state.participants).length;
   const nameOf = (uid: string) => state.participants[uid]?.display_name ?? uid.slice(0, 8);
+  const activeInvites = useMemo(() => invites.filter((i) => !i.revoked_at), [invites]);
+  const emailInvite = activeInvites.find((i) => i.id === emailInviteId) ?? activeInvites[0] ?? null;
+
+  const sessionBadge: { tone: Tone; label: string } = live?.state === "live" ? { tone: "live", label: "Live" } : live?.state === "waiting" ? { tone: "brand", label: "Doors open" } : { tone: "neutral", label: "Room closed" };
 
   return (
-    <main className="mx-auto max-w-7xl space-y-4 p-4">
-      <header className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-semibold">{room.name} · host</h1>
-          <p className="text-xs text-neutral-500">
-            {invites.some((i) => !i.revoked_at) ? `${registrations.length} registered` : "no invite link yet"} ·{" "}
-            {live ? `${live.state} · ${participantsCount} participants · ${status}` : "room closed"}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" className="flex rounded border text-sm dark:border-neutral-700">
-            {(["live", "invite", "waiting"] as const).map((t) => (
-              <button
-                key={t}
-                role="tab"
-                aria-selected={tab === t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1 first:rounded-l last:rounded-r ${tab === t ? "bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900" : ""}`}
-              >
-                {t === "live" ? "Live panel" : t === "invite" ? "Invite & registrations" : "Waiting room"}
-              </button>
-            ))}
-          </div>
-          {!live && <button onClick={() => void openRoom()} disabled={busy} className="rounded bg-neutral-800 px-3 py-1 text-white disabled:opacity-50 dark:bg-neutral-200 dark:text-neutral-900">Open waiting room</button>}
-          {live?.state === "waiting" && <button onClick={() => void goLive()} disabled={busy} className="rounded bg-green-600 px-3 py-1 text-white disabled:opacity-50">Go live</button>}
-          {live && !stage && <button onClick={() => void joinStage()} disabled={busy} className="rounded bg-indigo-600 px-3 py-1 text-white disabled:opacity-50">Join with camera</button>}
-          {live && <button onClick={() => void end()} disabled={busy} className="rounded bg-red-600 px-3 py-1 text-white disabled:opacity-50">End session</button>}
-        </div>
-      </header>
-      {msg && <p className="rounded bg-neutral-100 p-2 text-sm dark:bg-neutral-800">{msg}</p>}
-
-      {tab === "waiting" ? (
-        <WaitingRoomEditor room={room} onSaved={(waiting_room) => setRoom({ ...room, waiting_room })} />
-      ) : tab === "invite" ? (
-        <InviteCard
-          room={room}
-          userId={userId}
-          invites={invites}
-          registrations={registrations}
-          participants={state.participants}
-          onInvitesChange={setInvites}
-          onRegistrationsChange={setRegistrations}
+    <AppShell
+      wide
+      crumb={room.name}
+      email={userEmail}
+      right={
+        <Badge tone={sessionBadge.tone} dot={!!live}>
+          {sessionBadge.label}
+          {live && ` · ${participantsCount} ${participantsCount === 1 ? "person" : "people"}`}
+        </Badge>
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          items={[
+            { value: "live", label: "Live" },
+            { value: "event", label: "Event", count: registrations.length },
+            { value: "emails", label: "Emails" },
+            { value: "waiting", label: "Waiting room" },
+          ]}
         />
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
-          <section className="space-y-4">
-            {stage && <RoomStage connection={stage} publish onDisconnected={() => setStage(null)} />}
-            <PresenterDeck
-              room={room}
-              presentations={presentations}
-              onPresentationsChange={setPresentations}
-              selected={deck}
-              onSelect={(p) => void selectDeck(p)}
-              page={page}
-              participantsPage={live?.state === "live" ? state.lastSlide?.page_index ?? 0 : null}
-              onNavigate={navigate}
-            />
-            {currentRunRow && currentActivity && live && <RunControls state={state} run={currentRunRow} activity={currentActivity} userId={userId} />}
-            <ActivityLibrary roomId={room.id} orgId={room.org_id} activities={activities} onChange={setActivities} onActivate={live?.state === "live" ? activate : undefined} activeId={currentRunRow?.activity_id ?? null} />
-          </section>
-
-          <aside className="space-y-4">
-            {live && (
-              <div className="rounded-lg border p-4 dark:border-neutral-700">
-                <h2 className="font-semibold">Reactions</h2>
-                <div className="mt-2">
-                  <ReactionBar onFlush={react} lastReaction={state.lastReaction} disabled={live.state !== "live"} />
-                </div>
-              </div>
-            )}
-            <div className="rounded-lg border p-4 dark:border-neutral-700">
-              <h2 className="font-semibold">Hand raises ({state.handRaises.length})</h2>
-              <ul className="mt-2 space-y-1 text-sm">
-                {state.handRaises.map((h) => {
-                  const rs = state.roster[h.user_id]?.state ?? "viewer";
-                  return (
-                    <li key={h.id} className="flex items-center gap-2">
-                      <span className="flex-1 truncate">{nameOf(h.user_id)}</span>
-                      <span className="text-xs text-neutral-500">{rs}</span>
-                      {rs === "viewer" || rs === "revoked" ? (
-                        <button onClick={() => void stageAction("invite", h.user_id)} disabled={busy} className="text-xs text-indigo-700">promote</button>
-                      ) : rs === "invited" ? (
-                        <button onClick={() => void stageAction("confirm", h.user_id)} disabled={busy} className="text-xs text-green-700">confirm</button>
-                      ) : (
-                        <button onClick={() => void stageAction("revoke", h.user_id)} disabled={busy} className="text-xs text-red-700">revoke</button>
-                      )}
-                      <button onClick={() => void clearHand(h.id)} disabled={busy} className="text-xs text-neutral-500">clear</button>
-                    </li>
-                  );
-                })}
-                {state.handRaises.length === 0 && <li className="text-neutral-500">Nobody has a hand up.</li>}
-              </ul>
-              {Object.values(state.roster).some((r) => r.state === "live") && (
-                <p className="mt-2 text-xs">
-                  On stage:{" "}
-                  {Object.values(state.roster).filter((r) => r.state === "live").map((r) => (
-                    <button key={r.user_id} onClick={() => void stageAction("revoke", r.user_id)} className="mr-2 text-red-700">{nameOf(r.user_id)} ✕</button>
-                  ))}
-                </p>
-              )}
-            </div>
-            {live && <Questions host state={state} userId={userId} onAsk={async () => undefined} onUpvote={async () => undefined} onApprove={approve} onAnswered={answered} />}
-          </aside>
+        <div className="flex flex-wrap items-center gap-2">
+          {live && <span className="hidden text-xs text-ink-faint lg:inline">realtime {status}</span>}
+          {!live && (
+            <Button onClick={() => void openRoom()} loading={busy} variant="secondary">
+              Open waiting room
+            </Button>
+          )}
+          {live?.state === "waiting" && (
+            <Button onClick={() => void goLive()} loading={busy} variant="success">
+              Go live
+            </Button>
+          )}
+          {live && !stage && (
+            <Button onClick={() => void joinStage()} loading={busy} variant="primary">
+              Join with camera
+            </Button>
+          )}
+          {live && (
+            <Button onClick={() => void end()} disabled={busy} variant="danger">
+              End session
+            </Button>
+          )}
         </div>
+      </div>
+      {msg && (
+        <Alert tone="danger" className="mt-4">
+          {msg}
+        </Alert>
       )}
-    </main>
+
+      <div className="mt-6">
+        {tab === "waiting" ? (
+          <WaitingRoomEditor room={room} onSaved={(waiting_room) => setRoom({ ...room, waiting_room })} />
+        ) : tab === "event" ? (
+          <InviteCard room={room} userId={userId} invites={invites} registrations={registrations} participants={state.participants} onInvitesChange={setInvites} onRegistrationsChange={setRegistrations} />
+        ) : tab === "emails" ? (
+          emailInvite ? (
+            <div className="space-y-4">
+              {activeInvites.length > 1 && (
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-ink-muted">Event</span>
+                  <Select value={emailInvite.id} onChange={(e) => setEmailInviteId(e.target.value)} className="max-w-sm">
+                    {activeInvites.map((i) => (
+                      <option key={i.id} value={i.id}>
+                        {i.title}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              )}
+              <EmailSequence key={emailInvite.id} room={room} invite={emailInvite} registrationCount={registrations.filter((r) => r.invite_id === emailInvite.id).length} />
+            </div>
+          ) : (
+            <EmptyState title="No event yet" description="Create an invite link on the Event tab. Each event gets its own confirmation and reminder sequence." action={<Button onClick={() => setTab("event")}>Go to Event</Button>} />
+          )
+        ) : (
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
+            <section className="space-y-6">
+              {stage && <RoomStage connection={stage} publish onDisconnected={() => setStage(null)} />}
+              <PresenterDeck
+                room={room}
+                presentations={presentations}
+                onPresentationsChange={setPresentations}
+                selected={deck}
+                onSelect={(p) => void selectDeck(p)}
+                page={page}
+                participantsPage={live?.state === "live" ? (state.lastSlide?.page_index ?? 0) : null}
+                onNavigate={navigate}
+              />
+              {currentRunRow && currentActivity && live && <RunControls state={state} run={currentRunRow} activity={currentActivity} userId={userId} />}
+              <ActivityLibrary roomId={room.id} orgId={room.org_id} activities={activities} onChange={setActivities} onActivate={live?.state === "live" ? activate : undefined} activeId={currentRunRow?.activity_id ?? null} />
+            </section>
+
+            <aside className="space-y-6">
+              {!live && (
+                <Alert tone="brand" title="The room is closed">
+                  Open the waiting room when you are ready to let registrants in; go live when you start presenting.
+                </Alert>
+              )}
+              {live && (
+                <Card>
+                  <CardHeader title="Reactions" description="Yours float for everyone too." />
+                  <div className="mt-4">
+                    <ReactionBar onFlush={react} lastReaction={state.lastReaction} disabled={live.state !== "live"} />
+                  </div>
+                </Card>
+              )}
+              <Card>
+                <CardHeader title="Hands up" description={state.handRaises.length === 0 ? "Nobody has a hand up." : `${state.handRaises.length} waiting. Promote someone to bring them on stage.`} />
+                {state.handRaises.length > 0 && (
+                  <ul className="mt-4 divide-y divide-line">
+                    {state.handRaises.map((h) => {
+                      const rs = state.roster[h.user_id]?.state ?? "viewer";
+                      return (
+                        <li key={h.id} className="flex items-center gap-3 py-2">
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{nameOf(h.user_id)}</span>
+                          {rs !== "viewer" && <Badge tone={rs === "live" ? "success" : rs === "invited" ? "brand" : "neutral"}>{rs === "live" ? "On stage" : rs}</Badge>}
+                          {rs === "viewer" || rs === "revoked" ? (
+                            <Button size="sm" variant="secondary" onClick={() => void stageAction("invite", h.user_id)} disabled={busy}>
+                              Promote
+                            </Button>
+                          ) : rs === "invited" ? (
+                            <Button size="sm" variant="success" onClick={() => void stageAction("confirm", h.user_id)} disabled={busy}>
+                              Confirm
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="danger" onClick={() => void stageAction("revoke", h.user_id)} disabled={busy}>
+                              Remove
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => void clearHand(h.id)} disabled={busy}>
+                            Clear
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {Object.values(state.roster).some((r) => r.state === "live") && (
+                  <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4 text-sm">
+                    <span className="text-ink-muted">On stage:</span>
+                    {Object.values(state.roster)
+                      .filter((r) => r.state === "live")
+                      .map((r) => (
+                        <Button key={r.user_id} size="sm" variant="secondary" onClick={() => void stageAction("revoke", r.user_id)}>
+                          {nameOf(r.user_id)} ✕
+                        </Button>
+                      ))}
+                  </div>
+                )}
+              </Card>
+              {live && <Questions host state={state} userId={userId} onAsk={async () => undefined} onUpvote={async () => undefined} onApprove={approve} onAnswered={answered} />}
+            </aside>
+          </div>
+        )}
+      </div>
+    </AppShell>
   );
 }

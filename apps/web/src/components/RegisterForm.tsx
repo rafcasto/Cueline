@@ -1,11 +1,12 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { WaitingRoom } from "@/components/WaitingRoom";
+import { Alert, Badge, Button, ButtonLink, Field, Input } from "@/components/ui";
 import { api } from "@/lib/api";
 import { ensureViewerIdentity } from "@/lib/supabase/browser";
 import type { SessionState, WaitingRoom as WaitingRoomConfig } from "@/lib/supabase/types";
 
+type Registered = { name: string; email: string; code: string };
 type Props = {
   token: string;
   title: string;
@@ -16,7 +17,7 @@ type Props = {
   roomSlug: string;
   waitingRoom: WaitingRoomConfig;
   sessionState: SessionState | null;
-  registered: { name: string; email: string } | null;
+  registered: Registered | null;
 };
 
 export function formatStart(iso: string) {
@@ -30,7 +31,8 @@ export function formatStart(iso: string) {
 export function RegisterForm(props: Props) {
   const [name, setName] = useState(props.registered?.name ?? "");
   const [email, setEmail] = useState(props.registered?.email ?? "");
-  const [done, setDone] = useState(props.registered);
+  const [done, setDone] = useState<Registered | null>(props.registered);
+  const [justRegistered, setJustRegistered] = useState(false);
   const [sessionState, setSessionState] = useState(props.sessionState);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -57,8 +59,9 @@ export function RegisterForm(props: Props) {
     setBusy(true);
     setError(null);
     try {
-      const r = await api<{ registration: { name: string; email: string }; session_state: SessionState | null }>("/api/register", { token: props.token, name, email });
+      const r = await api<{ registration: Registered; session_state: SessionState | null }>("/api/register", { token: props.token, name, email });
       setDone(r.registration);
+      setJustRegistered(true);
       setSessionState(r.session_state);
       try {
         localStorage.setItem("cueline:name", r.registration.name);
@@ -75,68 +78,71 @@ export function RegisterForm(props: Props) {
   const when = props.startsAt ? formatStart(props.startsAt) : null;
   const door =
     sessionState === "live"
-      ? { text: "The webinar is live right now.", cta: "Join now", tone: "bg-green-600" }
+      ? { text: "The webinar is live right now.", cta: "Join now", variant: "success" as const }
       : sessionState === "waiting"
-        ? { text: "Doors are open. The host is about to start.", cta: "Enter the waiting room", tone: "bg-indigo-600" }
-        : { text: when ? `Starts ${when}. Come back to this link when it is time.` : "The host has not opened the room yet. Come back to this link when it is time.", cta: "Open the room", tone: "bg-neutral-800 dark:bg-neutral-200 dark:text-neutral-900" };
+        ? { text: "Doors are open. The host is about to start.", cta: "Enter the waiting room", variant: "primary" as const }
+        : { text: when ? `Starts ${when}. Come back to this link, or use the one in your email, when it is time.` : "The host has not opened the room yet. Come back to this link when it is time.", cta: "Open the room", variant: "secondary" as const };
 
   return (
-    <main className="mx-auto max-w-3xl p-4 sm:p-6">
+    <div className="mx-auto max-w-3xl">
       <WaitingRoom config={props.waitingRoom} />
-      <section className="mx-auto -mt-6 max-w-xl rounded-2xl border border-neutral-200 bg-white p-5 shadow-lg dark:border-neutral-700 dark:bg-neutral-900 sm:p-6">
-        <p className="text-xs uppercase tracking-wide text-neutral-500">{props.roomName}</p>
-        <h1 className="mt-1 text-2xl font-semibold">{props.title}</h1>
-        {when && <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">{when}</p>}
-        {props.description && <p className="mt-3 whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-200">{props.description}</p>}
+      <section className="relative mx-auto -mt-8 max-w-xl rounded-2xl border border-line bg-surface-raised p-6 shadow-float sm:p-8">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{props.roomName}</p>
+          {sessionState === "live" && (
+            <Badge tone="live" dot>
+              Live now
+            </Badge>
+          )}
+        </div>
+        <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-ink">{props.title}</h1>
+        {when && <p className="mt-2 text-sm font-medium text-ink-muted">{when}</p>}
+        {props.description && <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-ink-muted">{props.description}</p>}
 
         {props.revoked && !done ? (
-          <p className="mt-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <Alert tone="warning" className="mt-6">
             This invite link is no longer active. Ask the organiser for a new one.
-          </p>
+          </Alert>
         ) : done ? (
-          <div className="mt-5 space-y-3">
-            <p className="rounded-lg bg-green-50 p-3 text-sm text-green-900 dark:bg-green-950 dark:text-green-100">
-              You are registered as <strong>{done.name}</strong> ({done.email}). {door.text}
-            </p>
-            <Link href={`/r/${props.roomSlug}`} className={`block rounded-lg px-4 py-3 text-center font-medium text-white ${door.tone}`}>
+          <div className="mt-6 space-y-4">
+            <Alert tone="success" title={justRegistered ? `You're registered, ${done.name}.` : `Welcome back, ${done.name}.`}>
+              {justRegistered ? (
+                <>
+                  We sent a confirmation to <strong>{done.email}</strong> with your personal link. {door.text}
+                </>
+              ) : (
+                door.text
+              )}
+            </Alert>
+            <ButtonLink href={`/r/${props.roomSlug}`} variant={door.variant} size="lg" className="w-full">
               {door.cta}
-            </Link>
-            <p className="text-center text-xs text-neutral-500">Keep this link. It is your way in on the day, on any device.</p>
+            </ButtonLink>
+            <div className="rounded-lg border border-line bg-surface-inset px-4 py-3">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Your join code</p>
+                  <p className="mt-0.5 text-sm text-ink-muted">On another device, go to /join and enter your email with this code.</p>
+                </div>
+                <code className="shrink-0 rounded-md bg-surface-raised px-3 py-1.5 font-mono text-lg font-semibold tracking-[0.25em] text-ink shadow-card">{done.code}</code>
+              </div>
+            </div>
           </div>
         ) : (
-          <form onSubmit={(e) => void submit(e)} className="mt-5 space-y-3">
-            <label className="block text-sm">
-              <span className="text-neutral-600 dark:text-neutral-300">Your name</span>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={60}
-                required
-                autoComplete="name"
-                placeholder="Shown to the host and other attendees"
-                className="mt-1 w-full rounded-lg border px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="text-neutral-600 dark:text-neutral-300">Email</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                placeholder="So the host can follow up with you"
-                className="mt-1 w-full rounded-lg border px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800"
-              />
-            </label>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <button type="submit" disabled={!ready || busy} className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-medium text-white disabled:opacity-50">
-              {busy ? "Registering…" : sessionState === "live" ? "Register and join now" : "Register"}
-            </button>
-            <p className="text-center text-xs text-neutral-500">{when ? `Starts ${when}.` : "No account needed."}</p>
+          <form onSubmit={(e) => void submit(e)} className="mt-6 space-y-4">
+            <Field label="Your name" htmlFor="reg-name" hint="Shown to the host and other attendees.">
+              <Input id="reg-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required autoComplete="name" />
+            </Field>
+            <Field label="Email" htmlFor="reg-email" hint="Your personal link and the reminders go here.">
+              <Input id="reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+            </Field>
+            {error && <Alert tone="danger">{error}</Alert>}
+            <Button type="submit" size="lg" className="w-full" disabled={!ready} loading={busy}>
+              {sessionState === "live" ? "Register and join now" : "Register"}
+            </Button>
+            <p className="text-center text-xs text-ink-muted">No account needed. {when ? `Starts ${when}.` : ""}</p>
           </form>
         )}
       </section>
-    </main>
+    </div>
   );
 }

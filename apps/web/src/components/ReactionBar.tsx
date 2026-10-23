@@ -55,9 +55,17 @@ export function ReactionBar({ onFlush, lastReaction, disabled }: Props) {
           </span>
         ))}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Reactions">
         {REACTION_KINDS.map((kind) => (
-          <button key={kind} disabled={disabled} onClick={() => tap(kind)} className="rounded-full border px-3 py-1 text-lg transition hover:scale-110 active:scale-95 disabled:opacity-40 dark:border-neutral-700" title={kind}>
+          <button
+            key={kind}
+            type="button"
+            disabled={disabled}
+            onClick={() => tap(kind)}
+            className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full border border-line bg-surface-raised text-lg shadow-card transition-transform hover:scale-110 active:scale-95 disabled:pointer-events-none disabled:opacity-40"
+            title={kind}
+            aria-label={kind}
+          >
             {REACTION_EMOJI[kind]}
           </button>
         ))}

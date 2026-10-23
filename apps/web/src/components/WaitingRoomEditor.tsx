@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { WaitingRoom } from "@/components/WaitingRoom";
+import { Button, Card, CardHeader, Field, Select, Textarea, buttonClass, cx } from "@/components/ui";
 import { uploadToBucket } from "@/lib/storage";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Room, WaitingRoom as WaitingRoomConfig, WaitingRoomElement } from "@/lib/supabase/types";
@@ -76,16 +77,23 @@ export function WaitingRoomEditor({ room, onSaved }: { room: Room; onSaved: (cfg
   };
 
   const sel = cfg.elements.find((e) => e.id === selected);
+  const bg = cfg.background;
+  const fileButton = (kind: "image" | "video" | "audio", accept: string, present: boolean) => (
+    <label className={buttonClass("secondary", "sm", busy ? "pointer-events-none opacity-50" : undefined)}>
+      {busy ? "Uploading…" : present ? `Replace ${kind}` : `Upload ${kind}`}
+      <input type="file" accept={accept} className="sr-only" disabled={busy} onChange={(e) => void upload(kind, e.target.files?.[0])} />
+    </label>
+  );
 
   return (
-    <div className="space-y-3">
-      <div ref={canvasRef} className="cq relative" onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
+    <div className="space-y-6">
+      <div ref={canvasRef} className="cq relative overflow-hidden rounded-xl shadow-card" onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
         <WaitingRoom config={{ ...cfg, elements: [] }} />
         {cfg.elements.map((el) => (
           <div
             key={el.id}
             onPointerDown={(e) => onPointerDown(e, el)}
-            className={`absolute flex cursor-move items-center whitespace-pre-wrap break-words rounded ${selected === el.id ? "ring-2 ring-indigo-400" : "ring-1 ring-white/30"}`}
+            className={cx("absolute flex cursor-move items-center whitespace-pre-wrap break-words rounded", selected === el.id ? "ring-2 ring-indigo-400" : "ring-1 ring-white/30")}
             style={{
               left: `${el.x}%`,
               top: `${el.y}%`,
@@ -104,48 +112,74 @@ export function WaitingRoomEditor({ room, onSaved }: { room: Room; onSaved: (cfg
         ))}
       </div>
 
-      <div className="grid gap-3 text-sm md:grid-cols-2">
-        <fieldset className="space-y-2 rounded-lg border p-3 dark:border-neutral-700">
-          <legend className="px-1 font-medium">Background</legend>
-          <select value={cfg.background.type} onChange={(e) => setBg({ type: e.target.value as WaitingRoomConfig["background"]["type"] })} className="rounded border px-2 py-1 dark:bg-neutral-800">
-            <option value="image">Image</option>
-            <option value="video">Video</option>
-            <option value="image_audio">Image + audio</option>
-          </select>
-          {cfg.background.type !== "video" && (
-            <label className="block">Image <input type="file" accept="image/*" disabled={busy} onChange={(e) => void upload("image", e.target.files?.[0])} /></label>
-          )}
-          {cfg.background.type === "video" && (
-            <label className="block">Video <input type="file" accept="video/mp4,video/webm" disabled={busy} onChange={(e) => void upload("video", e.target.files?.[0])} /></label>
-          )}
-          {cfg.background.type === "image_audio" && (
-            <label className="block">Audio <input type="file" accept="audio/*" disabled={busy} onChange={(e) => void upload("audio", e.target.files?.[0])} /></label>
-          )}
-        </fieldset>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader title="Background" description="An image, a looping video, or an image with audio behind it." />
+          <div className="mt-4 space-y-4">
+            <Field label="Type" htmlFor="wr-bg-type">
+              <Select id="wr-bg-type" value={bg.type} onChange={(e) => setBg({ type: e.target.value as WaitingRoomConfig["background"]["type"] })}>
+                <option value="image">Image</option>
+                <option value="video">Video</option>
+                <option value="image_audio">Image + audio</option>
+              </Select>
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              {bg.type !== "video" && fileButton("image", "image/*", !!bg.image_url)}
+              {bg.type === "video" && fileButton("video", "video/mp4,video/webm", !!bg.video_url)}
+              {bg.type === "image_audio" && fileButton("audio", "audio/*", !!bg.audio_url)}
+            </div>
+          </div>
+        </Card>
 
-        <fieldset className="space-y-2 rounded-lg border p-3 dark:border-neutral-700">
-          <legend className="px-1 font-medium">Text</legend>
-          <button onClick={addText} className="rounded border px-2 py-1">+ Add text</button>
-          {sel && (
-            <div className="space-y-2">
-              <textarea value={sel.text} onChange={(e) => update(sel.id, { text: e.target.value })} rows={2} className="w-full rounded border px-2 py-1 dark:bg-neutral-800" />
+        <Card>
+          <CardHeader title="Text" description="Drag a box on the canvas to place it." actions={<Button variant="secondary" size="sm" onClick={addText}>+ Add text</Button>} />
+          {sel ? (
+            <div className="mt-4 space-y-4">
+              <Textarea value={sel.text} onChange={(e) => update(sel.id, { text: e.target.value })} rows={2} aria-label="Text" />
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block text-sm">
+                  <span className="font-medium text-ink">Size</span>
+                  <input type="range" min={3} max={20} value={sel.fontSize} onChange={(e) => update(sel.id, { fontSize: Number(e.target.value) })} className="mt-1.5 w-full accent-brand" />
+                </label>
+                <label className="block text-sm">
+                  <span className="font-medium text-ink">Width</span>
+                  <input type="range" min={10} max={100} value={sel.w} onChange={(e) => update(sel.id, { w: Number(e.target.value) })} className="mt-1.5 w-full accent-brand" />
+                </label>
+              </div>
               <div className="flex flex-wrap items-center gap-2">
-                <label>Size <input type="range" min={3} max={20} value={sel.fontSize} onChange={(e) => update(sel.id, { fontSize: Number(e.target.value) })} /></label>
-                <label>Width <input type="range" min={10} max={100} value={sel.w} onChange={(e) => update(sel.id, { w: Number(e.target.value) })} /></label>
-                <input type="color" value={sel.color} onChange={(e) => update(sel.id, { color: e.target.value })} />
-                <select value={sel.align} onChange={(e) => update(sel.id, { align: e.target.value as WaitingRoomElement["align"] })} className="rounded border px-1 dark:bg-neutral-800">
-                  <option value="left">Left</option><option value="center">Center</option><option value="right">Right</option>
-                </select>
-                <button onClick={() => update(sel.id, { weight: sel.weight === "bold" ? "normal" : "bold" })} className="rounded border px-2 font-bold">B</button>
-                <button onClick={() => { setCfg((c) => ({ ...c, elements: c.elements.filter((e) => e.id !== sel.id) })); setSelected(null); }} className="text-red-600">Delete</button>
+                <input type="color" value={sel.color} onChange={(e) => update(sel.id, { color: e.target.value })} className="size-10 cursor-pointer rounded-lg border border-line-strong bg-surface-raised p-1" aria-label="Colour" />
+                <Select value={sel.align} onChange={(e) => update(sel.id, { align: e.target.value as WaitingRoomElement["align"] })} className="w-auto" aria-label="Alignment">
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </Select>
+                <Button variant={sel.weight === "bold" ? "primary" : "secondary"} size="md" className="w-10 px-0 font-bold" aria-pressed={sel.weight === "bold"} aria-label="Bold" onClick={() => update(sel.id, { weight: sel.weight === "bold" ? "normal" : "bold" })}>
+                  B
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="md"
+                  className="ml-auto text-red-600 hover:text-red-700 dark:text-red-400"
+                  onClick={() => {
+                    setCfg((c) => ({ ...c, elements: c.elements.filter((e) => e.id !== sel.id) }));
+                    setSelected(null);
+                  }}
+                >
+                  Delete
+                </Button>
               </div>
             </div>
+          ) : (
+            <p className="mt-4 text-sm text-ink-muted">{cfg.elements.length === 0 ? "No text boxes yet." : "Select a text box on the canvas to edit it."}</p>
           )}
-        </fieldset>
+        </Card>
       </div>
-      <div className="flex items-center gap-3">
-        <button onClick={() => void save()} disabled={busy} className="rounded bg-indigo-600 px-3 py-1 text-white disabled:opacity-50">Save waiting room</button>
-        {msg && <span className="text-xs text-neutral-500">{msg}</span>}
+
+      <div className="flex items-center gap-4">
+        <Button onClick={() => void save()} loading={busy}>
+          Save waiting room
+        </Button>
+        {msg && <span className="text-sm text-ink-muted">{msg}</span>}
       </div>
     </div>
   );
