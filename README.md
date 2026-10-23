@@ -28,7 +28,7 @@ The full design is in [docs/DESIGN.md](docs/DESIGN.md). This repo is the Phase 1
 
 ## Running it
 
-Prerequisites: Node 22, pnpm 10, the Supabase CLI, a LiveKit Cloud project, an S3/R2 bucket with a public base URL, a Google OAuth client, a Stripe account. Name each of them `cueline`.
+Prerequisites: Node 22, pnpm 10, the Supabase CLI, a LiveKit Cloud project, an S3/R2 bucket with a public base URL, a Stripe account. Name each of them `cueline`.
 
 ```bash
 pnpm install
@@ -37,7 +37,7 @@ supabase start && supabase db reset   # applies migrations + seed
 pnpm dev                          # http://localhost:3000
 ```
 
-1. Sign in at `/login` with Google. Add yourself to the seeded org (the host page prints the SQL with your user id).
+1. Create the first host with `pnpm admin:create <email> <password>` (uses the service-role key from `.env.local`; it creates the user and adds them to the seeded org as owner). Then sign in at `/login` with email and password.
 2. Open `/host/main`. Upload a PDF, add a few activities, edit the waiting room.
 3. **Open waiting room** puts the session in `waiting`; participants at `/r/main` enter a name and see the waiting room. **Go live** starts the stream. **Join with camera** publishes your video.
 4. Navigate the deck, activate activities, reveal results, promote hands.
