@@ -14,7 +14,7 @@ import { publicUrl } from "@/lib/storage";
 import { ensureViewerIdentity, supabaseBrowser } from "@/lib/supabase/browser";
 import type { Presentation, ReactionKind, Room, Session } from "@/lib/supabase/types";
 
-type Props = { room: Room; session: Session | null; presentation: Presentation | null };
+type Props = { room: Room; session: Session | null; presentation: Presentation | null; attendee: { name: string } };
 
 /** Decks are readable only by signed-in users; anonymous identity is created client-side, so fetch here. */
 function usePresentation(initial: Presentation | null, presentationId: string | null, userId: string | null) {
@@ -35,13 +35,13 @@ function usePresentation(initial: Presentation | null, presentationId: string | 
 }
 
 /**
- * The participant view. Waiting room until the presenter goes live, then the
- * deck page (rendered from the PDF) with the presenter video beside it, the
- * activity overlay on top, reactions and Q&A underneath.
+ * The participant view. The page behind it has already checked registration, so the
+ * attendee lands straight in the waiting room under their registered name; then the
+ * deck page (rendered from the PDF) with the presenter video beside it, the activity
+ * overlay on top, reactions and Q&A underneath.
  */
-export function ViewerRoom({ room, session: initialSession, presentation: initialPresentation }: Props) {
+export function ViewerRoom({ room, session: initialSession, presentation: initialPresentation, attendee }: Props) {
   const [userId, setUserId] = useState<string | null>(null);
-  const [name, setName] = useState<string>("");
   const [joinedLocal, setJoinedLocal] = useState(false);
   const latency = useRef(3000);
   const { state, status } = useSession(initialSession?.id ?? null, { getLatencyMs: () => latency.current, userId, roomId: room.id });
@@ -51,21 +51,24 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   const [handUp, setHandUp] = useState(false);
 
   useEffect(() => {
-    void ensureViewerIdentity().then((s) => {
-      setUserId(s.user.id);
-      try {
-        setName(localStorage.getItem("cueline:name") ?? "");
-      } catch {
-        /* private mode */
-      }
-    });
+    void ensureViewerIdentity().then((s) => setUserId(s.user.id));
   }, []);
 
-  // Already in the participants list (reload): skip the join form.
   const joined = joinedLocal || (!!userId && !!state.participants[userId]);
-
   const sb = supabaseBrowser();
   const sid = session?.id ?? "";
+
+  // Take the seat as soon as there is an identity and an open session; the name comes from registration.
+  useEffect(() => {
+    if (!userId || !sid || joined || session?.state === "ended") return;
+    (async () => {
+      const { error } = await sb
+        .from("participants")
+        .upsert({ session_id: sid, user_id: userId, display_name: attendee.name }, { onConflict: "session_id,user_id" });
+      if (!error) setJoinedLocal(true);
+      else console.warn("join failed", error.message);
+    })();
+  }, [sb, userId, sid, joined, session?.state, attendee.name]);
   const myRoster = userId ? state.roster[userId]?.state ?? "viewer" : "viewer";
 
   // Promote-to-stage: pre-warm on `invited` (token + permission prompt), publish on `live`.
@@ -90,18 +93,6 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
       cancelled = true;
     };
   }, [myRoster, sid]);
-
-  const join = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userId || !sid || !name.trim()) return;
-    await sb.from("participants").upsert({ session_id: sid, user_id: userId, display_name: name.trim() }, { onConflict: "session_id,user_id" });
-    try {
-      localStorage.setItem("cueline:name", name.trim());
-    } catch {
-      /* ignore */
-    }
-    setJoinedLocal(true);
-  };
 
   const ask = useCallback(async (body: string) => { if (userId) await sb.from("questions").insert({ session_id: sid, user_id: userId, body }); }, [sb, sid, userId]);
   const upvote = useCallback(async (question_id: string) => { if (userId) await sb.from("question_votes").insert({ session_id: sid, question_id, user_id: userId }); }, [sb, sid, userId]);
@@ -133,25 +124,14 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
     );
   }
 
-  if (!joined) {
-    return (
-      <main className="mx-auto max-w-4xl p-4">
-        <h1 className="text-xl font-semibold">{room.name}</h1>
-        <WaitingRoom config={room.waiting_room} className="mt-3" />
-        <form onSubmit={(e) => void join(e)} className="mx-auto mt-4 flex max-w-sm gap-2">
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} required placeholder="Your name" className="flex-1 rounded-lg border px-3 py-2 dark:bg-neutral-800" />
-          <button disabled={!userId} className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white disabled:opacity-50">Join</button>
-        </form>
-      </main>
-    );
-  }
-
   if (session.state === "waiting") {
     return (
       <main className="mx-auto max-w-4xl p-4">
         <header className="flex items-center justify-between">
           <h1 className="text-xl font-semibold">{room.name}</h1>
-          <span className="text-xs text-neutral-500">Starting soon · {Object.keys(state.participants).length} waiting</span>
+          <span className="text-xs text-neutral-500">
+            {joined ? `You are in as ${attendee.name}` : "Taking your seat…"} · {Object.keys(state.participants).length} waiting
+          </span>
         </header>
         <WaitingRoom config={room.waiting_room} className="mt-3" />
         <div className="mt-3">

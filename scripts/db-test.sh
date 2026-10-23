@@ -14,5 +14,10 @@ P=(psql -v ON_ERROR_STOP=1 -h "$D" -p "$PORT" -U postgres -q)
 "${P[@]}" -d cueline -f "$ROOT/supabase/tests/supabase-stubs.sql"
 for f in "$ROOT"/supabase/migrations/*.sql; do "${P[@]}" -d cueline -f "$f"; echo "applied $(basename "$f")"; done
 "${P[@]}" -d cueline -f "$ROOT/supabase/seed.sql"
-"${P[@]}" -d cueline -f "$ROOT/supabase/tests/smoke.sql" | grep -E "check|pass|\bf\b|\bt\b" || true
+"${P[@]}" -d cueline -f "$ROOT/supabase/tests/smoke.sql" > "$D/smoke.out"
+grep -E "check|pass|\bf\b|\bt\b" "$D/smoke.out" || true
+# A row whose `pass` column is f fails the run; header lines tell us which result sets carry one.
+if ! awk -F'|' '/^ *check *\|/ { last=$NF; next } /^ *$/ { last="" } last ~ /pass/ && $NF ~ /^ *f *$/ { bad=1 } END { exit bad }' "$D/smoke.out"; then
+  echo "db-test: a check returned false" >&2; exit 1
+fi
 echo "db-test: OK"

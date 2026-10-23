@@ -50,3 +50,34 @@ reset role;
 
 select 'reactions batched' as check, count = 5 as pass from public.reactions where kind = 'heart';
 select 'broadcasts' as check, event, payload->>'operation' as op from realtime.messages order by id;
+
+-- Invite links and registration. Host creates an invite; the attendee's registration is written
+-- by /api/register (service key) and is readable only by that attendee and org members.
+set role authenticated;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+insert into public.invites(id, org_id, room_id, title, created_by) values
+  ('66666666-6666-6666-6666-666666666666', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Launch webinar', '11111111-1111-1111-1111-111111111111');
+select 'invite token is url-safe' as check, token ~ '^[A-Za-z0-9_-]{22}$' as pass from public.invites where id = '66666666-6666-6666-6666-666666666666';
+reset role;
+set role service_role;
+insert into public.registrations(org_id, room_id, invite_id, user_id, name, email) values
+  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', '66666666-6666-6666-6666-666666666666', '22222222-2222-2222-2222-222222222222', 'Ada', 'ada@example.com'),
+  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', '66666666-6666-6666-6666-666666666666', '77777777-7777-7777-7777-777777777777', 'Bob', 'bob@example.com');
+do $$ begin
+  insert into public.registrations(org_id, room_id, invite_id, user_id, name, email) values
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', '66666666-6666-6666-6666-666666666666', '88888888-8888-8888-8888-888888888888', 'Ada again', 'ada@example.com');
+  raise exception 'duplicate email on one invite should be rejected';
+exception when unique_violation then null; end $$;
+do $$ begin
+  insert into public.registrations(org_id, room_id, invite_id, user_id, name, email) values
+    ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', '66666666-6666-6666-6666-666666666666', '88888888-8888-8888-8888-888888888888', 'No email', 'not-an-email');
+  raise exception 'malformed email should be rejected';
+exception when check_violation then null; end $$;
+reset role;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+select 'attendee sees only own registration' as check, count(*) = 1 and bool_and(user_id = auth.uid()) as pass from public.registrations;
+select 'attendee cannot list invites' as check, count(*) = 0 as pass from public.invites;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+select 'host sees all registrations' as check, count(*) = 2 as pass from public.registrations where invite_id = '66666666-6666-6666-6666-666666666666';
+reset role;
