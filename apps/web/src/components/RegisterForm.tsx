@@ -49,7 +49,12 @@ export function RegisterForm(props: Props) {
           /* private mode */
         }
       })
-      .catch(() => setError("Could not start a session in this browser. Check that cookies are enabled and reload."));
+      .catch((err: Error) => {
+        // Anonymous sign-in is what gives the attendee an identity. The usual cause of a failure
+        // here is "Anonymous sign-ins are disabled" on the Supabase project; show it rather than guess.
+        const detail = err?.message ? ` (${err.message})` : "";
+        setError(`Could not start a session in this browser${detail}. Check that cookies are enabled and reload.`);
+      });
   }, []);
 
   const submit = async (e: FormEvent) => {
