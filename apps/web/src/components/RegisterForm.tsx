@@ -19,6 +19,28 @@ type Props = {
   registered: { name: string; email: string } | null;
 };
 
+/** True when the browser refuses to keep a cookie for this page (settings, private mode, or an embedded frame). */
+function cookiesBlocked() {
+  if (typeof navigator !== "undefined" && !navigator.cookieEnabled) return true;
+  try {
+    document.cookie = "cueline_probe=1; SameSite=Lax; path=/";
+    const ok = document.cookie.includes("cueline_probe=1");
+    document.cookie = "cueline_probe=; Max-Age=0; path=/";
+    return !ok;
+  } catch {
+    return true;
+  }
+}
+
+function browserCookieHelp() {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  if (/iPhone|iPad/.test(ua)) return "On iPhone or iPad: Settings, Safari, turn off \"Block All Cookies\".";
+  if (/Android/.test(ua)) return "On Android Chrome: tap the three dots, Settings, Site settings, Third-party cookies, and allow cookies.";
+  if (/Firefox/.test(ua)) return "In Firefox: click the shield icon in the address bar and turn Enhanced Tracking Protection off for this site.";
+  if (/Safari/.test(ua) && !/Chrome/.test(ua)) return "In Safari: Safari menu, Settings, Privacy, turn off \"Block all cookies\".";
+  return "In Chrome or Edge: click the lock or tune icon in the address bar, Cookies and site data, and allow cookies for this site.";
+}
+
 export function formatStart(iso: string) {
   return new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZoneName: "short" });
 }
@@ -35,6 +57,7 @@ export function RegisterForm(props: Props) {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
 
   // The anonymous identity is what the registration binds to; create it before the first submit.
   useEffect(() => {
@@ -50,10 +73,10 @@ export function RegisterForm(props: Props) {
         }
       })
       .catch((err: Error) => {
-        // Anonymous sign-in is what gives the attendee an identity. The usual cause of a failure
-        // here is "Anonymous sign-ins are disabled" on the Supabase project; show it rather than guess.
-        const detail = err?.message ? ` (${err.message})` : "";
-        setError(`Could not start a session in this browser${detail}. Check that cookies are enabled and reload.`);
+        // A page cannot turn cookies on for the visitor, but it can tell which problem it has:
+        // storage blocked by the browser, or the project refusing anonymous sign-in.
+        if (cookiesBlocked()) setBlocked(true);
+        else setError(`Could not start a session${err?.message ? ` (${err.message})` : ""}. Reload to try again.`);
       });
   }, []);
 
@@ -134,6 +157,15 @@ export function RegisterForm(props: Props) {
                 className="mt-1 w-full rounded-lg border px-3 py-2 dark:border-neutral-700 dark:bg-neutral-800"
               />
             </label>
+            {blocked && (
+              <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+                <p className="font-medium">This page needs cookies to remember your registration.</p>
+                <p className="mt-1">{browserCookieHelp()} If you opened this link inside another app, open it in your browser instead.</p>
+                <button type="button" onClick={() => window.location.reload()} className="mt-2 rounded bg-amber-900 px-3 py-1 text-white dark:bg-amber-100 dark:text-amber-950">
+                  I have enabled cookies, reload
+                </button>
+              </div>
+            )}
             {error && <p className="text-sm text-red-600">{error}</p>}
             <button type="submit" disabled={!ready || busy} className="w-full rounded-lg bg-indigo-600 px-4 py-3 font-medium text-white disabled:opacity-50">
               {busy ? "Registering…" : sessionState === "live" ? "Register and join now" : "Register"}
