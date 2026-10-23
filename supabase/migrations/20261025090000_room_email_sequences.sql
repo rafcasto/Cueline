@@ -115,7 +115,8 @@ revoke execute on function public.sync_room_email(uuid) from public, anon, authe
 -- ---------------------------------------------------------------------------
 -- Backfill: every existing room gets a sequence. Where the room has an open event, its steps
 -- become the room's (so a host's edits survive); otherwise the defaults. Then each existing
--- event step is linked to the room step it matches, so later room edits reach it.
+-- event step is linked to the room step it matches, so later room edits reach it, and an open
+-- event that has no steps at all (created before event emails existed) inherits the room's.
 -- ---------------------------------------------------------------------------
 do $$
 declare
@@ -154,3 +155,10 @@ from ranked_event_steps re
 join ranked_room_steps rr
   on rr.room_id = re.room_id and rr.kind = re.kind and rr.minutes_before is not distinct from re.minutes_before and rr.rn = re.rn
 where e.id = re.id;
+
+insert into public.invite_emails (org_id, invite_id, room_email_id, kind, minutes_before, subject, body, enabled)
+select r.org_id, i.id, r.id, r.kind, r.minutes_before, r.subject, r.body, r.enabled
+from public.invites i
+join public.room_emails r on r.room_id = i.room_id
+where i.revoked_at is null
+  and not exists (select 1 from public.invite_emails e where e.invite_id = i.id);
