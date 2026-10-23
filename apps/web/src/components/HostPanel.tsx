@@ -7,10 +7,11 @@ import { InviteCard } from "@/components/InviteCard";
 import { PresenterDeck } from "@/components/PresenterDeck";
 import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
+import { RoomSettings } from "@/components/RoomSettings";
 import { RoomStage } from "@/components/RoomStage";
 import { RunControls } from "@/components/RunControls";
 import { WaitingRoomEditor } from "@/components/WaitingRoomEditor";
-import { Alert, Badge, Button, Card, CardHeader, EmptyState, Select, Tabs, type Tone } from "@/components/ui";
+import { Alert, Badge, Button, Card, CardHeader, Tabs, type Tone } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { currentRun } from "@/lib/session-state";
@@ -28,13 +29,13 @@ type Props = {
   registrations: Registration[];
 };
 
-type Tab = "live" | "event" | "emails" | "waiting";
+type Tab = "live" | "event" | "emails" | "waiting" | "settings";
 
 /**
- * Host panel: share the invite link and watch registrations, edit the email sequence, open
- * the room (waiting room), go live, navigate the deck, activate activities with timers and
- * reveal results, run the hand-raise queue with promote-to-stage, moderate Q&A, and edit
- * the waiting room.
+ * Host panel for one room: share the invite link and watch registrations, edit the room's
+ * email sequence (inherited by every event), open the room (waiting room), go live, navigate
+ * the deck, activate activities with timers and reveal results, run the hand-raise queue with
+ * promote-to-stage, moderate Q&A, edit the waiting room, and rename or delete the room.
  */
 export function HostPanel({ room: initialRoom, initialSession, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations }: Props) {
   const [room, setRoom] = useState(initialRoom);
@@ -50,7 +51,6 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
   const [stage, setStage] = useState<{ url: string; token: string } | null>(null);
   // Start on the event tab until there is a link to share; the live panel is useless without attendees.
   const [tab, setTab] = useState<Tab>(initialInvites.some((i) => !i.revoked_at) ? "live" : "event");
-  const [emailInviteId, setEmailInviteId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { state, status } = useSession(session?.id ?? null, { userId, roomId: room.id });
@@ -141,7 +141,6 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
   const participantsCount = Object.keys(state.participants).length;
   const nameOf = (uid: string) => state.participants[uid]?.display_name ?? uid.slice(0, 8);
   const activeInvites = useMemo(() => invites.filter((i) => !i.revoked_at), [invites]);
-  const emailInvite = activeInvites.find((i) => i.id === emailInviteId) ?? activeInvites[0] ?? null;
 
   const sessionBadge: { tone: Tone; label: string } = live?.state === "live" ? { tone: "live", label: "Live" } : live?.state === "waiting" ? { tone: "brand", label: "Doors open" } : { tone: "neutral", label: "Room closed" };
 
@@ -166,6 +165,7 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
             { value: "event", label: "Event", count: registrations.length },
             { value: "emails", label: "Emails" },
             { value: "waiting", label: "Waiting room" },
+            { value: "settings", label: "Settings" },
           ]}
         />
         <div className="flex flex-wrap items-center gap-2">
@@ -201,28 +201,12 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
       <div className="mt-6">
         {tab === "waiting" ? (
           <WaitingRoomEditor room={room} onSaved={(waiting_room) => setRoom({ ...room, waiting_room })} />
+        ) : tab === "settings" ? (
+          <RoomSettings room={room} hasOpenSession={!!live} onSaved={setRoom} />
         ) : tab === "event" ? (
           <InviteCard room={room} userId={userId} invites={invites} registrations={registrations} participants={state.participants} onInvitesChange={setInvites} onRegistrationsChange={setRegistrations} />
         ) : tab === "emails" ? (
-          emailInvite ? (
-            <div className="space-y-4">
-              {activeInvites.length > 1 && (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-ink-muted">Event</span>
-                  <Select value={emailInvite.id} onChange={(e) => setEmailInviteId(e.target.value)} className="max-w-sm">
-                    {activeInvites.map((i) => (
-                      <option key={i.id} value={i.id}>
-                        {i.title}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-              )}
-              <EmailSequence key={emailInvite.id} room={room} invite={emailInvite} registrationCount={registrations.filter((r) => r.invite_id === emailInvite.id).length} />
-            </div>
-          ) : (
-            <EmptyState title="No event yet" description="Create an invite link on the Event tab. Each event gets its own confirmation and reminder sequence." action={<Button onClick={() => setTab("event")}>Go to Event</Button>} />
-          )
+          <EmailSequence room={room} invites={activeInvites} registrations={registrations} />
         ) : (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
             <section className="space-y-6">

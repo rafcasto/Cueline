@@ -153,3 +153,46 @@ export async function resyncInvite(inviteId: string) {
   const { data: steps } = await admin.from("invite_emails").select("id").eq("invite_id", inviteId).eq("kind", "reminder");
   for (const s of steps ?? []) await resyncStep(s.id);
 }
+
+/**
+ * After a room step is created or edited: copy it to every active event in the room (the
+ * database does the insert-or-update) and reschedule each inherited step at Resend against
+ * that event's start time.
+ */
+export async function syncRoomStep(roomStepId: string) {
+  const admin = supabaseAdmin();
+  const { data, error } = await admin.rpc("sync_room_email", { p_step: roomStepId });
+  if (error) throw error;
+  const ids = ((data ?? []) as { invite_email_id: string }[]).map((r) => r.invite_email_id);
+  for (const id of ids) {
+    await resyncStep(id);
+    await dispatch({ stepId: id });
+  }
+  return ids;
+}
+
+/** Before a room step is deleted: pull back what Resend holds for every inherited copy. */
+export async function cancelRoomStep(roomStepId: string) {
+  const admin = supabaseAdmin();
+  const { data } = await admin.from("invite_emails").select("id").eq("room_email_id", roomStepId);
+  for (const row of data ?? []) await cancelStep(row.id);
+}
+
+/** Before a room is deleted: cancel every email still scheduled at Resend for its registrants. */
+export async function cancelRoomEmails(roomId: string) {
+  if (!emailConfigured()) return;
+  const admin = supabaseAdmin();
+  const { data } = await admin
+    .from("registration_emails")
+    .select("id, resend_id, registrations!inner(room_id)")
+    .eq("registrations.room_id", roomId)
+    .eq("status", "scheduled")
+    .not("resend_id", "is", null);
+  for (const row of data ?? []) {
+    try {
+      await resend.cancel(row.resend_id as string);
+    } catch (err) {
+      console.warn("resend cancel failed", row.resend_id, (err as Error).message);
+    }
+  }
+}

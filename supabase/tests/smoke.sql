@@ -103,3 +103,51 @@ update public.invite_emails set enabled = false where invite_id = '66666666-6666
 select 'host edits the sequence' as check, bool_or(not enabled) and bool_and(updated_at >= created_at) as pass
   from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
 reset role;
+
+-- Room-level sequences: a room seeds one, events inherit it, room edits reach active events,
+-- and hosts create rooms themselves (each with its own sequence).
+select 'room seeds the default sequence' as check,
+  count(*) = 5 and count(*) filter (where kind = 'confirmation') = 1 and bool_and(enabled) as pass
+  from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002';
+select 'event inherits the room sequence' as check,
+  count(*) = 5 and bool_and(room_email_id is not null) as pass
+  from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
+set role authenticated;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+update public.room_emails set subject = 'Two days to go: {{title}}', minutes_before = 2900
+  where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 2880;
+insert into public.room_emails(org_id, room_id, minutes_before, subject, body)
+  values ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 60, 'One hour: {{title}}', 'Nearly there: {{link}}');
+insert into public.rooms(id, org_id, slug, name)
+  values ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'second-room', 'Second room');
+do $$ begin
+  insert into public.rooms(org_id, slug, name) values ('00000000-0000-0000-0000-000000000001', 'Bad Slug!', 'Bad');
+  raise exception 'a slug with spaces or capitals should be rejected';
+exception when check_violation then null; end $$;
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+select 'attendee cannot read room sequences' as check, count(*) = 0 as pass from public.room_emails;
+do $$ begin
+  perform public.sync_room_email('00000000-0000-0000-0000-000000000002');
+  raise exception 'an attendee should not be able to sync room emails';
+exception when insufficient_privilege then null; end $$;
+reset role;
+select 'host creates a room with its own sequence' as check, count(*) = 5 as pass
+  from public.room_emails where room_id = '00000000-0000-0000-0000-000000000003';
+set role service_role;
+select 'sync updates the inherited step' as check, count(*) = 1 as pass
+  from public.sync_room_email((select id from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 2900));
+select 'inherited step follows the room step' as check, subject = 'Two days to go: {{title}}' and minutes_before = 2900 as pass
+  from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666'
+   and room_email_id = (select id from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 2900);
+select 'sync adds a new room step to the event' as check, count(*) = 1 as pass
+  from public.sync_room_email((select id from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 60));
+select 'event carries the added step' as check, count(*) = 6 as pass
+  from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
+update public.invites set revoked_at = now() where id = '66666666-6666-6666-6666-666666666666';
+select 'sync skips revoked events' as check, count(*) = 0 as pass
+  from public.sync_room_email((select id from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 60));
+update public.invites set revoked_at = null where id = '66666666-6666-6666-6666-666666666666';
+delete from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 60;
+select 'deleting a room step removes the inherited copy' as check, count(*) = 5 as pass
+  from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
+reset role;
