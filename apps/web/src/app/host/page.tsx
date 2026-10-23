@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { Alert, Badge, EmptyState, PageHeader, buttonClass } from "@/components/ui";
+import { NewRoomForm } from "@/components/NewRoomForm";
+import { Alert, Badge, PageHeader, buttonClass } from "@/components/ui";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -11,17 +12,25 @@ export default async function HostIndex({ searchParams }: { searchParams: Promis
   const { data: auth } = await sb.auth.getUser();
   if (!auth.user) redirect("/login?next=/host");
   const { error } = await searchParams;
-  const [{ data: rooms }, { data: memberships }, { data: openSessions }] = await Promise.all([
+  const [{ data: rooms }, { data: memberships }, { data: orgs }, { data: openSessions }] = await Promise.all([
     sb.from("rooms").select("id, slug, name, organisations(name)").order("name"),
-    sb.from("org_members").select("org_id"),
+    sb.from("org_members").select("org_id, role"),
+    sb.from("organisations").select("id, name").order("name"),
     sb.from("sessions").select("room_id, state").neq("state", "ended"),
   ]);
   const orgIds = new Set((memberships ?? []).map((m) => m.org_id));
+  // Presenters run rooms but do not create them.
+  const creatorOrgIds = new Set((memberships ?? []).filter((m) => m.role === "owner" || m.role === "host").map((m) => m.org_id));
+  const creatorOrgs = (orgs ?? []).filter((o) => creatorOrgIds.has(o.id));
   const stateByRoom = new Map((openSessions ?? []).map((s) => [s.room_id, s.state as string]));
 
   return (
     <AppShell email={auth.user.email}>
-      <PageHeader title="Your rooms" description="Each room has its own invite links, deck, activities and waiting room." />
+      <PageHeader
+        title="Your rooms"
+        description="Each room has its own events and invite links, email sequence, deck, activities and waiting room. Run as many as you need."
+        actions={orgIds.size > 0 && (rooms ?? []).length > 0 ? <NewRoomForm orgs={creatorOrgs} /> : undefined}
+      />
       {error === "not-a-member" && (
         <Alert tone="danger" className="mt-6">
           You are not a member of that room&apos;s organisation.
@@ -34,7 +43,13 @@ export default async function HostIndex({ searchParams }: { searchParams: Promis
           <code className="rounded bg-surface-inset px-1">{auth.user.id}</code>, then reload.
         </Alert>
       ) : (rooms ?? []).length === 0 ? (
-        <EmptyState className="mt-6" title="No rooms yet" description="Rooms are created in the database for now. The seed creates one called Main room." />
+        <div className="mt-6 rounded-xl border border-dashed border-line p-8">
+          <h2 className="text-base font-semibold text-ink">No rooms yet</h2>
+          <p className="mt-1 text-sm text-ink-muted">A room is where your webinars happen. Create one, then add an event to it and share the invite link.</p>
+          <div className="mt-5">
+            <NewRoomForm orgs={creatorOrgs} autoOpen />
+          </div>
+        </div>
       ) : (
         <ul className="mt-6 grid gap-4 sm:grid-cols-2">
           {(rooms ?? []).map((r) => {

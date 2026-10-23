@@ -1,12 +1,18 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { formatStart } from "@/components/RegisterForm";
 import { Alert, Badge, Button, Card, CardHeader, EmptyState, Eyebrow, Field, Input, Select, Switch, Textarea, cx } from "@/components/ui";
 import { api } from "@/lib/api";
 import { describeOffset, PLACEHOLDERS, renderTemplate, templateVars } from "@/lib/email/template";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import type { Invite, InviteEmail, RegistrationEmail, Room } from "@/lib/supabase/types";
+import type { Invite, Registration, RegistrationEmail, Room, RoomEmail } from "@/lib/supabase/types";
 
-type Props = { room: Room; invite: Invite; registrationCount: number };
+type Props = {
+  room: Room;
+  /** Open (not revoked) events in the room; delivery is shown for one of them. */
+  invites: Invite[];
+  registrations: Registration[];
+};
 
 const OFFSETS: { minutes: number; label: string }[] = [
   { minutes: 7 * 1440, label: "1 week before" },
@@ -23,37 +29,69 @@ const OFFSETS: { minutes: number; label: string }[] = [
 
 type Counts = Record<string, Partial<Record<RegistrationEmail["status"], number>>>;
 
+const browserZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+};
+
 /**
- * The anticipation sequence for one event: the confirmation plus reminders at fixed times
- * before the start. Hosts edit copy and timing here; the server reschedules at Resend.
+ * The room's email sequence: the welcome sent on registration plus reminders at fixed times
+ * before the start. Every event in the room inherits it; the host edits copy and timing here
+ * and the server pushes the change to each open event and reschedules it at Resend against
+ * that event's start time. Delivery counts are shown for one event at a time.
  */
-export function EmailSequence({ room, invite, registrationCount }: Props) {
-  const [steps, setSteps] = useState<InviteEmail[] | null>(null);
-  const [counts, setCounts] = useState<Counts>({});
-  const [editing, setEditing] = useState<Partial<InviteEmail> | null>(null);
+export function EmailSequence({ room, invites, registrations }: Props) {
+  const [steps, setSteps] = useState<RoomEmail[] | null>(null);
+  // Delivery counts for the event they were loaded for; an event switch shows nothing until its own arrive.
+  const [countsFor, setCountsFor] = useState<{ inviteId: string; counts: Counts } | null>(null);
+  const [inviteId, setInviteId] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Partial<RoomEmail> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sb = supabaseBrowser();
 
+  const invite = invites.find((i) => i.id === inviteId) ?? invites[0] ?? null;
+  const counts: Counts = invite && countsFor?.inviteId === invite.id ? countsFor.counts : {};
+  const registrationCount = invite ? registrations.filter((r) => r.invite_id === invite.id).length : 0;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [{ data: s }, { data: r }] = await Promise.all([
-        sb.from("invite_emails").select("*").eq("invite_id", invite.id).order("minutes_before", { ascending: false, nullsFirst: true }),
-        sb.from("registration_emails").select("invite_email_id, status").eq("org_id", invite.org_id),
-      ]);
-      if (cancelled) return;
-      setSteps((s as InviteEmail[]) ?? []);
-      const c: Counts = {};
-      for (const row of (r as Pick<RegistrationEmail, "invite_email_id" | "status">[]) ?? []) {
-        c[row.invite_email_id] = { ...c[row.invite_email_id], [row.status]: (c[row.invite_email_id]?.[row.status] ?? 0) + 1 };
-      }
-      setCounts(c);
+      const { data } = await sb.from("room_emails").select("*").eq("room_id", room.id).order("minutes_before", { ascending: false, nullsFirst: true });
+      if (!cancelled) setSteps((data as RoomEmail[]) ?? []);
     })();
     return () => {
       cancelled = true;
     };
-  }, [sb, invite.id, invite.org_id]);
+  }, [sb, room.id]);
+
+  // Delivery for the selected event: its inherited steps, then what Resend was asked for each.
+  useEffect(() => {
+    if (!invite) return;
+    let cancelled = false;
+    const id = invite.id;
+    (async () => {
+      const { data: eventSteps } = await sb.from("invite_emails").select("id, room_email_id").eq("invite_id", id);
+      const roomStepOf = new Map<string, string>();
+      for (const s of (eventSteps as { id: string; room_email_id: string | null }[]) ?? []) if (s.room_email_id) roomStepOf.set(s.id, s.room_email_id);
+      const ids = [...roomStepOf.keys()];
+      const { data: rows } = ids.length > 0 ? await sb.from("registration_emails").select("invite_email_id, status").in("invite_email_id", ids) : { data: [] };
+      if (cancelled) return;
+      const c: Counts = {};
+      for (const row of (rows as Pick<RegistrationEmail, "invite_email_id" | "status">[]) ?? []) {
+        const key = roomStepOf.get(row.invite_email_id);
+        if (!key) continue;
+        c[key] = { ...c[key], [row.status]: (c[key]?.[row.status] ?? 0) + 1 };
+      }
+      setCountsFor({ inviteId: id, counts: c });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sb, invite]);
 
   const sorted = useMemo(() => (steps ?? []).slice().sort((a, b) => (b.minutes_before ?? Infinity) - (a.minutes_before ?? Infinity)), [steps]);
 
@@ -74,30 +112,30 @@ export function EmailSequence({ room, invite, registrationCount }: Props) {
     if (!editing) return;
     const r = await call(() =>
       editing.id
-        ? api<{ step: InviteEmail }>("/api/emails/steps", { action: "update", id: editing.id, subject: editing.subject, body: editing.body, minutes_before: editing.kind === "reminder" ? editing.minutes_before : undefined })
-        : api<{ step: InviteEmail }>("/api/emails/steps", { action: "create", invite_id: invite.id, minutes_before: editing.minutes_before, subject: editing.subject, body: editing.body }),
+        ? api<{ step: RoomEmail }>("/api/emails/steps", { action: "update", id: editing.id, subject: editing.subject, body: editing.body, minutes_before: editing.kind === "reminder" ? editing.minutes_before : undefined })
+        : api<{ step: RoomEmail }>("/api/emails/steps", { action: "create", room_id: room.id, minutes_before: editing.minutes_before, subject: editing.subject, body: editing.body }),
     );
     if (!r) return;
     setSteps((s) => (editing.id ? (s ?? []).map((x) => (x.id === r.step.id ? r.step : x)) : [...(s ?? []), r.step]));
     setEditing(null);
   };
-  const toggle = async (step: InviteEmail, enabled: boolean) => {
+  const toggle = async (step: RoomEmail, enabled: boolean) => {
     setSteps((s) => (s ?? []).map((x) => (x.id === step.id ? { ...x, enabled } : x)));
-    const r = await call(() => api<{ step: InviteEmail }>("/api/emails/steps", { action: "update", id: step.id, enabled }));
+    const r = await call(() => api<{ step: RoomEmail }>("/api/emails/steps", { action: "update", id: step.id, enabled }));
     if (!r) setSteps((s) => (s ?? []).map((x) => (x.id === step.id ? { ...x, enabled: !enabled } : x)));
   };
-  const remove = async (step: InviteEmail) => {
-    if (!confirm(`Delete "${step.subject}"? Scheduled copies of it are cancelled.`)) return;
+  const remove = async (step: RoomEmail) => {
+    if (!confirm(`Delete "${step.subject}" from this room's sequence? Scheduled copies for every open event are cancelled.`)) return;
     const r = await call(() => api("/api/emails/steps", { action: "delete", id: step.id }));
     if (r) setSteps((s) => (s ?? []).filter((x) => x.id !== step.id));
   };
 
   const previewVars = templateVars({
     name: "Ada Lovelace",
-    title: invite.title,
+    title: invite?.title ?? room.name,
     room: room.name,
-    startsAt: invite.starts_at,
-    timezone: invite.timezone,
+    startsAt: invite?.starts_at ?? null,
+    timezone: invite?.timezone ?? browserZone(),
     accessToken: "example",
     code: "K7PQ2M",
     appUrl: typeof window === "undefined" ? "" : window.location.origin,
@@ -107,10 +145,10 @@ export function EmailSequence({ room, invite, registrationCount }: Props) {
     <div className="space-y-6">
       <Card>
         <CardHeader
-          title="Event emails"
+          title="Email sequence"
           description={
             <>
-              Every registrant gets the confirmation at once and each enabled reminder before the start of <strong className="font-medium text-ink">{invite.title}</strong>. Edits apply to everyone already registered; the schedule moves if you change the start time.
+              Every event in <strong className="font-medium text-ink">{room.name}</strong> inherits this sequence. Registrants get the welcome at once and each enabled reminder before that event&apos;s start. Edits reach every open event and move its schedule.
             </>
           }
           actions={
@@ -119,14 +157,40 @@ export function EmailSequence({ room, invite, registrationCount }: Props) {
             </Button>
           }
         />
-        {!invite.starts_at && (
-          <Alert tone="warning" className="mt-4" title="No start time on this event">
-            Reminders need a start time to count back from. Set one on the Event tab and they are scheduled for everyone who has registered.
-          </Alert>
-        )}
         {error && (
           <Alert tone="danger" className="mt-4">
             {error}
+          </Alert>
+        )}
+
+        {invites.length === 0 ? (
+          <Alert tone="brand" className="mt-4" title="No open event yet">
+            The sequence is ready. Create an event on the Event tab and it starts sending to that event&apos;s registrants.
+          </Alert>
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-inset px-4 py-3 text-sm">
+            <span className="text-ink-muted">Delivery for</span>
+            {invites.length > 1 ? (
+              <Select value={invite?.id ?? ""} onChange={(e) => setInviteId(e.target.value)} className="max-w-xs">
+                {invites.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.title}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <span className="font-medium text-ink">{invite?.title}</span>
+            )}
+            {invite && (
+              <span className="text-ink-muted">
+                {invite.starts_at ? formatStart(invite.starts_at) : "no start time"} · {registrationCount} registered
+              </span>
+            )}
+          </div>
+        )}
+        {invite && !invite.starts_at && (
+          <Alert tone="warning" className="mt-4" title="No start time on this event">
+            Reminders count back from the start. Set one on the Event tab and they are scheduled for everyone who has registered.
           </Alert>
         )}
 
@@ -154,7 +218,7 @@ export function EmailSequence({ room, invite, registrationCount }: Props) {
                 <li key={step.id} className={cx("flex flex-wrap items-start gap-4 py-4 first:pt-0 last:pb-0", !step.enabled && "opacity-60")}>
                   <div className="w-36 shrink-0 pt-0.5">
                     <Eyebrow>{describeOffset(step.minutes_before)}</Eyebrow>
-                    <p className="mt-1 text-xs text-ink-faint">{step.kind === "confirmation" ? "Confirmation" : "Reminder"}</p>
+                    <p className="mt-1 text-xs text-ink-faint">{step.kind === "confirmation" ? "Welcome" : "Reminder"}</p>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-ink">{renderTemplate(step.subject, previewVars)}</p>
@@ -186,7 +250,7 @@ export function EmailSequence({ room, invite, registrationCount }: Props) {
 
       <Card className="bg-surface-inset">
         <Eyebrow>Placeholders</Eyebrow>
-        <p className="mt-2 text-sm text-ink-muted">Wrap any of these in double braces and they are filled in per registrant.</p>
+        <p className="mt-2 text-sm text-ink-muted">Wrap any of these in double braces and they are filled in per registrant, with the title and start time of the event they registered for.</p>
         <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
           {PLACEHOLDERS.map((p) => (
             <div key={p} className="flex gap-3">
@@ -200,13 +264,13 @@ export function EmailSequence({ room, invite, registrationCount }: Props) {
   );
 }
 
-function StepEditor({ editing, onChange, onCancel, onSave, busy, preview }: { editing: Partial<InviteEmail>; onChange: (s: Partial<InviteEmail>) => void; onCancel: () => void; onSave: () => void; busy: boolean; preview: (s: string) => string }) {
+function StepEditor({ editing, onChange, onCancel, onSave, busy, preview }: { editing: Partial<RoomEmail>; onChange: (s: Partial<RoomEmail>) => void; onCancel: () => void; onSave: () => void; busy: boolean; preview: (s: string) => string }) {
   const [tab, setTab] = useState<"write" | "preview">("write");
   const custom = editing.kind === "reminder" && editing.minutes_before !== undefined && !OFFSETS.some((o) => o.minutes === editing.minutes_before);
   return (
     <div className="mt-6 rounded-xl border border-line bg-surface-inset p-5">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-ink">{editing.id ? "Edit email" : "New reminder"}</h3>
+        <h3 className="text-sm font-semibold text-ink">{editing.id ? (editing.kind === "confirmation" ? "Edit welcome email" : "Edit reminder") : "New reminder"}</h3>
         <div className="flex gap-1 text-sm">
           {(["write", "preview"] as const).map((t) => (
             <button key={t} type="button" onClick={() => setTab(t)} className={cx("rounded-md px-2.5 py-1 font-medium", tab === t ? "bg-surface-raised text-ink shadow-card" : "text-ink-muted hover:text-ink")}>

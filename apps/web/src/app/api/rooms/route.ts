@@ -1,0 +1,68 @@
+import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { cancelRoomEmails } from "@/lib/email/schedule";
+import { SLUG_PATTERN, slugify, uniqueSlug } from "@/lib/rooms";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import type { Room } from "@/lib/supabase/types";
+
+type Body =
+  | { action: "create"; org_id: string; name: string }
+  | { action: "update"; id: string; name?: string; slug?: string }
+  | { action: "delete"; id: string };
+
+/**
+ * Rooms belong to the host's organisation. Creating one seeds its email sequence (a database
+ * trigger); each room then carries its own events, deck, activities, waiting room and emails.
+ * Deleting a room cancels the reminders still scheduled for its registrants, then everything
+ * under it cascades away.
+ */
+export const POST = handler(async (req) => {
+  const { user } = await requireUser(req);
+  const body = await readJson<Body>(req);
+  const admin = supabaseAdmin();
+
+  const cleanName = (name: string) => {
+    const n = name.trim();
+    if (n.length < 1 || n.length > 80) throw new HttpError(400, "Room name must be 1 to 80 characters.");
+    return n;
+  };
+
+  if (body.action === "create") {
+    await requireOrgRole(user.id, body.org_id, ["owner", "host"]);
+    const name = cleanName(String(body.name ?? ""));
+    const base = slugify(name);
+    const { data: taken } = await admin.from("rooms").select("slug").like("slug", `${base}%`);
+    const slug = uniqueSlug(base, (taken ?? []).map((r) => r.slug));
+    const { data, error } = await admin.from("rooms").insert({ org_id: body.org_id, name, slug }).select("*").single();
+    if (error) throw error;
+    return json({ room: data as Room });
+  }
+
+  const { data: room } = await admin.from("rooms").select("*").eq("id", body.id).maybeSingle();
+  if (!room) throw new HttpError(404, "Room not found.");
+  await requireOrgRole(user.id, room.org_id, ["owner", "host"]);
+
+  if (body.action === "delete") {
+    const { data: open } = await admin.from("sessions").select("id").eq("room_id", room.id).neq("state", "ended").maybeSingle();
+    if (open) throw new HttpError(409, "End the session before deleting the room.");
+    await cancelRoomEmails(room.id);
+    const { error } = await admin.from("rooms").delete().eq("id", room.id);
+    if (error) throw error;
+    return json({ ok: true });
+  }
+
+  const patch: Partial<Room> = {};
+  if (body.name !== undefined) patch.name = cleanName(body.name);
+  if (body.slug !== undefined) {
+    const slug = body.slug.trim().toLowerCase();
+    if (!SLUG_PATTERN.test(slug)) throw new HttpError(400, "The address must be 3 to 40 characters: lowercase letters, digits and hyphens.");
+    if (slug !== room.slug) {
+      const { data: clash } = await admin.from("rooms").select("id").eq("slug", slug).maybeSingle();
+      if (clash) throw new HttpError(409, "That address is already taken.");
+      patch.slug = slug;
+    }
+  }
+  if (Object.keys(patch).length === 0) return json({ room: room as Room });
+  const { data, error } = await admin.from("rooms").update(patch).eq("id", room.id).select("*").single();
+  if (error) throw error;
+  return json({ room: data as Room });
+});

@@ -46,6 +46,7 @@ export type Room = {
   branding: Record<string, unknown>;
   waiting_room: WaitingRoom;
   livekit_room: string;
+  created_at: string;
 };
 
 export type Presentation = {
@@ -178,11 +179,30 @@ export type Registration = {
 export type InviteEmailKind = "confirmation" | "reminder";
 export type RegistrationEmailStatus = "queued" | "scheduled" | "sent" | "cancelled" | "failed";
 
-/** One step of an event's email sequence. Confirmation goes out on registration; reminders at minutes_before the start. */
+/**
+ * One step of a room's email sequence: the welcome (kind `confirmation`) goes out on registration,
+ * reminders at minutes_before the start of each event. Events inherit these as InviteEmail rows.
+ */
+export type RoomEmail = {
+  id: string;
+  org_id: string;
+  room_id: string;
+  kind: InviteEmailKind;
+  minutes_before: number | null;
+  subject: string;
+  body: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+/** One step of an event's email sequence, inherited from the room step in room_email_id; send times count back from the event's start. */
 export type InviteEmail = {
   id: string;
   org_id: string;
   invite_id: string;
+  /** The room step this was copied from; null for steps that predate room sequences. */
+  room_email_id: string | null;
   kind: InviteEmailKind;
   minutes_before: number | null;
   subject: string;
