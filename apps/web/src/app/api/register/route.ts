@@ -1,4 +1,5 @@
 import { handler, HttpError, json, readJson, requireUser } from "@/lib/auth";
+import { queueRegistrationEmails } from "@/lib/email/schedule";
 import { inviteByToken } from "@/lib/invites";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -8,7 +9,8 @@ type Body = { token: string; name: string; email: string };
  * Register for a webinar through an invite link. The caller is the attendee's anonymous
  * identity (created client-side before submitting), which is what the room later recognises.
  * Registering the same email twice on one invite re-binds it to the current identity, so an
- * attendee who comes back on another device can get in again.
+ * attendee who comes back on another device can get in again. Registration also queues the
+ * event's email sequence for this attendee: confirmation now, reminders before the start.
  */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
@@ -29,9 +31,16 @@ export const POST = handler(async (req) => {
       { org_id: invite.org_id, room_id: invite.room_id, invite_id: invite.id, user_id: user.id, name, email },
       { onConflict: "invite_id,email" },
     )
-    .select("id, name, email, created_at")
+    .select("id, name, email, code, created_at")
     .single();
   if (error) throw error;
+
+  // Email problems must never block the registration itself.
+  try {
+    await queueRegistrationEmails(data.id);
+  } catch (err) {
+    console.error("email sequence", err);
+  }
 
   return json({ registration: data, room_slug: room.slug, session_state: session?.state ?? null });
 });

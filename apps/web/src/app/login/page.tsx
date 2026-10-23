@@ -1,6 +1,8 @@
 "use client";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
+import { Alert, Button, Card, Field, Input, Logo, TextLink } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 function LoginInner() {
@@ -27,41 +29,29 @@ function LoginInner() {
   };
 
   return (
-    <main className="mx-auto max-w-sm p-6 text-center">
-      <h1 className="text-2xl font-semibold">Cueline</h1>
-      <p className="mt-2 text-sm text-neutral-500">Hosts sign in with email and password.</p>
-      <form onSubmit={(e) => void signIn(e)} className="mt-6 space-y-3 text-left">
-        <label className="block text-sm">
-          <span className="text-neutral-600 dark:text-neutral-300">Email</span>
-          <input
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded border px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="text-neutral-600 dark:text-neutral-300">Password</span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded border px-3 py-2 dark:border-neutral-700 dark:bg-neutral-900"
-          />
-        </label>
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded bg-neutral-900 px-4 py-2 text-white disabled:opacity-60 dark:bg-white dark:text-neutral-900"
-        >
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-12 sm:px-6">
+      <Link href="/" className="mb-8 self-center">
+        <Logo />
+      </Link>
+      <Card className="p-8">
+        <h1 className="text-xl font-semibold tracking-tight text-ink">Host sign in</h1>
+        <p className="mt-1 text-sm text-ink-muted">Email and password. Attendees don&apos;t need an account.</p>
+        <form onSubmit={(e) => void signIn(e)} className="mt-6 space-y-4">
+          <Field label="Email" htmlFor="email">
+            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </Field>
+          <Field label="Password" htmlFor="password">
+            <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          </Field>
+          {error && <Alert tone="danger">{error}</Alert>}
+          <Button type="submit" loading={busy} size="lg" className="w-full">
+            Sign in
+          </Button>
+        </form>
+      </Card>
+      <p className="mt-6 text-center text-sm text-ink-muted">
+        Attending a webinar? <TextLink href="/join">Join a room</TextLink>
+      </p>
     </main>
   );
 }

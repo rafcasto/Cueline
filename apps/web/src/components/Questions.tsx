@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Badge, Button, Card, CardHeader, Input, cx } from "@/components/ui";
 import type { SessionData } from "@/lib/session-state";
 import type { Question } from "@/lib/supabase/types";
 
@@ -22,46 +23,73 @@ export function Questions({ state, userId, onAsk, onUpvote, onApprove, onAnswere
     .sort((a, b) => (state.questionVotes[b.id] ?? 0) - (state.questionVotes[a.id] ?? 0) || a.created_at.localeCompare(b.created_at));
 
   return (
-    <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-      <h3 className="font-semibold">Q&amp;A</h3>
+    <Card>
+      <CardHeader title="Q&A" description={host ? "Approve questions to show them to everyone." : undefined} />
       {!host && (
         <form
-          className="mt-2 flex gap-2"
+          className="mt-4 flex gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             if (!body.trim()) return;
             void onAsk(body.trim()).then(() => setBody(""));
           }}
         >
-          <input value={body} onChange={(e) => setBody(e.target.value)} maxLength={500} placeholder="Ask a question" className="flex-1 rounded border px-2 py-1 dark:bg-neutral-800" />
-          <button className="rounded bg-neutral-800 px-3 py-1 text-white dark:bg-neutral-200 dark:text-neutral-900">Ask</button>
+          <Input value={body} onChange={(e) => setBody(e.target.value)} maxLength={500} placeholder="Ask a question" aria-label="Your question" />
+          <Button type="submit" size="md" className="shrink-0">
+            Ask
+          </Button>
         </form>
       )}
-      <ul className="mt-3 space-y-2">
-        {list.length === 0 && <li className="text-sm text-neutral-500">No questions yet.</li>}
+      <ul className="mt-4 space-y-2">
+        {list.length === 0 && <li className="py-4 text-center text-sm text-ink-muted">No questions yet.</li>}
         {list.map((q) => (
-          <li key={q.id} className={`flex items-start gap-2 rounded border px-2 py-1 ${q.answered_at ? "opacity-50" : ""} ${!q.approved ? "border-dashed" : ""}`}>
+          <li
+            key={q.id}
+            className={cx(
+              "flex items-start gap-3 rounded-lg border px-3 py-2.5",
+              q.approved ? "border-line bg-surface-raised" : "border-dashed border-line-strong",
+              q.answered_at && "opacity-60",
+            )}
+          >
             <button
+              type="button"
               disabled={voted.has(q.id)}
               onClick={() => void onUpvote(q.id).then(() => setVoted((s) => new Set(s).add(q.id)))}
-              className="rounded bg-neutral-100 px-2 text-sm tabular-nums disabled:opacity-60 dark:bg-neutral-800"
+              className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border border-line-strong bg-surface-raised px-2.5 text-xs font-medium tabular-nums text-ink shadow-card transition-colors hover:bg-surface-inset disabled:pointer-events-none disabled:opacity-60"
               title="Upvote"
             >
               ▲ {state.questionVotes[q.id] ?? 0}
             </button>
-            <span className="flex-1 text-sm">{q.body}</span>
-            {host && onApprove && !q.approved && (
-              <button onClick={() => void onApprove(q, true)} className="text-xs text-green-700">approve</button>
-            )}
-            {host && onApprove && q.approved && !q.answered_at && (
-              <button onClick={() => void onApprove(q, false)} className="text-xs text-neutral-500">hide</button>
-            )}
-            {host && onAnswered && !q.answered_at && (
-              <button onClick={() => void onAnswered(q)} className="text-xs text-indigo-700">answered</button>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm leading-relaxed text-ink">{q.body}</p>
+              {host && !q.approved && (
+                <Badge tone="warning" className="mt-1">
+                  pending
+                </Badge>
+              )}
+            </div>
+            {host && (
+              <div className="flex shrink-0 items-center gap-1">
+                {onApprove && !q.approved && (
+                  <Button variant="ghost" size="sm" className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-400" onClick={() => void onApprove(q, true)}>
+                    Approve
+                  </Button>
+                )}
+                {onApprove && q.approved && !q.answered_at && (
+                  <Button variant="ghost" size="sm" onClick={() => void onApprove(q, false)}>
+                    Hide
+                  </Button>
+                )}
+                {onAnswered && !q.answered_at && (
+                  <Button variant="ghost" size="sm" className="text-brand hover:text-brand-hover" onClick={() => void onAnswered(q)}>
+                    Answered
+                  </Button>
+                )}
+              </div>
             )}
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }

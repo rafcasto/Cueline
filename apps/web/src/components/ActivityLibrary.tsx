@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, Select, cx } from "@/components/ui";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Activity, ActivityKind, ActivityOption, CtaDestination } from "@/lib/supabase/types";
 
@@ -19,6 +20,8 @@ const KINDS: { kind: ActivityKind; label: string }[] = [
   { kind: "wordcloud", label: "Word cloud" },
   { kind: "cta", label: "Call to action" },
 ];
+
+const kindLabel = (k: ActivityKind) => KINDS.find((x) => x.kind === k)?.label ?? k;
 
 /** Presenter-authored activities: create, edit, delete, and activate at any point. */
 export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivate, activeId }: Props) {
@@ -56,86 +59,131 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
   };
 
   return (
-    <div className="rounded-lg border p-4 dark:border-neutral-700">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Activities</h2>
-        <div className="flex gap-1">
-          {KINDS.map((k) => (
-            <button key={k.kind} onClick={() => setEditing({ kind: k.kind, title: "", options: k.kind === "poll" || k.kind === "quiz" ? [opt(), opt()] : [], config: k.kind === "cta" ? { destination: "tab", target: "" } : {} })} className="rounded border px-2 py-0.5 text-xs">
-              + {k.label}
-            </button>
-          ))}
-        </div>
-      </div>
+    <Card>
+      <CardHeader
+        title="Activities"
+        description="Polls, quizzes, word clouds and calls to action. Activate one while live and it appears over the slides."
+        actions={KINDS.map((k) => (
+          <Button
+            key={k.kind}
+            variant="secondary"
+            size="sm"
+            onClick={() => setEditing({ kind: k.kind, title: "", options: k.kind === "poll" || k.kind === "quiz" ? [opt(), opt()] : [], config: k.kind === "cta" ? { destination: "tab", target: "" } : {} })}
+          >
+            + {k.label}
+          </Button>
+        ))}
+      />
 
       {editing && (
-        <div className="mt-3 space-y-2 rounded-lg bg-neutral-50 p-3 text-sm dark:bg-neutral-900">
-          <input autoFocus value={editing.title ?? ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} placeholder={editing.kind === "cta" ? "Button label" : "Question"} className="w-full rounded border px-2 py-1 dark:bg-neutral-800" />
+        <div className="mt-6 space-y-4 rounded-lg bg-surface-inset p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{editing.id ? "Edit" : "New"} {kindLabel(editing.kind ?? "poll").toLowerCase()}</p>
+          <Field label={editing.kind === "cta" ? "Button label" : "Question"} htmlFor="activity-title">
+            <Input id="activity-title" autoFocus value={editing.title ?? ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
+          </Field>
           {(editing.kind === "poll" || editing.kind === "quiz") && (
-            <ul className="space-y-1">
-              {(editing.options ?? []).map((o, i) => (
-                <li key={o.id} className="flex items-center gap-2">
-                  {editing.kind === "quiz" && (
-                    <input type="checkbox" title="Correct answer" checked={!!o.correct} onChange={(e) => setEditing({ ...editing, options: editing.options!.map((x, j) => (j === i ? { ...x, correct: e.target.checked } : x)) })} />
-                  )}
-                  <input value={o.label} onChange={(e) => setEditing({ ...editing, options: editing.options!.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} placeholder={`Option ${i + 1}`} className="flex-1 rounded border px-2 py-1 dark:bg-neutral-800" />
-                  <button onClick={() => setEditing({ ...editing, options: editing.options!.filter((_, j) => j !== i) })} className="text-neutral-400">✕</button>
-                </li>
-              ))}
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium text-ink">Options{editing.kind === "quiz" && <span className="ml-2 text-xs font-normal text-ink-muted">tick the correct answer</span>}</p>
+              <ul className="space-y-2">
+                {(editing.options ?? []).map((o, i) => (
+                  <li key={o.id} className="flex items-center gap-2">
+                    {editing.kind === "quiz" && (
+                      <input
+                        type="checkbox"
+                        title="Correct answer"
+                        className="size-4 shrink-0 accent-brand"
+                        checked={!!o.correct}
+                        onChange={(e) => setEditing({ ...editing, options: editing.options!.map((x, j) => (j === i ? { ...x, correct: e.target.checked } : x)) })}
+                      />
+                    )}
+                    <Input value={o.label} onChange={(e) => setEditing({ ...editing, options: editing.options!.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} placeholder={`Option ${i + 1}`} />
+                    <Button variant="ghost" size="sm" aria-label="Remove option" onClick={() => setEditing({ ...editing, options: editing.options!.filter((_, j) => j !== i) })}>
+                      ✕
+                    </Button>
+                  </li>
+                ))}
+              </ul>
               {(editing.options?.length ?? 0) < 10 && (
-                <li><button onClick={() => setEditing({ ...editing, options: [...(editing.options ?? []), opt()] })} className="text-xs text-indigo-700">+ option</button></li>
+                <Button variant="ghost" size="sm" onClick={() => setEditing({ ...editing, options: [...(editing.options ?? []), opt()] })}>
+                  + Add option
+                </Button>
               )}
-            </ul>
+            </div>
           )}
           {editing.kind === "cta" && (
-            <div className="flex gap-2">
-              <select value={editing.config?.destination ?? "tab"} onChange={(e) => setEditing({ ...editing, config: { ...editing.config, destination: e.target.value as CtaDestination } })} className="rounded border px-2 py-1 dark:bg-neutral-800">
-                <option value="stripe">Stripe checkout</option>
-                <option value="embed">Embedded page</option>
-                <option value="tab">New tab</option>
-              </select>
-              <input value={editing.config?.target ?? ""} onChange={(e) => setEditing({ ...editing, config: { ...editing.config, target: e.target.value } })} placeholder={editing.config?.destination === "stripe" ? "price_…" : "https://…"} className="flex-1 rounded border px-2 py-1 dark:bg-neutral-800" />
+            <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
+              <Field label="Opens" htmlFor="cta-destination">
+                <Select id="cta-destination" value={editing.config?.destination ?? "tab"} onChange={(e) => setEditing({ ...editing, config: { ...editing.config, destination: e.target.value as CtaDestination } })}>
+                  <option value="stripe">Stripe checkout</option>
+                  <option value="embed">Embedded page</option>
+                  <option value="tab">New tab</option>
+                </Select>
+              </Field>
+              <Field label={editing.config?.destination === "stripe" ? "Price id" : "URL"} htmlFor="cta-target">
+                <Input id="cta-target" value={editing.config?.target ?? ""} onChange={(e) => setEditing({ ...editing, config: { ...editing.config, target: e.target.value } })} placeholder={editing.config?.destination === "stripe" ? "price_…" : "https://…"} />
+              </Field>
             </div>
           )}
           {editing.kind !== "cta" && (
-            <div className="flex flex-wrap items-center gap-3">
-              <label>
-                Timer{" "}
-                <select value={editing.timer_seconds ?? ""} onChange={(e) => setEditing({ ...editing, timer_seconds: e.target.value ? Number(e.target.value) : null })} className="rounded border px-2 py-1 dark:bg-neutral-800">
-                  <option value="">none</option>
-                  {[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map((s) => <option key={s} value={s}>{s}s</option>)}
-                </select>
-              </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Timer" htmlFor="activity-timer" hint="Answers close when it runs out.">
+                <Select id="activity-timer" value={editing.timer_seconds ?? ""} onChange={(e) => setEditing({ ...editing, timer_seconds: e.target.value ? Number(e.target.value) : null })}>
+                  <option value="">No timer</option>
+                  {[10, 15, 20, 30, 45, 60, 90, 120, 180, 300].map((s) => (
+                    <option key={s} value={s}>
+                      {s} seconds
+                    </option>
+                  ))}
+                </Select>
+              </Field>
               {editing.kind === "quiz" && (
-                <label>Points <input type="number" min={100} step={100} value={editing.points ?? 1000} onChange={(e) => setEditing({ ...editing, points: Number(e.target.value) })} className="w-20 rounded border px-2 py-1 dark:bg-neutral-800" /></label>
+                <Field label="Points" htmlFor="activity-points" hint="For a correct answer; faster answers keep more.">
+                  <Input id="activity-points" type="number" min={100} step={100} value={editing.points ?? 1000} onChange={(e) => setEditing({ ...editing, points: Number(e.target.value) })} />
+                </Field>
               )}
             </div>
           )}
-          <div className="flex gap-2">
-            <button onClick={() => void save()} disabled={busy} className="rounded bg-indigo-600 px-3 py-1 text-white disabled:opacity-50">Save</button>
-            <button onClick={() => setEditing(null)} className="rounded border px-3 py-1">Cancel</button>
+          <div className="flex gap-2 pt-2">
+            <Button onClick={() => void save()} loading={busy}>
+              Save
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing(null)}>
+              Cancel
+            </Button>
           </div>
         </div>
       )}
 
-      <ul className="mt-3 space-y-1 text-sm">
-        {activities.length === 0 && !editing && <li className="text-neutral-500">No activities yet. Add a poll, quiz, word cloud or call to action.</li>}
-        {activities.map((a) => (
-          <li key={a.id} className={`flex items-center gap-2 rounded px-2 py-1 ${activeId === a.id ? "bg-indigo-50 dark:bg-indigo-950" : ""}`}>
-            <span className="w-20 shrink-0 text-xs uppercase text-neutral-500">{a.kind}</span>
-            <span className="flex-1 truncate">{a.title}</span>
-            {a.timer_seconds && <span className="text-xs text-neutral-500">⏱ {a.timer_seconds}s</span>}
-            {onActivate && (
-              <button onClick={() => void onActivate(a)} disabled={activeId === a.id} className="rounded bg-green-600 px-2 py-0.5 text-xs text-white disabled:opacity-40">
-                {activeId === a.id ? "Active" : "Activate"}
-              </button>
-            )}
-            <button onClick={() => setEditing(a)} className="text-xs text-neutral-500">edit</button>
-            <button onClick={() => void remove(a)} className="text-xs text-red-600">delete</button>
-          </li>
-        ))}
-      </ul>
-    </div>
+      {activities.length === 0 && !editing ? (
+        <EmptyState className="mt-6" title="No activities yet" description="Add a poll, quiz, word cloud or call to action with the buttons above." />
+      ) : (
+        <ul className="mt-6 divide-y divide-line">
+          {activities.map((a) => {
+            const active = activeId === a.id;
+            return (
+              <li key={a.id} className={cx("-mx-2 flex items-center gap-3 rounded-lg px-2 py-2.5", active && "bg-brand-soft")}>
+                <Badge tone={active ? "brand" : "neutral"} className="w-24 justify-center">
+                  {kindLabel(a.kind)}
+                </Badge>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{a.title}</span>
+                {a.timer_seconds && <span className="hidden text-xs tabular-nums text-ink-muted sm:inline">⏱ {a.timer_seconds}s</span>}
+                {onActivate && (
+                  <Button variant="success" size="sm" onClick={() => void onActivate(a)} disabled={active}>
+                    {active ? "Active" : "Activate"}
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setEditing(a)}>
+                  Edit
+                </Button>
+                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => void remove(a)}>
+                  Delete
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
   );
 }
 

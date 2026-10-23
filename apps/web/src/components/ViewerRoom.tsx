@@ -7,6 +7,7 @@ import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
 import { RoomStage } from "@/components/RoomStage";
 import { WaitingRoom } from "@/components/WaitingRoom";
+import { Alert, Badge, Button, Logo, cx } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { currentRun } from "@/lib/session-state";
@@ -113,76 +114,107 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   const pdfUrl = presentation ? publicUrl("presentations", presentation.storage_path) : null;
   const pageIndex = state.lastSlide?.page_index ?? 0;
 
+  const here = Object.keys(state.participants).length;
+
   if (!session || session.state === "ended") {
     return (
-      <main className="mx-auto max-w-4xl p-4">
-        <h1 className="text-xl font-semibold">{room.name}</h1>
-        <WaitingRoom config={room.waiting_room} className="mt-3">
-          <p className="absolute bottom-3 right-3 rounded bg-black/50 px-2 py-1 text-xs">This webinar is not live right now.</p>
-        </WaitingRoom>
-      </main>
+      <RoomFrame title={room.name} status={<Badge>Not live</Badge>}>
+        <WaitingRoom config={room.waiting_room} />
+        <p className="mt-4 text-center text-sm text-ink-muted">This webinar is not live right now. Keep this page open, or come back with the link from your email.</p>
+      </RoomFrame>
     );
   }
 
   if (session.state === "waiting") {
     return (
-      <main className="mx-auto max-w-4xl p-4">
-        <header className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">{room.name}</h1>
-          <span className="text-xs text-neutral-500">
-            {joined ? `You are in as ${attendee.name}` : "Taking your seat…"} · {Object.keys(state.participants).length} waiting
-          </span>
-        </header>
-        <WaitingRoom config={room.waiting_room} className="mt-3" />
-        <div className="mt-3">
+      <RoomFrame
+        title={room.name}
+        status={
+          <>
+            <span className="hidden text-xs text-ink-muted sm:inline">{joined ? `You are in as ${attendee.name}` : "Taking your seat…"}</span>
+            <Badge tone="brand" dot>
+              {here} waiting
+            </Badge>
+          </>
+        }
+      >
+        <WaitingRoom config={room.waiting_room} />
+        <p className="mt-4 text-center text-sm text-ink-muted">Doors are open. The host will start shortly.</p>
+        <div className="mt-4 flex justify-center">
           <ReactionBar onFlush={react} lastReaction={state.lastReaction} disabled />
         </div>
-      </main>
+      </RoomFrame>
     );
   }
 
   return (
-    <main className="mx-auto grid max-w-7xl gap-4 p-4 lg:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)]">
-      <section>
-        <header className="mb-2 flex items-center justify-between">
-          <h1 className="text-lg font-semibold">{room.name}</h1>
-          <span className="text-xs text-neutral-500">
-            {myRoster === "live" ? "On stage" : "Live"} · {Object.keys(state.participants).length} here · {status}
-          </span>
-        </header>
-
-        <div className="relative">
-          <PdfPage url={pdfUrl} pageIndex={pageIndex} className="aspect-video overflow-hidden rounded-xl" />
-          <div className="absolute bottom-3 right-3 w-48 overflow-hidden rounded-lg shadow-lg sm:w-64">
-            {myRoster === "live" && stage ? (
-              <RoomStage connection={stage} publish onDisconnected={() => setStage(null)} />
-            ) : (
-              <HlsPlayer src={session.hls_url} onLatency={(ms) => (latency.current = ms)} className="aspect-video w-full bg-black" />
+    <RoomFrame
+      wide
+      title={room.name}
+      status={
+        <>
+          <span className="hidden text-xs text-ink-faint lg:inline">{status}</span>
+          <Badge tone="neutral">{here} here</Badge>
+          <Badge tone={myRoster === "live" ? "success" : "live"} dot>
+            {myRoster === "live" ? "On stage" : "Live"}
+          </Badge>
+        </>
+      }
+    >
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)]">
+        <section>
+          <div className="relative overflow-hidden rounded-xl border border-line bg-black shadow-float">
+            <PdfPage url={pdfUrl} pageIndex={pageIndex} className="aspect-video" />
+            <div className="absolute bottom-3 right-3 w-40 overflow-hidden rounded-lg shadow-overlay ring-1 ring-white/20 sm:w-56">
+              {myRoster === "live" && stage ? (
+                <RoomStage connection={stage} publish onDisconnected={() => setStage(null)} />
+              ) : (
+                <HlsPlayer src={session.hls_url} onLatency={(ms) => (latency.current = ms)} className="aspect-video w-full bg-black" />
+              )}
+            </div>
+            {run && activity && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+                <ActivityOverlay state={state} run={run} activity={activity} userId={userId} roomSlug={room.slug} />
+              </div>
             )}
           </div>
-          {run && activity && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
-              <ActivityOverlay state={state} run={run} activity={activity} userId={userId} roomSlug={room.slug} />
-            </div>
+
+          {myRoster === "invited" && (
+            <Alert tone="brand" className="mt-4" title="The host invited you on stage">
+              Allow camera and microphone when your browser asks; you go live when they confirm.
+            </Alert>
           )}
-        </div>
+          <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+            <ReactionBar onFlush={react} lastReaction={state.lastReaction} />
+            <Button variant={handUp ? "primary" : "secondary"} onClick={() => void toggleHand()} className={cx("rounded-full")}>
+              <span aria-hidden>✋</span> {handUp ? "Lower hand" : "Raise hand"}
+            </Button>
+          </div>
+        </section>
 
-        {myRoster === "invited" && (
-          <p className="mt-2 rounded bg-indigo-50 p-2 text-sm text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
-            The host invited you on stage. Allow camera and microphone; you will go live when they confirm.
-          </p>
-        )}
-        <div className="mt-3 flex flex-wrap items-end gap-3">
-          <ReactionBar onFlush={react} lastReaction={state.lastReaction} />
-          <button onClick={() => void toggleHand()} className={`rounded-full border px-3 py-1 dark:border-neutral-700 ${handUp ? "bg-indigo-600 text-white" : ""}`}>
-            ✋ {handUp ? "Lower hand" : "Raise hand"}
-          </button>
-        </div>
-      </section>
+        <aside>
+          <Questions state={state} userId={userId} onAsk={ask} onUpvote={upvote} />
+        </aside>
+      </div>
+    </RoomFrame>
+  );
+}
 
-      <aside className="space-y-3">
-        <Questions state={state} userId={userId} onAsk={ask} onUpvote={upvote} />
-      </aside>
-    </main>
+/** Attendee chrome for the room: room name on the left, state on the right, nothing else. */
+function RoomFrame({ title, status, wide, children }: { title: string; status: React.ReactNode; wide?: boolean; children: React.ReactNode }) {
+  const width = wide ? "max-w-screen-2xl" : "max-w-4xl";
+  return (
+    <>
+      <header className="border-b border-line bg-surface-raised">
+        <div className={cx("mx-auto flex h-14 items-center justify-between gap-4 px-4 sm:px-6", width)}>
+          <div className="flex min-w-0 items-center gap-3">
+            <Logo wordmark={false} />
+            <h1 className="truncate text-base font-semibold text-ink">{title}</h1>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">{status}</div>
+        </div>
+      </header>
+      <main className={cx("mx-auto w-full flex-1 px-4 py-6 sm:px-6", width)}>{children}</main>
+    </>
   );
 }

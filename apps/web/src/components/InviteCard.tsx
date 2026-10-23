@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { formatStart } from "@/components/RegisterForm";
+import { Alert, Badge, Button, ButtonLink, Card, CardHeader, EmptyState, Eyebrow, Field, Input, Stat, Textarea } from "@/components/ui";
+import { api } from "@/lib/api";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Invite, Participant, Registration, Room } from "@/lib/supabase/types";
 
@@ -15,19 +17,34 @@ type Props = {
   onRegistrationsChange: (registrations: Registration[]) => void;
 };
 
+const browserZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+};
+
+/** datetime-local wants local wall-clock time without a zone. */
+function toLocalInput(iso: string | null) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+type Draft = { id?: string; title: string; startsAt: string; description: string };
+
 /**
- * Organiser side of invite links: create one, copy it, watch registrations arrive, revoke it.
- * The two numbers that matter sit at the top: registered, and joined the open session.
+ * Organiser side of an event: create the invite link, copy it, edit the details, watch
+ * registrations arrive, revoke it. The two numbers that matter sit at the top.
  */
 export function InviteCard({ room, userId, invites, registrations, participants, onInvitesChange, onRegistrationsChange }: Props) {
   const sb = supabaseBrowser();
-  const [title, setTitle] = useState(room.name);
-  const [startsAt, setStartsAt] = useState("");
-  const [description, setDescription] = useState("");
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
   // Absolute link for copying; empty on the server so hydration matches.
   const origin = useSyncExternalStore(
     () => () => {},
@@ -49,28 +66,31 @@ export function InviteCard({ room, userId, invites, registrations, participants,
     return () => clearInterval(t);
   }, [refresh]);
 
-  const create = async (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!draft) return;
     setBusy(true);
     setError(null);
-    const { data, error } = await sb
-      .from("invites")
-      .insert({
-        org_id: room.org_id,
-        room_id: room.id,
-        title: title.trim() || room.name,
-        description: description.trim() || null,
-        starts_at: startsAt ? new Date(startsAt).toISOString() : null,
-        created_by: userId,
-      })
-      .select("*")
-      .single();
-    setBusy(false);
-    if (error) return setError(error.message);
-    onInvitesChange([data as Invite, ...invites]);
-    setCreating(false);
-    setDescription("");
-    setStartsAt("");
+    try {
+      const starts_at = draft.startsAt ? new Date(draft.startsAt).toISOString() : null;
+      if (draft.id) {
+        const r = await api<{ invite: Invite }>("/api/invites/update", { id: draft.id, title: draft.title, description: draft.description || null, starts_at, timezone: browserZone() });
+        onInvitesChange(invites.map((i) => (i.id === r.invite.id ? r.invite : i)));
+      } else {
+        const { data, error } = await sb
+          .from("invites")
+          .insert({ org_id: room.org_id, room_id: room.id, title: draft.title.trim() || room.name, description: draft.description.trim() || null, starts_at, timezone: browserZone(), created_by: userId })
+          .select("*")
+          .single();
+        if (error) throw error;
+        onInvitesChange([data as Invite, ...invites]);
+      }
+      setDraft(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const revoke = async (inv: Invite) => {
@@ -92,112 +112,156 @@ export function InviteCard({ room, userId, invites, registrations, participants,
   };
 
   const joinedCount = registrations.filter((r) => participants[r.user_id]).length;
+  const newDraft = () => setDraft({ title: room.name, startsAt: "", description: "" });
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-lg border p-4 dark:border-neutral-700">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-semibold">Invite link</h2>
-            <p className="text-sm text-neutral-500">Attendees register with a name and email, then get into the room with the same link.</p>
-          </div>
-          <div className="flex gap-4 text-center">
-            <div>
-              <div className="text-2xl font-semibold tabular-nums">{registrations.length}</div>
-              <div className="text-xs text-neutral-500">registered</div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader
+          title="Event and invite link"
+          description="Attendees register with a name and email on the link, get a confirmation with their personal link and code, and walk in with either on the day."
+          actions={
+            <div className="flex gap-8">
+              <Stat value={registrations.length} label="Registered" />
+              <Stat value={joinedCount} label="Joined" />
             </div>
-            <div>
-              <div className="text-2xl font-semibold tabular-nums">{joinedCount}</div>
-              <div className="text-xs text-neutral-500">joined</div>
-            </div>
-          </div>
-        </div>
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-
-        {active.length === 0 && !creating && (
-          <div className="mt-4 rounded-lg bg-neutral-50 p-4 text-sm dark:bg-neutral-800">
-            <p>No invite link yet. Without one nobody can get into <code>/r/{room.slug}</code>.</p>
-            <button onClick={() => setCreating(true)} className="mt-3 rounded bg-indigo-600 px-3 py-1.5 text-white">Create invite link</button>
-          </div>
+          }
+        />
+        {error && (
+          <Alert tone="danger" className="mt-4">
+            {error}
+          </Alert>
         )}
 
-        {active.map((inv) => {
-          const url = `${origin}/join/${inv.token}`;
-          return (
-            <div key={inv.id} className="mt-4 rounded-lg border p-3 dark:border-neutral-700">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-medium">{inv.title}</div>
-                  <div className="text-xs text-neutral-500">{inv.starts_at ? formatStart(inv.starts_at) : "No start time set"}</div>
+        {active.length === 0 && !draft && (
+          <EmptyState
+            className="mt-6"
+            title="No invite link yet"
+            description={`Without one nobody can get into /r/${room.slug}. Create the event and share the link.`}
+            action={<Button onClick={newDraft}>Create invite link</Button>}
+          />
+        )}
+
+        <div className="mt-6 space-y-4">
+          {active.map((inv) => {
+            const url = `${origin}/join/${inv.token}`;
+            const count = registrations.filter((r) => r.invite_id === inv.id).length;
+            return (
+              <div key={inv.id} className="rounded-xl border border-line p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="truncate text-base font-semibold text-ink">{inv.title}</h3>
+                      <Badge tone="success" dot>
+                        Open
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-ink-muted">
+                      {inv.starts_at ? formatStart(inv.starts_at) : "No start time set"} · {count} registered
+                    </p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => setDraft({ id: inv.id, title: inv.title, startsAt: toLocalInput(inv.starts_at), description: inv.description ?? "" })} disabled={!!draft}>
+                      Edit
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-red-700 hover:text-red-800 dark:text-red-300" onClick={() => void revoke(inv)}>
+                      Revoke
+                    </Button>
+                  </div>
                 </div>
-                <button onClick={() => void revoke(inv)} className="text-xs text-red-700">revoke</button>
+                <div className="mt-4">
+                  <Eyebrow>Invite link</Eyebrow>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    <Input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="min-w-0 flex-1 font-mono text-xs" />
+                    <Button variant={copied === inv.id ? "success" : "primary"} onClick={() => void copy(url, inv.id)} className="w-24">
+                      {copied === inv.id ? "Copied" : "Copy"}
+                    </Button>
+                    <ButtonLink href={url} external variant="secondary">
+                      Open
+                    </ButtonLink>
+                  </div>
+                </div>
               </div>
-              <div className="mt-2 flex gap-2">
-                <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="flex-1 rounded border bg-neutral-50 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-800" />
-                <button onClick={() => void copy(url, inv.id)} className="rounded bg-indigo-600 px-3 py-1 text-sm text-white">{copied === inv.id ? "Copied" : "Copy"}</button>
-                <a href={url} target="_blank" rel="noreferrer" className="rounded border px-3 py-1 text-sm dark:border-neutral-700">Open</a>
-              </div>
-            </div>
-          );
-        })}
-
-        {creating || active.length > 0 ? (
-          creating ? (
-            <form onSubmit={(e) => void create(e)} className="mt-4 space-y-2 rounded-lg border p-3 dark:border-neutral-700">
-              <label className="block text-sm">
-                <span className="text-neutral-600 dark:text-neutral-300">Webinar title</span>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} required className="mt-1 w-full rounded border px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800" />
-              </label>
-              <label className="block text-sm">
-                <span className="text-neutral-600 dark:text-neutral-300">Starts (optional)</span>
-                <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="mt-1 w-full rounded border px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800" />
-              </label>
-              <label className="block text-sm">
-                <span className="text-neutral-600 dark:text-neutral-300">What attendees will see (optional)</span>
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} rows={3} className="mt-1 w-full rounded border px-2 py-1 dark:border-neutral-700 dark:bg-neutral-800" />
-              </label>
-              <div className="flex gap-2">
-                <button type="submit" disabled={busy} className="rounded bg-indigo-600 px-3 py-1.5 text-sm text-white disabled:opacity-50">Create link</button>
-                <button type="button" onClick={() => setCreating(false)} className="rounded border px-3 py-1.5 text-sm dark:border-neutral-700">Cancel</button>
-              </div>
-            </form>
-          ) : (
-            <button onClick={() => setCreating(true)} className="mt-3 text-sm text-indigo-700 underline">New link for another event</button>
-          )
-        ) : null}
-        {revokedCount > 0 && <p className="mt-2 text-xs text-neutral-500">{revokedCount} earlier {revokedCount === 1 ? "link" : "links"} revoked.</p>}
-      </div>
-
-      <div className="rounded-lg border p-4 dark:border-neutral-700">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Registrations</h2>
-          <button onClick={() => void refresh()} className="text-xs text-neutral-500 underline">refresh</button>
+            );
+          })}
         </div>
-        {registrations.length === 0 ? (
-          <p className="mt-2 text-sm text-neutral-500">Nobody has registered yet. Share the link.</p>
+
+        {draft ? (
+          <form onSubmit={(e) => void submit(e)} className="mt-6 space-y-4 rounded-xl border border-line bg-surface-inset p-5">
+            <h3 className="text-sm font-semibold text-ink">{draft.id ? "Edit event" : "New event"}</h3>
+            <Field label="Webinar title" htmlFor="inv-title">
+              <Input id="inv-title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} maxLength={200} required />
+            </Field>
+            <Field label="Starts" htmlFor="inv-start" hint={`Your timezone (${browserZone()}). Reminder emails count back from this.`}>
+              <Input id="inv-start" type="datetime-local" value={draft.startsAt} onChange={(e) => setDraft({ ...draft, startsAt: e.target.value })} className="max-w-xs" />
+            </Field>
+            <Field label="What attendees will see" htmlFor="inv-desc" hint="Optional. Shown on the registration page.">
+              <Textarea id="inv-desc" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} maxLength={2000} rows={3} />
+            </Field>
+            <div className="flex gap-2">
+              <Button type="submit" loading={busy}>
+                {draft.id ? "Save changes" : "Create link"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setDraft(null)} disabled={busy}>
+                Cancel
+              </Button>
+            </div>
+          </form>
         ) : (
-          <table className="mt-2 w-full text-sm">
-            <thead className="text-left text-xs text-neutral-500">
-              <tr>
-                <th className="py-1 font-normal">Name</th>
-                <th className="py-1 font-normal">Email</th>
-                <th className="py-1 font-normal">Registered</th>
-                <th className="py-1 font-normal">In room</th>
-              </tr>
-            </thead>
-            <tbody>
-              {registrations.map((r) => (
-                <tr key={r.id} className="border-t dark:border-neutral-800">
-                  <td className="py-1 pr-2">{r.name}</td>
-                  <td className="py-1 pr-2 text-neutral-600 dark:text-neutral-300">{r.email}</td>
-                  <td className="py-1 pr-2 text-xs text-neutral-500">{new Date(r.created_at).toLocaleString()}</td>
-                  <td className="py-1">{participants[r.user_id] ? <span className="rounded bg-green-100 px-1.5 text-xs text-green-800 dark:bg-green-900 dark:text-green-100">yes</span> : <span className="text-xs text-neutral-400">—</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          active.length > 0 && (
+            <div className="mt-4 flex items-center justify-between">
+              <Button variant="ghost" size="sm" onClick={newDraft}>
+                New link for another event
+              </Button>
+              {revokedCount > 0 && (
+                <span className="text-xs text-ink-faint">
+                  {revokedCount} earlier {revokedCount === 1 ? "link" : "links"} revoked
+                </span>
+              )}
+            </div>
+          )
         )}
-      </div>
-    </section>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Registrations"
+          description="Each attendee's code lets them in from any device with their email. Their personal link does the same with no typing."
+          actions={
+            <Button variant="ghost" size="sm" onClick={() => void refresh()}>
+              Refresh
+            </Button>
+          }
+        />
+        {registrations.length === 0 ? (
+          <EmptyState className="mt-6" title="Nobody has registered yet" description="Share the invite link. Registrations appear here within a few seconds." />
+        ) : (
+          <div className="-mx-6 mt-4 overflow-x-auto px-6">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                  <th className="py-2 pr-4 font-semibold">Name</th>
+                  <th className="py-2 pr-4 font-semibold">Email</th>
+                  <th className="py-2 pr-4 font-semibold">Code</th>
+                  <th className="py-2 pr-4 font-semibold">Registered</th>
+                  <th className="py-2 font-semibold">In room</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {registrations.map((r) => (
+                  <tr key={r.id}>
+                    <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td>
+                    <td className="py-2.5 pr-4 text-ink-muted">{r.email}</td>
+                    <td className="py-2.5 pr-4 font-mono text-xs tracking-widest text-ink">{r.code}</td>
+                    <td className="py-2.5 pr-4 text-ink-muted">{new Date(r.created_at).toLocaleString()}</td>
+                    <td className="py-2.5">{participants[r.user_id] ? <Badge tone="success">In room</Badge> : <span className="text-ink-faint">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }

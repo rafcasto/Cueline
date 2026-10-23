@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PdfPage } from "@/components/PdfPage";
+import { Button, Card, CardHeader, Select, buttonClass } from "@/components/ui";
 import { countPages } from "@/lib/pdf";
 import { publicUrl, uploadToBucket } from "@/lib/storage";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -65,34 +66,45 @@ export function PresenterDeck({ room, presentations, onPresentationsChange, sele
   const url = selected ? publicUrl("presentations", selected.storage_path) : null;
 
   return (
-    <div className="rounded-lg border p-4 dark:border-neutral-700">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-semibold">Deck</h2>
-        <div className="flex items-center gap-2 text-sm">
-          <select value={selected?.id ?? ""} onChange={(e) => onSelect(presentations.find((p) => p.id === e.target.value) ?? null)} className="rounded border px-2 py-1 dark:bg-neutral-800">
-            <option value="">No deck</option>
-            {presentations.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.page_count}p</option>)}
-          </select>
-          <label className="cursor-pointer rounded border px-2 py-1">
-            {busy ? "Uploading…" : "Upload PDF"}
-            <input type="file" accept="application/pdf" className="hidden" disabled={busy} onChange={(e) => void upload(e.target.files?.[0])} />
-          </label>
-        </div>
-      </div>
-      {msg && <p className="mt-2 text-xs text-neutral-500">{msg}</p>}
-      <div className="mt-3">
-        <PdfPage url={url} pageIndex={page} className="aspect-video overflow-hidden rounded-lg" />
+    <Card>
+      <CardHeader
+        title="Deck"
+        description={selected ? "Arrow keys step through it; participants follow once you are live." : "Upload a PDF and present it page by page."}
+        actions={
+          <>
+            <Select value={selected?.id ?? ""} onChange={(e) => onSelect(presentations.find((p) => p.id === e.target.value) ?? null)} className="h-8 w-auto max-w-56 text-sm" aria-label="Deck">
+              <option value="">No deck</option>
+              {presentations.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {p.page_count}p
+                </option>
+              ))}
+            </Select>
+            <label className={buttonClass("secondary", "sm", busy ? "pointer-events-none opacity-50" : undefined)}>
+              {busy ? "Uploading…" : "Upload PDF"}
+              <input type="file" accept="application/pdf" className="sr-only" disabled={busy} onChange={(e) => void upload(e.target.files?.[0])} />
+            </label>
+          </>
+        }
+      />
+      {msg && <p className="mt-3 text-sm text-ink-muted">{msg}</p>}
+      <div className="mt-6">
+        <PdfPage url={url} pageIndex={page} className="aspect-video overflow-hidden rounded-lg border border-line bg-black" />
         {selected && (
-          <div className="mt-2 flex items-center justify-between text-sm">
-            <button onClick={() => void go(page - 1)} disabled={page === 0} className="rounded border px-3 py-1 disabled:opacity-40">← Prev</button>
-            <span className="tabular-nums text-neutral-500">
-              Page {page + 1} / {selected.page_count}
-              {participantsPage !== null && participantsPage !== page && <span className="ml-2 text-amber-600">(participants on {participantsPage + 1})</span>}
+          <div className="mt-4 flex items-center justify-between">
+            <Button variant="secondary" size="sm" onClick={() => void go(page - 1)} disabled={page === 0}>
+              ← Previous
+            </Button>
+            <span className="text-sm tabular-nums text-ink-muted">
+              Page <span className="font-medium text-ink">{page + 1}</span> of {selected.page_count}
+              {participantsPage !== null && participantsPage !== page && <span className="ml-2 text-amber-600 dark:text-amber-400">(participants on {participantsPage + 1})</span>}
             </span>
-            <button onClick={() => void go(page + 1)} disabled={page >= selected.page_count - 1} className="rounded border px-3 py-1 disabled:opacity-40">Next →</button>
+            <Button variant="secondary" size="sm" onClick={() => void go(page + 1)} disabled={page >= selected.page_count - 1}>
+              Next →
+            </Button>
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

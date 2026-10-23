@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { PublicShell } from "@/components/AppShell";
 import { ViewerRoom } from "@/components/ViewerRoom";
 import { WaitingRoom } from "@/components/WaitingRoom";
+import { ButtonLink, Card } from "@/components/ui";
 import { activeInvite, registrationFor } from "@/lib/invites";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { Presentation, Room, Session } from "@/lib/supabase/types";
@@ -32,15 +33,21 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
     const invite = await activeInvite(room.id);
     if (invite) redirect(`/join/${invite.token}`);
     return (
-      <main className="mx-auto max-w-4xl p-4">
-        <h1 className="text-xl font-semibold">{(room as Room).name}</h1>
-        <WaitingRoom config={(room as Room).waiting_room} className="mt-3">
-          <p className="absolute bottom-3 right-3 rounded bg-black/50 px-2 py-1 text-xs">Registration is by invite link only.</p>
-        </WaitingRoom>
-        <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">
-          This webinar does not have an open invite link. Ask the organiser for theirs, or <Link href="/login" className="underline">sign in as a host</Link>.
-        </p>
-      </main>
+      <PublicShell>
+        <div className="mx-auto max-w-3xl">
+          <WaitingRoom config={(room as Room).waiting_room} />
+          <Card className="mx-auto -mt-8 max-w-xl p-8 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{(room as Room).name}</p>
+            <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">Registration is by invite only</h1>
+            <p className="mt-2 text-sm leading-relaxed text-ink-muted">
+              This webinar has no open invite link right now. Already registered? Use the link from your email, or your email and code.
+            </p>
+            <ButtonLink href="/join" variant="secondary" className="mt-6">
+              Join with email and code
+            </ButtonLink>
+          </Card>
+        </div>
+      </PublicShell>
     );
   }
 
