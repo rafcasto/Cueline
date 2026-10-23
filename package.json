@@ -10,6 +10,7 @@
     "test": "pnpm -r test",
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local > apps/web/src/lib/supabase/database.types.ts",
-    "db:test": "scripts/db-test.sh"
+    "db:test": "scripts/db-test.sh",
+    "admin:create": "node scripts/create-admin.mjs"
   }
 }
