@@ -51,7 +51,7 @@ export function RegisterForm(props: Props) {
           /* private mode */
         }
       })
-      .catch(() => setError("Could not start a session in this browser. Check that cookies are enabled and reload."));
+      .catch((err: Error) => setError(err.message));
   }, []);
 
   const submit = async (e: FormEvent) => {

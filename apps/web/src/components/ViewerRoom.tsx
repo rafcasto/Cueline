@@ -43,6 +43,7 @@ function usePresentation(initial: Presentation | null, presentationId: string | 
  */
 export function ViewerRoom({ room, session: initialSession, presentation: initialPresentation, attendee }: Props) {
   const [userId, setUserId] = useState<string | null>(null);
+  const [identityError, setIdentityError] = useState<string | null>(null);
   const [joinedLocal, setJoinedLocal] = useState(false);
   const latency = useRef(3000);
   const { state, status } = useSession(initialSession?.id ?? null, { getLatencyMs: () => latency.current, userId, roomId: room.id });
@@ -52,7 +53,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   const [handUp, setHandUp] = useState(false);
 
   useEffect(() => {
-    void ensureViewerIdentity().then((s) => setUserId(s.user.id));
+    void ensureViewerIdentity().then((s) => setUserId(s.user.id)).catch((err: Error) => setIdentityError(err.message));
   }, []);
 
   const joined = joinedLocal || (!!userId && !!state.participants[userId]);
@@ -138,7 +139,12 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
           </>
         }
       >
-        <WaitingRoom config={room.waiting_room} />
+        <WaitingRoom config={room.waiting_room} withSound />
+        {identityError && (
+          <Alert tone="danger" className="mt-4">
+            {identityError}
+          </Alert>
+        )}
         <p className="mt-4 text-center text-sm text-ink-muted">Doors are open. The host will start shortly.</p>
         <div className="mt-4 flex justify-center">
           <ReactionBar onFlush={react} lastReaction={state.lastReaction} disabled />

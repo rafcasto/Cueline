@@ -11,10 +11,16 @@ export const REACTION_KINDS = ["like", "heart", "laugh", "sad", "wow", "clap"] a
 export type ReactionKind = (typeof REACTION_KINDS)[number];
 
 export type WaitingRoomBackground = {
+  /** The backdrop. `image_audio` is the first version's "picture with a track"; normalizeWaitingRoom() folds it into `image` + `audio_url`. */
   type: "image" | "video" | "image_audio";
   image_url?: string;
   video_url?: string;
+  /** Music that loops while attendees wait, over a picture or a video. */
   audio_url?: string;
+  /** Video only: play the video's own soundtrack instead of the music track. */
+  video_sound?: boolean;
+  /** 0–1 for whichever sound plays; see DEFAULT_VOLUME. */
+  volume?: number;
 };
 export type WaitingRoomElement = {
   id: string;

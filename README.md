@@ -30,11 +30,13 @@ The full design is in [docs/DESIGN.md](docs/DESIGN.md). This repo is the Phase 1
 
 **Reactions.** Like, heart, laugh, sad, wow, clap. Taps batch client-side and land as one row per second per kind through `bump_reaction()`; everyone sees them float.
 
-**Waiting room.** Per room: an image, a video, or an image plus audio, with text boxes positioned on a 16:9 canvas in a small slide-like editor. Shown while the session is `waiting` and when the room is closed.
+**Waiting room.** Per room: a picture or a looping video as the backdrop, music that loops on top (or the video's own sound), and text boxes positioned on a 16:9 canvas in a small slide-like editor with a sound preview. Shown while the session is `waiting` and when the room is closed; the music plays only while attendees wait and stops when the host goes live. Browsers hold sound back until the page has had a tap: attendees who come through the invite page's button already have one and hear it straight away, anyone who lands cold gets a *Tap for sound* button on the canvas, and everyone can mute it. Uploads are checked against the `media` bucket (100 MB; PNG/JPEG/WebP/GIF, MP4/WebM, MP3/M4A/OGG/WAV) before they start.
 
 ## Running it
 
 Prerequisites: Node 22, pnpm 10, the Supabase CLI, a LiveKit Cloud project, an S3/R2 bucket with a public base URL, a Stripe account, a Resend account with a verified sending domain. Name each of them `cueline`.
+
+On the hosted Supabase project, turn on **Allow anonymous sign-ins** (Authentication → Sign In / Providers) and leave captcha off; attendees get an anonymous identity client-side before they register, and `supabase/config.toml` only configures the local stack. If attendees see a "Could not start a session" message, it names the setting or limit that is in the way.
 
 ```bash
 pnpm install
