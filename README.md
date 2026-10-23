@@ -30,7 +30,7 @@ The full design is in [docs/DESIGN.md](docs/DESIGN.md). This repo is the Phase 1
 
 **Reactions.** Like, heart, laugh, sad, wow, clap. Taps batch client-side and land as one row per second per kind through `bump_reaction()`; everyone sees them float.
 
-**Waiting room.** Per room: an image, a video, or an image plus audio, with text boxes positioned on a 16:9 canvas in a small slide-like editor. Shown while the session is `waiting` and when the room is closed.
+**Waiting room.** Per room: a picture or a looping video as the backdrop, music that loops on top (or the video's own sound), and text boxes positioned on a 16:9 canvas in a small slide-like editor with a sound preview. Shown while the session is `waiting` and when the room is closed; the music plays only while attendees wait and stops when the host goes live. Browsers hold sound back until the page has had a tap: attendees who come through the invite page's button already have one and hear it straight away, anyone who lands cold gets a *Tap for sound* button on the canvas, and everyone can mute it. Uploads are checked against the `media` bucket (100 MB; PNG/JPEG/WebP/GIF, MP4/WebM, MP3/M4A/OGG/WAV) before they start.
 
 ## Running it
 

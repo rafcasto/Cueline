@@ -100,7 +100,9 @@ Always on: like, heart, laugh, sad, wow, clap. Taps batch client-side and flush 
 
 ### Waiting room
 
-Per room, edited in the host panel like a slide: a background that is an image, a video, or an image plus a looping audio track, and text boxes with size, colour, alignment and weight positioned in percent on a 16:9 canvas by dragging. Shown from "Open waiting room" until "Go live", and whenever the room is closed. Participants arrive through the organiser's invite link, already registered with a name and email (see [INVITE-FLOW.md](INVITE-FLOW.md)), and can see how many are waiting.
+Per room, edited in the host panel like a slide: a backdrop that is a picture or a looping video, a music track that loops over it (or, for a video, its own soundtrack) at a volume the host sets, and text boxes with size, colour, alignment and weight positioned in percent on a 16:9 canvas by dragging. Shown from "Open waiting room" until "Go live", and whenever the room is closed; sound plays only in the waiting state and stops when the stream starts. Participants arrive through the organiser's invite link, already registered with a name and email (see [INVITE-FLOW.md](INVITE-FLOW.md)), and can see how many are waiting.
+
+Sound and autoplay: browsers refuse audible playback until the page has user activation. Client-side navigation from the invite page's *Enter the waiting room* button carries that activation, so the music starts on arrival; a cold load (personal link, refresh) does not, and the canvas shows a *Tap for sound* button instead of attempting an unmuted play that Chrome would pause. A mute toggle sits in the corner either way. The config is one `jsonb` column (`rooms.waiting_room`); the first version's `image_audio` background type is normalised to `image` plus `audio_url` on read, so no migration was needed to make the track independent of the backdrop.
 
 ## Calls to action and payments
 

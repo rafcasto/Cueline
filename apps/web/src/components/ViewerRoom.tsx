@@ -138,7 +138,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
           </>
         }
       >
-        <WaitingRoom config={room.waiting_room} />
+        <WaitingRoom config={room.waiting_room} withSound />
         <p className="mt-4 text-center text-sm text-ink-muted">Doors are open. The host will start shortly.</p>
         <div className="mt-4 flex justify-center">
           <ReactionBar onFlush={react} lastReaction={state.lastReaction} disabled />
