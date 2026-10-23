@@ -9,7 +9,7 @@ export default function Home() {
       </p>
       <div className="mt-6 flex gap-3">
         <Link href="/host" className="rounded bg-indigo-600 px-4 py-2 text-white">Host panel</Link>
-        <Link href="/r/main" className="rounded border px-4 py-2">Join the main room</Link>
+        <span className="self-center text-sm text-neutral-500">Attending? Use the invite link your organiser sent you.</span>
       </div>
     </main>
   );

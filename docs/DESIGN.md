@@ -100,7 +100,7 @@ Always on: like, heart, laugh, sad, wow, clap. Taps batch client-side and flush 
 
 ### Waiting room
 
-Per room, edited in the host panel like a slide: a background that is an image, a video, or an image plus a looping audio track, and text boxes with size, colour, alignment and weight positioned in percent on a 16:9 canvas by dragging. Shown from "Open waiting room" until "Go live", and whenever the room is closed. Participants enter a display name to join and can see how many are waiting.
+Per room, edited in the host panel like a slide: a background that is an image, a video, or an image plus a looping audio track, and text boxes with size, colour, alignment and weight positioned in percent on a 16:9 canvas by dragging. Shown from "Open waiting room" until "Go live", and whenever the room is closed. Participants arrive through the organiser's invite link, already registered with a name and email (see [INVITE-FLOW.md](INVITE-FLOW.md)), and can see how many are waiting.
 
 ## Calls to action and payments
 

@@ -137,3 +137,28 @@ export type SessionBroadcast<T = Record<string, unknown>> = {
     old_record: T | null;
   };
 };
+
+/** An invite link the organiser shares. Attendees register against it before entering the room. */
+export type Invite = {
+  id: string;
+  org_id: string;
+  room_id: string;
+  token: string;
+  title: string;
+  description: string | null;
+  starts_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  revoked_at: string | null;
+};
+
+export type Registration = {
+  id: string;
+  org_id: string;
+  room_id: string;
+  invite_id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  created_at: string;
+};

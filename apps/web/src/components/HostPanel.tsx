@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useState } from "react";
 import { ActivityLibrary } from "@/components/ActivityLibrary";
+import { InviteCard } from "@/components/InviteCard";
 import { PresenterDeck } from "@/components/PresenterDeck";
 import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
@@ -11,17 +12,28 @@ import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { currentRun } from "@/lib/session-state";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import type { Activity, Presentation, Question, ReactionKind, Room, Session } from "@/lib/supabase/types";
+import type { Activity, Invite, Presentation, Question, ReactionKind, Registration, Room, Session } from "@/lib/supabase/types";
 
-type Props = { room: Room; initialSession: Session | null; userId: string; presentations: Presentation[]; activities: Activity[] };
+type Props = {
+  room: Room;
+  initialSession: Session | null;
+  userId: string;
+  presentations: Presentation[];
+  activities: Activity[];
+  invites: Invite[];
+  registrations: Registration[];
+};
 
 /**
- * Host panel: open the room (waiting room), go live, navigate the deck,
- * activate activities with timers and reveal results, run the hand-raise queue
- * with promote-to-stage, moderate Q&A, and edit the waiting room.
+ * Host panel: share the invite link and watch registrations, open the room
+ * (waiting room), go live, navigate the deck, activate activities with timers
+ * and reveal results, run the hand-raise queue with promote-to-stage, moderate
+ * Q&A, and edit the waiting room.
  */
-export function HostPanel({ room: initialRoom, initialSession, userId, presentations: initialPresentations, activities: initialActivities }: Props) {
+export function HostPanel({ room: initialRoom, initialSession, userId, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations }: Props) {
   const [room, setRoom] = useState(initialRoom);
+  const [invites, setInvites] = useState(initialInvites);
+  const [registrations, setRegistrations] = useState(initialRegistrations);
   const [session, setSession] = useState<Session | null>(initialSession);
   const [presentations, setPresentations] = useState(initialPresentations);
   const [activities, setActivities] = useState(initialActivities);
@@ -30,7 +42,8 @@ export function HostPanel({ room: initialRoom, initialSession, userId, presentat
   );
   const [page, setPage] = useState(0);
   const [stage, setStage] = useState<{ url: string; token: string } | null>(null);
-  const [tab, setTab] = useState<"live" | "waiting">("live");
+  // Start on the invite tab until there is a link to share; the live panel is useless without attendees.
+  const [tab, setTab] = useState<"live" | "invite" | "waiting">(initialInvites.some((i) => !i.revoked_at) ? "live" : "invite");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { state, status } = useSession(session?.id ?? null, { userId, roomId: room.id });
@@ -108,12 +121,24 @@ export function HostPanel({ room: initialRoom, initialSession, userId, presentat
         <div>
           <h1 className="text-xl font-semibold">{room.name} · host</h1>
           <p className="text-xs text-neutral-500">
-            Participant link: <code>/r/{room.slug}</code> ·{" "}
+            {invites.some((i) => !i.revoked_at) ? `${registrations.length} registered` : "no invite link yet"} ·{" "}
             {live ? `${live.state} · ${participantsCount} participants · ${status}` : "room closed"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setTab(tab === "live" ? "waiting" : "live")} className="rounded border px-3 py-1 text-sm">{tab === "live" ? "Edit waiting room" : "Back to live panel"}</button>
+          <div role="tablist" className="flex rounded border text-sm dark:border-neutral-700">
+            {(["live", "invite", "waiting"] as const).map((t) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className={`px-3 py-1 first:rounded-l last:rounded-r ${tab === t ? "bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900" : ""}`}
+              >
+                {t === "live" ? "Live panel" : t === "invite" ? "Invite & registrations" : "Waiting room"}
+              </button>
+            ))}
+          </div>
           {!live && <button onClick={() => void openRoom()} disabled={busy} className="rounded bg-neutral-800 px-3 py-1 text-white disabled:opacity-50 dark:bg-neutral-200 dark:text-neutral-900">Open waiting room</button>}
           {live?.state === "waiting" && <button onClick={() => void goLive()} disabled={busy} className="rounded bg-green-600 px-3 py-1 text-white disabled:opacity-50">Go live</button>}
           {live && !stage && <button onClick={() => void joinStage()} disabled={busy} className="rounded bg-indigo-600 px-3 py-1 text-white disabled:opacity-50">Join with camera</button>}
@@ -124,6 +149,16 @@ export function HostPanel({ room: initialRoom, initialSession, userId, presentat
 
       {tab === "waiting" ? (
         <WaitingRoomEditor room={room} onSaved={(waiting_room) => setRoom({ ...room, waiting_room })} />
+      ) : tab === "invite" ? (
+        <InviteCard
+          room={room}
+          userId={userId}
+          invites={invites}
+          registrations={registrations}
+          participants={state.participants}
+          onInvitesChange={setInvites}
+          onRegistrationsChange={setRegistrations}
+        />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
           <section className="space-y-4">

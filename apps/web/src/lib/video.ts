@@ -41,6 +41,16 @@ function s3Output() {
 
 export type TokenRole = "presenter" | "viewer";
 
+/**
+ * LiveKit creates a room when the first participant connects. Going live starts egress
+ * before anyone has joined with a camera, so create the room explicitly first; createRoom
+ * returns the existing room when there is one. The timeouts keep the room alive while the
+ * host is between "Go live" and "Join with camera", and through a short reconnect.
+ */
+export async function ensureRoom(room: string) {
+  await roomService().createRoom({ name: room, emptyTimeout: 60 * 60 * 4, departureTimeout: 60 * 10 });
+}
+
 /** Publish token for presenters and promoted viewers; subscribe-only otherwise. Short TTL, re-minted on demand. */
 export async function mintRoomToken(opts: { room: string; identity: string; name?: string; role: TokenRole; ttlSeconds?: number }) {
   const at = new AccessToken(env("LIVEKIT_API_KEY"), env("LIVEKIT_API_SECRET"), {

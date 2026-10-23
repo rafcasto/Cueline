@@ -1,6 +1,6 @@
 import { handler, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { startHlsEgress, startRecordingEgress } from "@/lib/video";
+import { ensureRoom, startHlsEgress, startRecordingEgress } from "@/lib/video";
 
 type Body = { session_id: string };
 
@@ -17,6 +17,8 @@ export const POST = handler(async (req) => {
   if (session.state === "ended") return json({ error: "session has ended" }, { status: 409 });
 
   const room = (session.rooms as unknown as { livekit_room: string } | null)?.livekit_room ?? "";
+  if (!room) return json({ error: "room missing" }, { status: 500 });
+  await ensureRoom(room);
   const [hls, rec] = await Promise.all([startHlsEgress(room, session.id), startRecordingEgress(room, session.id)]);
   const { error } = await admin
     .from("sessions")
