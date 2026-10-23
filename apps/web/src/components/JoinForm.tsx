@@ -26,7 +26,7 @@ export function JoinForm() {
   useEffect(() => {
     void ensureViewerIdentity()
       .then(() => setReady(true))
-      .catch(() => setError("Could not start a session in this browser. Check that cookies are enabled and reload."));
+      .catch((err: Error) => setError(err.message));
   }, []);
 
   const submit = async (e: FormEvent) => {

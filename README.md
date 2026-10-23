@@ -36,6 +36,8 @@ The full design is in [docs/DESIGN.md](docs/DESIGN.md). This repo is the Phase 1
 
 Prerequisites: Node 22, pnpm 10, the Supabase CLI, a LiveKit Cloud project, an S3/R2 bucket with a public base URL, a Stripe account, a Resend account with a verified sending domain. Name each of them `cueline`.
 
+On the hosted Supabase project, turn on **Allow anonymous sign-ins** (Authentication → Sign In / Providers) and leave captcha off; attendees get an anonymous identity client-side before they register, and `supabase/config.toml` only configures the local stack. If attendees see a "Could not start a session" message, it names the setting or limit that is in the way.
+
 ```bash
 pnpm install
 cp .env.example .env.local        # fill in the keys
