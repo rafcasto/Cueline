@@ -23,6 +23,11 @@ export function AppShell({ children, crumb, email, wide, right }: { children: Re
           )}
           <div className="ml-auto flex items-center gap-3 text-sm text-ink-muted">
             {right}
+            {email && (
+              <Link href="/host/billing" className="font-medium hover:text-ink">
+                Billing
+              </Link>
+            )}
             {email && <span className="hidden max-w-48 truncate sm:inline">{email}</span>}
             {email && <SignOutButton />}
           </div>

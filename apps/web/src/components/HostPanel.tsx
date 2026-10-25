@@ -1,6 +1,6 @@
 "use client";
 import { DisconnectReason } from "livekit-client";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityLibrary } from "@/components/ActivityLibrary";
 import { AppShell } from "@/components/AppShell";
 import { Chat } from "@/components/Chat";
@@ -102,6 +102,31 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
       setSession(null);
       setStage(null);
     });
+
+  // The plan's session length is a hard stop. The server enforces it (no new joins past ends_by,
+  // and the next go-live in the organisation ends anything overdue); this closes the session on
+  // time for everyone already in it.
+  const endsBy = live?.state === "live" && live.ends_by ? new Date(live.ends_by).getTime() : null;
+  const [left, setLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (!endsBy || !live) return;
+    const tick = () => setLeft(Math.max(0, endsBy - Date.now()));
+    tick();
+    const i = setInterval(tick, 1000);
+    const t = setTimeout(() => {
+      void api("/api/session/end", { session_id: live.id })
+        .then(() => {
+          setSession(null);
+          setStage(null);
+          setMsg("The session reached the plan's time limit and has ended. Longer sessions are on the next plan at /host/billing.");
+        })
+        .catch((err: Error) => setMsg(err.message));
+    }, Math.max(0, endsBy - Date.now()) + 2000);
+    return () => {
+      clearInterval(i);
+      clearTimeout(t);
+    };
+  }, [endsBy, live?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const joinStage = () =>
     run(async () => {
       if (live) setStage(await api<{ url: string; token: string }>("/api/token", { session_id: live.id, role: "presenter" }));
@@ -220,6 +245,11 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
         />
         <div className="flex flex-wrap items-center gap-2">
           {live && <span className="hidden text-xs text-ink-faint lg:inline">realtime {status}</span>}
+          {left !== null && live?.state === "live" && (
+            <span title="The plan's session length; the session ends for everyone when it runs out">
+              <Badge tone={left < 5 * 60 * 1000 ? "warning" : "neutral"}>{left < 60 * 1000 ? "under a minute left" : `${Math.ceil(left / 60000)} min left`}</Badge>
+            </span>
+          )}
           {!live && (
             <Button onClick={() => void openRoom()} loading={busy} variant="secondary">
               Open waiting room

@@ -90,6 +90,8 @@ Hosts pay through Stripe Billing: a Checkout session in subscription mode for St
 
 ## What to build for this (Phase 3)
 
+Built 25 Oct 2026 (items 1–4 and most of 5; see [STRIPE.md](STRIPE.md)): plan limits, the go-live, participant and recording gates, the hard stop, Stripe Checkout and Portal, the webhook, the billing page, and a sandbox/live switch for platform admins. Still open: a per-minute sweep (the hard stop is enforced by the host panel and at the next go-live), the admin capacity view, and the branding, email-step and promote-slot gates.
+
 1. **Plan limits in one place.** A `plan_limits` map (sessions per month, participants, minutes, recording, hls, promote slots, branding, stripe CTA, pool) read by every gate below. The `plan` enum already exists on `organisations`; add `event_pass` or a `passes` table keyed to an event.
 2. **Gates.** `ensureRoom` passes `maxParticipants`; the token route checks the live count; the go-live route counts this period's sessions for the org (plus unused passes) against the plan's cap before it starts anything; `startSessionEgress` runs only when the plan includes recording; promote, branding, email steps and CTA destinations check the plan at the API.
 3. **Session length.** A per-minute job (Vercel cron on Pro, or `pg_cron`) ends sessions past their cap, stops the egress and deletes the room; the client shows the countdown.

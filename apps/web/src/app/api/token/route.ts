@@ -17,7 +17,7 @@ export const POST = handler(async (req) => {
 
   const { data: session } = await admin
     .from("sessions")
-    .select("id, org_id, hls_url, state, rooms(livekit_room)")
+    .select("id, org_id, hls_url, state, max_participants, ends_by, rooms(livekit_room)")
     .eq("id", body.session_id)
     .maybeSingle();
   if (!session || session.state === "ended") return json({ error: "no open session" }, { status: 404 });
@@ -25,7 +25,18 @@ export const POST = handler(async (req) => {
   if (!room) return json({ error: "room missing" }, { status: 500 });
 
   if (body.role === "viewer") {
-    const { data: seat } = await admin.from("participants").select("display_name").eq("session_id", session.id).eq("user_id", user.id).maybeSingle();
+    if (session.ends_by && new Date(session.ends_by) < new Date()) return json({ error: "this session has reached its time limit" }, { status: 410 });
+    const { data: seat } = await admin.from("participants").select("display_name, joined_at").eq("session_id", session.id).eq("user_id", user.id).maybeSingle();
+    // The plan's audience cap, in order of arrival: the first N seats get in, later ones are told
+    // the room is full. LiveKit's own maxParticipants backs this up for anyone who skips the API.
+    if (session.max_participants) {
+      const q = admin.from("participants").select("user_id", { count: "exact", head: true }).eq("session_id", session.id);
+      const { count } = seat ? await q.lte("joined_at", seat.joined_at) : await q;
+      const rank = (count ?? 0) + (seat ? 0 : 1);
+      if (rank > session.max_participants) {
+        return json({ error: `This session is full (${session.max_participants} attendees on the host's plan).`, code: "room_full" }, { status: 403 });
+      }
+    }
     // LiveKit allows one connection per identity per room and disconnects the older one when a
     // duplicate joins. The audience connection therefore never shares the user's identity, or a
     // host previewing the attendee page in a second tab would kick their own camera out of the

@@ -1,6 +1,6 @@
 import { handler, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { endSession } from "@/lib/session-lifecycle";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { stopEgress } from "@/lib/video";
 
 type Body = { session_id: string };
 
@@ -14,7 +14,6 @@ export const POST = handler(async (req) => {
   await requireOrgRole(user.id, session.org_id, ["owner", "host"]);
   if (session.state === "ended") return json({ ok: true, already_ended: true });
 
-  for (const id of String(session.egress_id ?? "").split(",").filter(Boolean)) await stopEgress(id);
-  await admin.from("sessions").update({ state: "ended", ended_at: new Date().toISOString() }).eq("id", session.id);
-  return json({ ok: true });
+  const { counted } = await endSession(admin, session);
+  return json({ ok: true, counted });
 });

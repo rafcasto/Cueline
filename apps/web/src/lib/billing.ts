@@ -1,0 +1,140 @@
+/**
+ * Plan enforcement: which billing month a session falls in, how many sessions the organisation
+ * has used in it, and whether the next one may go live. Pure functions here are unit-tested;
+ * the loaders at the bottom read Supabase with the service client.
+ */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { EVENT_PASS_LIMITS, type Plan, type PlanLimits, planLimits } from "@/lib/plans";
+
+export type BillingOrg = {
+  id: string;
+  plan: Plan | string;
+  plan_status?: string | null;
+  plan_period_start?: string | null;
+  plan_period_end?: string | null;
+};
+
+export type Period = { start: Date; end: Date };
+
+/**
+ * The month a plan's session count resets in. A paid plan follows the Stripe billing period
+ * (a yearly plan still resets monthly, on the day of the month it started). Free, and a paid
+ * plan whose period Stripe has not told us yet, use the calendar month in UTC.
+ */
+export function billingPeriod(org: BillingOrg, now = new Date()): Period {
+  const start = org.plan_period_start ? new Date(org.plan_period_start) : null;
+  const end = org.plan_period_end ? new Date(org.plan_period_end) : null;
+  if (start && end && end > start && now >= start && now < end) {
+    const monthly = monthlyWindow(start, now);
+    return monthly.end < end ? monthly : { start: monthly.start, end };
+  }
+  const s = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const e = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  return { start: s, end: e };
+}
+
+/**
+ * The monthly window anchored on the subscription's start day that contains `now`. Each window
+ * is computed from the anchor by whole months (not by stepping), so a plan started on the 31st
+ * keeps resetting on the 31st, or the last day of shorter months, instead of drifting.
+ */
+function monthlyWindow(anchor: Date, now: Date): Period {
+  let n = (now.getUTCFullYear() - anchor.getUTCFullYear()) * 12 + (now.getUTCMonth() - anchor.getUTCMonth());
+  if (addMonths(anchor, n) > now) n -= 1;
+  else if (addMonths(anchor, n + 1) <= now) n += 1;
+  return { start: addMonths(anchor, n), end: addMonths(anchor, n + 1) };
+}
+
+function addMonths(d: Date, n: number): Date {
+  const r = new Date(d);
+  const day = r.getUTCDate();
+  r.setUTCDate(1);
+  r.setUTCMonth(r.getUTCMonth() + n);
+  const last = new Date(Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + 1, 0)).getUTCDate();
+  r.setUTCDate(Math.min(day, last));
+  return r;
+}
+
+export type Usage = {
+  period: Period;
+  /** Sessions that went live in the period and still count. */
+  used: number;
+  /** Paid, unused event passes. */
+  passes: number;
+  limits: PlanLimits;
+  /** A past-due subscription keeps its plan until Stripe cancels it; a cancelled one is free. */
+  effectivePlan: Plan;
+};
+
+export type GoLiveDecision =
+  | { allowed: true; limits: PlanLimits; usePass: boolean }
+  | { allowed: false; reason: string; limits: PlanLimits };
+
+/**
+ * May the organisation start one more session right now? The plan's sessions come first; when
+ * they are spent a paid pass is used, with the pass's own limits. Pro is unlimited in count.
+ */
+export function decideGoLive(u: Usage): GoLiveDecision {
+  const cap = u.limits.sessionsPerMonth;
+  if (cap === null || u.used < cap) return { allowed: true, limits: u.limits, usePass: false };
+  if (u.passes > 0) return { allowed: true, limits: EVENT_PASS_LIMITS, usePass: true };
+  const plan = u.limits.label;
+  const next = u.period.end.toISOString().slice(0, 10);
+  const reason =
+    u.effectivePlan === "free"
+      ? `The free plan includes one session a month and this month's has been used (resets ${next}). Upgrade or buy an event pass at /host/billing to go live now.`
+      : `${plan} includes ${cap} sessions a month and all ${cap} have been used (resets ${next}). Buy an event pass or upgrade at /host/billing to go live now.`;
+  return { allowed: false, reason, limits: u.limits };
+}
+
+export function effectivePlan(org: BillingOrg): Plan {
+  if (org.plan_status === "canceled") return "free";
+  const p = org.plan;
+  return p === "starter" || p === "pro" ? p : "free";
+}
+
+/**
+ * A false start gives the session back: it ended within two minutes of going live with no
+ * attendee ever in the room, and nothing has been refunded this period yet.
+ */
+export function isFalseStart(s: { started_at: string | null; ended_at: string | null }, attendees: number, refundedThisPeriod: number): boolean {
+  if (!s.started_at || !s.ended_at || attendees > 0 || refundedThisPeriod > 0) return false;
+  return new Date(s.ended_at).getTime() - new Date(s.started_at).getTime() <= 2 * 60 * 1000;
+}
+
+export function endsBy(startedAt: Date, limits: PlanLimits): Date {
+  return new Date(startedAt.getTime() + limits.minutes * 60 * 1000);
+}
+
+// ---------------------------------------------------------------------------
+// Loaders (service client)
+// ---------------------------------------------------------------------------
+
+export async function loadUsage(admin: SupabaseClient, org: BillingOrg, now = new Date()): Promise<Usage> {
+  const period = billingPeriod(org, now);
+  const plan = effectivePlan(org);
+  const [{ count: used }, { count: passes }] = await Promise.all([
+    admin
+      .from("sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", org.id)
+      .eq("counted", true)
+      .gte("started_at", period.start.toISOString())
+      .lt("started_at", period.end.toISOString()),
+    admin.from("event_passes").select("id", { count: "exact", head: true }).eq("org_id", org.id).eq("status", "paid").is("used_by_session_id", null),
+  ]);
+  return { period, used: used ?? 0, passes: passes ?? 0, limits: planLimits(plan), effectivePlan: plan };
+}
+
+/** The oldest paid, unused pass; one bought for an event in this room first. */
+export async function pickPass(admin: SupabaseClient, orgId: string, roomId: string): Promise<string | null> {
+  const { data } = await admin
+    .from("event_passes")
+    .select("id, invites(room_id)")
+    .eq("org_id", orgId)
+    .eq("status", "paid")
+    .is("used_by_session_id", null)
+    .order("created_at");
+  const rows = (data ?? []) as unknown as { id: string; invites: { room_id: string } | null }[];
+  return rows.find((p) => p.invites?.room_id === roomId)?.id ?? rows[0]?.id ?? null;
+}

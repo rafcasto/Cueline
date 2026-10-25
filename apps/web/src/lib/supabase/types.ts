@@ -2,6 +2,38 @@
 // local stack is running; keep the names identical so call sites don't change.
 
 export type OrgRole = "owner" | "host" | "presenter";
+export type StripeMode = "test" | "live";
+export type PlanStatus = "active" | "past_due" | "canceled";
+
+export type Organisation = {
+  id: string;
+  name: string;
+  plan: "free" | "starter" | "pro";
+  created_at: string;
+  /** The Stripe account (sandbox or live) the subscription was made in. */
+  stripe_mode: StripeMode | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  plan_status: PlanStatus;
+  plan_price_lookup: string | null;
+  plan_period_start: string | null;
+  plan_period_end: string | null;
+};
+
+/** One paid session on top of the plan; see docs/BUSINESS-MODEL.md. */
+export type EventPass = {
+  id: string;
+  org_id: string;
+  invite_id: string | null;
+  stripe_mode: StripeMode;
+  stripe_session_id: string;
+  status: "pending" | "paid" | "failed" | "refunded";
+  amount_total: number | null;
+  currency: string | null;
+  used_by_session_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
 export type SessionState = "waiting" | "live" | "ended";
 export type StageState = "viewer" | "invited" | "live" | "revoked";
 export type ActivityKind = "poll" | "quiz" | "wordcloud" | "cta";
@@ -88,6 +120,13 @@ export type Session = {
   recording_url: string | null;
   /** Where the presenter video sits for attendees right now; the host changes it live. */
   layout: StageLayout;
+  /** Counts against the plan's sessions this month; cleared when a false start is refunded. */
+  counted: boolean;
+  event_pass_id: string | null;
+  /** The plan's audience cap when the session went live. */
+  max_participants: number | null;
+  /** Hard stop from the plan's session length. */
+  ends_by: string | null;
 };
 
 export type ActivityOption = { id: string; label: string; correct?: boolean };
