@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { billingPeriod, decideGoLive, effectivePlan, endsBy, isFalseStart, type Usage } from "./billing";
-import { EVENT_PASS_LIMITS, PLAN_LIMITS } from "./plans";
+import { PLAN_LIMITS } from "./plans";
 
 const usage = (over: Partial<Usage>): Usage => ({
   period: { start: new Date("2026-10-01T00:00:00Z"), end: new Date("2026-11-01T00:00:00Z") },
   used: 0,
-  passes: 0,
   limits: PLAN_LIMITS.free,
   effectivePlan: "free",
   ...over,
@@ -38,20 +37,18 @@ describe("billingPeriod", () => {
 
 describe("decideGoLive", () => {
   it("lets a free organisation run its one session", () => {
-    expect(decideGoLive(usage({}))).toEqual({ allowed: true, limits: PLAN_LIMITS.free, usePass: false });
+    expect(decideGoLive(usage({}))).toEqual({ allowed: true, limits: PLAN_LIMITS.free });
   });
   it("refuses the second free session with the reset date", () => {
     const d = decideGoLive(usage({ used: 1 }));
     expect(d.allowed).toBe(false);
     if (!d.allowed) expect(d.reason).toContain("2026-11-01");
   });
-  it("spends a pass when the plan's sessions are used up, with the pass's limits", () => {
-    const d = decideGoLive(usage({ used: 4, passes: 1, limits: PLAN_LIMITS.starter, effectivePlan: "starter" }));
-    expect(d).toEqual({ allowed: true, limits: EVENT_PASS_LIMITS, usePass: true });
-  });
-  it("does not touch a pass while the plan still has sessions", () => {
-    const d = decideGoLive(usage({ used: 3, passes: 2, limits: PLAN_LIMITS.starter, effectivePlan: "starter" }));
-    expect(d).toEqual({ allowed: true, limits: PLAN_LIMITS.starter, usePass: false });
+  it("refuses the fifth Starter session and points at Pro", () => {
+    const d = decideGoLive(usage({ used: 4, limits: PLAN_LIMITS.starter, effectivePlan: "starter" }));
+    expect(d.allowed).toBe(false);
+    if (!d.allowed) expect(d.reason).toContain("Pro");
+    expect(decideGoLive(usage({ used: 3, limits: PLAN_LIMITS.starter, effectivePlan: "starter" }))).toEqual({ allowed: true, limits: PLAN_LIMITS.starter });
   });
   it("never caps Pro", () => {
     expect(decideGoLive(usage({ used: 400, limits: PLAN_LIMITS.pro, effectivePlan: "pro" })).allowed).toBe(true);
@@ -75,6 +72,6 @@ describe("false starts and the hard stop", () => {
   });
   it("ends the session after the plan's minutes", () => {
     expect(endsBy(new Date("2026-10-25T10:00:00Z"), PLAN_LIMITS.free).toISOString()).toBe("2026-10-25T10:20:00.000Z");
-    expect(endsBy(new Date("2026-10-25T10:00:00Z"), EVENT_PASS_LIMITS).toISOString()).toBe("2026-10-25T13:00:00.000Z");
+    expect(endsBy(new Date("2026-10-25T10:00:00Z"), PLAN_LIMITS.pro).toISOString()).toBe("2026-10-25T14:00:00.000Z");
   });
 });
