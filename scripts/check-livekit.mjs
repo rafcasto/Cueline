@@ -80,11 +80,14 @@ for (const e of list.sort((a, b) => Number(b.startedAt - a.startedAt)).slice(0, 
   const kind = e.request.case === "roomComposite" ? "room composite" : e.request.case;
   const line = `  ${e.egressId} room=${e.roomName} ${kind} ${STATUS[e.status] ?? e.status}`;
   console.log(e.error ? `${line}\n    error: ${e.error}` : line);
-  for (const s of e.segmentResults) {
-    console.log(`    segments: ${s.segmentCount} written, playlist ${s.playlistLocation || "(none yet)"}, live ${s.livePlaylistLocation || "(none yet)"}`);
+  // Results live in the `result` oneof; the plural arrays stay empty for single-output requests.
+  const segs = e.result.case === "segments" ? [e.result.value] : e.segmentResults;
+  const files = e.result.case === "file" ? [e.result.value] : e.fileResults;
+  for (const s of segs) {
+    console.log(`    segments: ${s.segmentCount} written (${Math.round(Number(s.size) / 1e6)} MB, ${Math.round(Number(s.duration) / 1e9)} s), live playlist ${s.livePlaylistLocation || "(none yet)"}`);
     if (s.livePlaylistLocation) playlists.add(s.livePlaylistLocation);
   }
-  for (const f of e.fileResults) console.log(`    file: ${f.location || f.filename} ${f.size ? `${Math.round(Number(f.size) / 1e6)} MB` : ""}`);
+  for (const f of files) console.log(`    file: ${f.location || f.filename} ${f.size ? `${Math.round(Number(f.size) / 1e6)} MB` : ""}`);
 }
 if (list.some((e) => e.status === 4)) {
   warn("A FAILED egress with an upload or S3 error means LiveKit could not write to the bucket: check the endpoint, bucket name and the R2 token's permissions.");
@@ -94,7 +97,11 @@ if (list.some((e) => e.status === 4)) {
 const base = (process.env.RECORDING_PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
 for (const location of playlists) {
   // Egress reports the S3 key path; viewers read it from the public base URL.
-  const path = location.replace(/^s3:\/\/[^/]+\//, "").replace(/^https?:\/\/[^/]+\//, "");
+  // Egress reports the S3 location, endpoint and bucket included; viewers read the key from the public base URL.
+  const bucket = process.env.RECORDING_S3_BUCKET ?? "";
+  let path = location.replace(/^s3:\/\/[^/]+\//, "").replace(/^https?:\/\/[^/]+\//, "");
+  if (bucket && path.startsWith(`${bucket}/`)) path = path.slice(bucket.length + 1);
+  else path = path.replace(/^[^/]+\/(?=sessions\/)/, "");
   const target = `${base}/${path}`;
   console.log(`\nfetching ${target}`);
   try {
@@ -103,6 +110,7 @@ for (const location of playlists) {
     const type = res.headers.get("content-type") ?? "";
     console.log(`  HTTP ${res.status}; access-control-allow-origin: ${cors ?? "(missing)"}; content-type: ${type || "(missing)"}`);
     if (res.status === 404) warn("Not found at the public URL. Either egress has not written yet or RECORDING_PUBLIC_BASE_URL does not serve this bucket.");
+    if (res.status >= 500) warn(`HTTP ${res.status} from the public URL: the domain in RECORDING_PUBLIC_BASE_URL is not connected to the bucket (R2: bucket Settings, Custom Domains) or is behind a proxy.`);
     if (res.ok && !cors) warn("No CORS header: browsers other than Safari will refuse to load this. Add the CORS policy on the bucket.");
     if (res.ok && !/mpegurl/i.test(type)) warn("Content type is not application/vnd.apple.mpegurl; Safari will not play it, Chrome and Firefox will.");
     if (res.ok) {
@@ -111,7 +119,7 @@ for (const location of playlists) {
       ok(`playlist has ${segs.length} segment(s); last: ${segs.at(-1) ?? "(none)"}`);
     }
   } catch (err) {
-    warn(`fetch failed: ${err.message}`);
+    warn(`fetch failed: ${err.cause?.code ?? err.message}. If this is ENOTFOUND, the domain in RECORDING_PUBLIC_BASE_URL has no DNS record: connect it to the bucket in R2 (Settings, Custom Domains) or use the bucket's r2.dev URL.`);
   }
 }
 if (playlists.size === 0) console.log("\nNo HLS egress has written a playlist yet. Go live in a session and run this again.");
