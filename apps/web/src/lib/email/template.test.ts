@@ -9,13 +9,13 @@ const vars = templateVars({
   timezone: "Europe/London",
   accessToken: "tok_123",
   code: "ABC234",
-  appUrl: "https://cueline.app/",
+  appUrl: "https://tertulia.cloud/",
 });
 
 describe("templateVars", () => {
   it("builds links from the app url without a double slash", () => {
-    expect(vars.link).toBe("https://cueline.app/a/tok_123");
-    expect(vars.join_url).toBe("https://cueline.app/join");
+    expect(vars.link).toBe("https://tertulia.cloud/a/tok_123");
+    expect(vars.join_url).toBe("https://tertulia.cloud/join");
   });
   it("formats the start in the event timezone", () => {
     expect(vars.starts_at).toContain("Sunday");

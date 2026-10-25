@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Cueline", template: "%s · Cueline" },
+  title: { default: "Tertulia", template: "%s · Tertulia" },
   description: "Live webinars with polls, quizzes and Q&A built into the slides.",
 };
 

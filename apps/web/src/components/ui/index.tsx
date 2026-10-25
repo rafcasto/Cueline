@@ -19,7 +19,7 @@ export type ButtonSize = "sm" | "md" | "lg";
 const buttonBase =
   "inline-flex shrink-0 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,box-shadow,transform] duration-150 active:translate-y-px disabled:pointer-events-none disabled:opacity-50";
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "bg-brand text-white shadow-card hover:bg-brand-hover",
+  primary: "bg-brand text-brand-contrast shadow-card hover:bg-brand-hover",
   secondary: "border border-line-strong bg-surface-raised text-ink shadow-card hover:bg-surface-inset",
   ghost: "text-ink-muted hover:bg-surface-inset hover:text-ink",
   danger: "border border-red-200 bg-surface-raised text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950",
@@ -236,7 +236,7 @@ export function Logo({ className, wordmark = true }: { className?: string; wordm
         <circle cx="16.5" cy="9.5" r="1.75" fill="currentColor" />
         <path d="M9 21h6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
       </svg>
-      {wordmark && <span>Cueline</span>}
+      {wordmark && <span>Tertulia</span>}
     </span>
   );
 }

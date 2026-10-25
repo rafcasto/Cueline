@@ -4,6 +4,7 @@
  * Design tokens. Semantic names (surface, ink, line, brand) are what components use, so a
  * component carries no dark: variants: the variables flip with the colour scheme instead.
  * Greys are slate (cool tint), the brand is indigo, and the scales are Tailwind's own.
+ * A room with its own accent overrides the --brand* variables on a wrapper (lib/branding).
  */
 :root {
   --surface: #ffffff;
@@ -19,6 +20,7 @@
   --brand-hover: #4338ca; /* indigo-700 */
   --brand-soft: #eef2ff; /* indigo-50 */
   --brand-ink: #3730a3; /* indigo-800 on brand-soft */
+  --brand-contrast: #ffffff; /* text on --brand; a room's custom accent may flip it to ink */
   --focus: #6366f1; /* indigo-500 */
   --shadow-color: 15 23 42;
 }
@@ -57,6 +59,7 @@
   --color-brand-hover: var(--brand-hover);
   --color-brand-soft: var(--brand-soft);
   --color-brand-ink: var(--brand-ink);
+  --color-brand-contrast: var(--brand-contrast);
   --color-focus: var(--focus);
   --shadow-card: 0 1px 2px rgb(var(--shadow-color) / 0.06), 0 1px 3px rgb(var(--shadow-color) / 0.04);
   --shadow-float: 0 4px 6px -1px rgb(var(--shadow-color) / 0.08), 0 10px 15px -3px rgb(var(--shadow-color) / 0.08);

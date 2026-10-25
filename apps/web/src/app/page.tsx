@@ -57,7 +57,7 @@ export default function Home() {
       </main>
 
       <footer className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-8 text-sm text-ink-muted sm:px-6">
-        <span>© {new Date().getFullYear()} Cueline</span>
+        <span>© {new Date().getFullYear()} Tertulia · tertulia.cloud</span>
         <Link href="/login" className="hover:text-ink">
           Host sign in
         </Link>

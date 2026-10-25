@@ -38,6 +38,7 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
         roomName={room.name}
         roomSlug={room.slug}
         waitingRoom={room.waiting_room}
+        branding={room.branding}
         sessionState={session?.state ?? null}
         registered={registration ? { name: registration.name, email: registration.email, code: registration.code } : null}
       />

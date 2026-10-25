@@ -1,4 +1,5 @@
 import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { parseBranding } from "@/lib/branding";
 import { cancelRoomEmails } from "@/lib/email/schedule";
 import { SLUG_PATTERN, slugify, uniqueSlug } from "@/lib/rooms";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -6,14 +7,15 @@ import type { Room } from "@/lib/supabase/types";
 
 type Body =
   | { action: "create"; org_id: string; name: string }
-  | { action: "update"; id: string; name?: string; slug?: string }
+  | { action: "update"; id: string; name?: string; slug?: string; branding?: unknown }
   | { action: "delete"; id: string };
 
 /**
  * Rooms belong to the host's organisation. Creating one seeds its email sequence (a database
  * trigger); each room then carries its own events, deck, activities, waiting room and emails.
  * Deleting a room cancels the reminders still scheduled for its registrants, then everything
- * under it cascades away.
+ * under it cascades away. Branding (accent, logo, call to action) is validated here so a bad
+ * colour or a non-http link never reaches attendees.
  */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
@@ -60,6 +62,11 @@ export const POST = handler(async (req) => {
       if (clash) throw new HttpError(409, "That address is already taken.");
       patch.slug = slug;
     }
+  }
+  if (body.branding !== undefined) {
+    const parsed = parseBranding(body.branding);
+    if ("error" in parsed) throw new HttpError(400, parsed.error);
+    patch.branding = parsed.branding;
   }
   if (Object.keys(patch).length === 0) return json({ room: room as Room });
   const { data, error } = await admin.from("rooms").update(patch).eq("id", room.id).select("*").single();

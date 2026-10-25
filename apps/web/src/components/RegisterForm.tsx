@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
+import { BrandScope, RoomMark } from "@/components/RoomBrand";
 import { WaitingRoom } from "@/components/WaitingRoom";
 import { Alert, Badge, Button, ButtonLink, Field, Input } from "@/components/ui";
 import { api } from "@/lib/api";
 import { ensureViewerIdentity } from "@/lib/supabase/browser";
-import type { SessionState, WaitingRoom as WaitingRoomConfig } from "@/lib/supabase/types";
+import type { RoomBranding, SessionState, WaitingRoom as WaitingRoomConfig } from "@/lib/supabase/types";
 
 type Registered = { name: string; email: string; code: string };
 type Props = {
@@ -16,6 +17,8 @@ type Props = {
   roomName: string;
   roomSlug: string;
   waitingRoom: WaitingRoomConfig;
+  /** The room's accent and logo; the page takes the colour so the first button an attendee taps is already theirs. */
+  branding?: RoomBranding;
   sessionState: SessionState | null;
   registered: Registered | null;
 };
@@ -45,7 +48,7 @@ export function RegisterForm(props: Props) {
         setReady(true);
         // Prefill the name a returning visitor used before (after hydration, so server and client match).
         try {
-          const remembered = localStorage.getItem("cueline:name");
+          const remembered = localStorage.getItem("tertulia:name");
           if (remembered) setName((n) => n || remembered);
         } catch {
           /* private mode */
@@ -64,7 +67,7 @@ export function RegisterForm(props: Props) {
       setJustRegistered(true);
       setSessionState(r.session_state);
       try {
-        localStorage.setItem("cueline:name", r.registration.name);
+        localStorage.setItem("tertulia:name", r.registration.name);
       } catch {
         /* ignore */
       }
@@ -83,12 +86,16 @@ export function RegisterForm(props: Props) {
         ? { text: "Doors are open. The host is about to start.", cta: "Enter the waiting room", variant: "primary" as const }
         : { text: when ? `Starts ${when}. Come back to this link, or use the one in your email, when it is time.` : "The host has not opened the room yet. Come back to this link when it is time.", cta: "Open the room", variant: "secondary" as const };
 
+  const branding = props.branding ?? {};
   return (
-    <div className="mx-auto max-w-3xl">
+    <BrandScope branding={branding} className="mx-auto max-w-3xl">
       <WaitingRoom config={props.waitingRoom} />
       <section className="relative mx-auto -mt-8 max-w-xl rounded-2xl border border-line bg-surface-raised p-6 shadow-float sm:p-8">
         <div className="flex items-start justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{props.roomName}</p>
+          <div className="flex min-w-0 items-center gap-3">
+            {branding.logo_url && <RoomMark branding={branding} name={props.roomName} />}
+            <p className="truncate text-xs font-semibold uppercase tracking-wider text-ink-muted">{props.roomName}</p>
+          </div>
           {sessionState === "live" && (
             <Badge tone="live" dot>
               Live now
@@ -143,6 +150,6 @@ export function RegisterForm(props: Props) {
           </form>
         )}
       </section>
-    </div>
+    </BrandScope>
   );
 }
