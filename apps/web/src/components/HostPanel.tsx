@@ -14,7 +14,7 @@ import { WaitingRoomEditor } from "@/components/WaitingRoomEditor";
 import { Alert, Badge, Button, Card, CardHeader, Tabs, type Tone } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
-import { currentRun } from "@/lib/session-state";
+import { currentRun, latestRun } from "@/lib/session-state";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Activity, Invite, Presentation, Question, ReactionKind, Registration, Room, Session } from "@/lib/supabase/types";
 
@@ -107,10 +107,16 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
     [sb, live, room.org_id, deck],
   );
 
+  // A new run replaces whatever is on screen; the previous run is hidden and closed so it keeps its answers but takes no more.
   const activate = async (a: Activity) => {
     if (!live) return;
-    const current = currentRun(state);
-    if (current && !current.hidden_at) await sb.from("activity_runs").update({ hidden_at: new Date().toISOString(), closed_at: current.closed_at ?? new Date().toISOString() }).eq("id", current.id);
+    setMsg(null);
+    const previous = latestRun(state);
+    if (previous && !previous.hidden_at) {
+      const now = new Date().toISOString();
+      const { error } = await sb.from("activity_runs").update({ hidden_at: now, closed_at: previous.closed_at ?? now }).eq("id", previous.id);
+      if (error) return setMsg(error.message);
+    }
     const { error } = await sb.from("activity_runs").insert({ org_id: room.org_id, session_id: live.id, activity_id: a.id });
     if (error) setMsg(error.message);
   };
@@ -136,8 +142,10 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
     [sb, live],
   );
 
-  const currentRunRow = currentRun(state);
+  // The controls follow the latest run even while it is hidden, so it can be shown again; the library marks only a visible one as active.
+  const currentRunRow = latestRun(state);
   const currentActivity = currentRunRow ? (state.activities[currentRunRow.activity_id] ?? activities.find((a) => a.id === currentRunRow.activity_id)) : null;
+  const visibleRun = currentRun(state);
   const participantsCount = Object.keys(state.participants).length;
   const nameOf = (uid: string) => state.participants[uid]?.display_name ?? uid.slice(0, 8);
   const activeInvites = useMemo(() => invites.filter((i) => !i.revoked_at), [invites]);
@@ -222,7 +230,7 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
                 onNavigate={navigate}
               />
               {currentRunRow && currentActivity && live && <RunControls state={state} run={currentRunRow} activity={currentActivity} userId={userId} />}
-              <ActivityLibrary roomId={room.id} orgId={room.org_id} activities={activities} onChange={setActivities} onActivate={live?.state === "live" ? activate : undefined} activeId={currentRunRow?.activity_id ?? null} />
+              <ActivityLibrary roomId={room.id} orgId={room.org_id} activities={activities} onChange={setActivities} onActivate={live?.state === "live" ? activate : undefined} activeId={visibleRun?.activity_id ?? null} />
             </section>
 
             <aside className="space-y-6">

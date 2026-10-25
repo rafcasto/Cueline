@@ -82,7 +82,10 @@ function AnswerForm({ run, activity, userId }: { run: ActivityRun; activity: Act
         ? { run_id: run.id, session_id: run.session_id, user_id: userId, text_answer: text.trim() }
         : { run_id: run.id, session_id: run.session_id, user_id: userId, option_ids: picked };
     const { error } = await supabaseBrowser().from("activity_responses").insert(row);
-    if (error) setError(error.message.includes("time is up") || error.message.includes("closed") ? "Too late, answers are closed." : error.message);
+    if (error) {
+      const m = error.message;
+      setError(m.includes("time is up") || m.includes("closed") ? "Too late, answers are closed." : m.includes("duplicate") ? "You have already answered." : m);
+    }
     setBusy(false);
   };
 

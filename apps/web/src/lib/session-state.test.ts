@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentRun, emptyState, fromSnapshot, reduce, runPhase, tallyFor, timeLeftMs, wordCloud } from "./session-state";
+import { currentRun, emptyState, fromSnapshot, latestRun, reduce, runPhase, tallyFor, timeLeftMs, withActivity, wordCloud } from "./session-state";
 import type { Activity, ActivityRun, SessionBroadcast } from "./supabase/types";
 
 const msg = (table: string, operation: "INSERT" | "UPDATE" | "DELETE", record: Record<string, unknown> | null, old_record: Record<string, unknown> | null = null): SessionBroadcast => ({
@@ -32,11 +32,24 @@ describe("reduce", () => {
     expect(t.rows.map((r) => [r.label, r.votes, r.pct, r.correct ?? false])).toEqual([["Auckland", 1, 33, false], ["Wellington", 2, 67, true]]);
   });
 
-  it("a hidden run is no longer current; the newest visible one is", () => {
+  it("hiding the latest run clears the overlay without resurfacing an older run; showing it again brings it back", () => {
     let s = fromSnapshot({ activities: [quiz], runs: [run(), run({ id: "run2", opened_at: "2026-09-30T10:05:00Z" })] });
     expect(currentRun(s)?.id).toBe("run2");
-    s = reduce(s, msg("activity_runs", "UPDATE", run({ id: "run2", opened_at: "2026-09-30T10:05:00Z", hidden_at: "2026-09-30T10:06:00Z" }) as unknown as Record<string, unknown>));
+    const hidden = run({ id: "run2", opened_at: "2026-09-30T10:05:00Z", hidden_at: "2026-09-30T10:06:00Z" });
+    s = reduce(s, msg("activity_runs", "UPDATE", hidden as unknown as Record<string, unknown>));
+    expect(currentRun(s)).toBeNull();
+    expect(latestRun(s)?.id).toBe("run2");
+    s = reduce(s, msg("activity_runs", "UPDATE", { ...hidden, hidden_at: null } as unknown as Record<string, unknown>));
+    expect(currentRun(s)?.id).toBe("run2");
+  });
+
+  it("a run for an activity the snapshot did not have shows once the activity is merged in", () => {
+    let s = fromSnapshot({ activities: [] });
+    s = reduce(s, msg("activity_runs", "INSERT", run() as unknown as Record<string, unknown>));
     expect(currentRun(s)?.id).toBe("run1");
+    expect(s.activities[currentRun(s)!.activity_id]).toBeUndefined();
+    s = withActivity(s, quiz);
+    expect(s.activities.a1.title).toBe("Capital?");
   });
 
   it("session state changes flow through", () => {

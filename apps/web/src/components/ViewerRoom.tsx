@@ -45,9 +45,23 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   const [userId, setUserId] = useState<string | null>(null);
   const [identityError, setIdentityError] = useState<string | null>(null);
   const [joinedLocal, setJoinedLocal] = useState(false);
-  const latency = useRef(3000);
-  const { state, status } = useSession(initialSession?.id ?? null, { getLatencyMs: () => latency.current, userId, roomId: room.id });
-  const session = state.session ?? initialSession;
+  const [knownSession, setKnownSession] = useState<Session | null>(initialSession);
+  // 0 until the player reports a live-edge distance; overlays are not held back for a video that is not playing.
+  const latency = useRef(0);
+  const { state, status } = useSession(knownSession?.id ?? null, { getLatencyMs: () => latency.current, userId, roomId: room.id, enabled: !!userId });
+  const session = state.session ?? knownSession;
+
+  // With no open session there is no channel to listen on, so "keep this page open" needs a poll for the next one.
+  const openSession = !!session && session.state !== "ended";
+  useEffect(() => {
+    if (openSession || !userId) return;
+    const sb = supabaseBrowser();
+    const t = setInterval(async () => {
+      const { data } = await sb.from("sessions").select("*").eq("room_id", room.id).neq("state", "ended").maybeSingle();
+      if (data) setKnownSession(data as Session);
+    }, 10_000);
+    return () => clearInterval(t);
+  }, [openSession, userId, room.id]);
   const presentation = usePresentation(initialPresentation, session?.presentation_id ?? null, userId);
   const [stage, setStage] = useState<{ url: string; token: string } | null>(null);
   const [handUp, setHandUp] = useState(false);

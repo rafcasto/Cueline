@@ -174,14 +174,27 @@ export function reduce(state: SessionData, msg: SessionBroadcast, me: string | n
   }
 }
 
-/** The run the overlay should show: the newest one that is not hidden. */
-export function currentRun(state: SessionData): ActivityRun | null {
+/** Add or replace one activity (a run can arrive for an activity created after the snapshot). */
+export function withActivity(state: SessionData, activity: Activity): SessionData {
+  return { ...state, activities: { ...state.activities, [activity.id]: activity } };
+}
+
+/** The most recently opened run, hidden or not. The host's controls follow it so a hidden run can be shown again. */
+export function latestRun(state: SessionData): ActivityRun | null {
   let best: ActivityRun | null = null;
   for (const r of Object.values(state.runs)) {
-    if (r.hidden_at) continue;
     if (!best || r.opened_at > best.opened_at) best = r;
   }
   return best;
+}
+
+/**
+ * The run the overlay should show: the latest one, unless the presenter has hidden it.
+ * Only the latest counts, so hiding it never resurfaces an older run by accident.
+ */
+export function currentRun(state: SessionData): ActivityRun | null {
+  const r = latestRun(state);
+  return r && !r.hidden_at ? r : null;
 }
 
 export type RunPhase = "open" | "closed" | "results";
