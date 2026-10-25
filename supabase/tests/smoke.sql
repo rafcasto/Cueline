@@ -198,3 +198,32 @@ select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111
 update public.rooms set chat_enabled = true where id = '00000000-0000-0000-0000-000000000002';
 reset role;
 select 'chat broadcasts' as check, count(*) = 7 as pass from realtime.messages where event = 'chat_messages';
+
+-- Billing: the platform setting exists, passes are readable by the org, sessions carry the plan's grant.
+reset role;
+select 'stripe mode defaults to the sandbox' as check, value = '"test"'::jsonb as pass from public.app_settings where key = 'stripe_mode';
+insert into public.event_passes(id, org_id, stripe_mode, stripe_session_id, status) values ('66666666-6666-6666-6666-666666666666', '00000000-0000-0000-0000-000000000001', 'test', 'cs_test_smoke', 'paid');
+update public.sessions set counted = true, max_participants = 10, ends_by = started_at + interval '20 minutes', event_pass_id = '66666666-6666-6666-6666-666666666666' where id = '33333333-3333-3333-3333-333333333333';
+set role authenticated;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+select 'org member reads the pass' as check, count(*) = 1 as pass from public.event_passes where id = '66666666-6666-6666-6666-666666666666';
+select 'app_settings is service-role only' as check, count(*) = 0 as pass from public.app_settings;
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+select 'attendee cannot read passes' as check, count(*) = 0 as pass from public.event_passes;
+reset role;
+
+-- Explore: listed rooms and public events are readable anonymously through the views; nothing else leaks.
+reset role;
+insert into public.invites(id, org_id, room_id, title, starts_at, is_public) values
+  ('77777777-7777-7777-7777-777777777771', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Public talk', now() + interval '1 day', true),
+  ('77777777-7777-7777-7777-777777777772', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Private talk', now() + interval '1 day', false);
+set role anon;
+select 'unlisted room hides its public event' as check, count(*) = 0 as pass from public.public_events;
+reset role;
+update public.rooms set is_public = true, description = 'Weekly product talks', topics = '{product,startups}' where id = '00000000-0000-0000-0000-000000000002';
+set role anon;
+select 'anon sees the listed room with its topics' as check, count(*) = 1 and bool_and('product' = any(topics)) as pass from public.public_rooms where slug = 'main';
+select 'anon sees only the public event, with its token' as check, count(*) = 1 and bool_and(title = 'Public talk' and token <> '') as pass from public.public_events;
+select 'anon cannot read invites directly' as check, count(*) = 0 as pass from public.invites;
+select 'anon cannot read registrations' as check, count(*) = 0 as pass from public.registrations;
+reset role;

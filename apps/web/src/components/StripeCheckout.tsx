@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { publicEnv } from "@/lib/env";
 
 /** Stripe Embedded Checkout mounted inside the engagement panel; the viewer never leaves the room. */
-export function StripeCheckout({ clientSecret }: { clientSecret: string }) {
+export function StripeCheckout({ clientSecret, publishableKey }: { clientSecret: string; publishableKey?: string | null }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -12,7 +12,7 @@ export function StripeCheckout({ clientSecret }: { clientSecret: string }) {
     let destroy = () => undefined as void;
     let cancelled = false;
     (async () => {
-      const stripe = await loadStripe(publicEnv.stripePublishableKey);
+      const stripe = await loadStripe(publishableKey || publicEnv.stripePublishableKey);
       if (!stripe || cancelled) return;
       const checkout = await stripe.initEmbeddedCheckout({ clientSecret });
       if (cancelled) {
@@ -26,6 +26,6 @@ export function StripeCheckout({ clientSecret }: { clientSecret: string }) {
       cancelled = true;
       destroy();
     };
-  }, [clientSecret]);
+  }, [clientSecret, publishableKey]);
   return <div ref={ref} className="min-h-[420px]" />;
 }

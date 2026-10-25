@@ -19,6 +19,9 @@ export default function Home() {
             <Logo />
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted md:flex" aria-label="Primary">
+            <Link href="/explore" className="hover:text-ink">
+              Explore
+            </Link>
             <a href="#engage" className="hover:text-ink">
               Engagement
             </a>
@@ -163,7 +166,7 @@ export default function Home() {
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink-muted">Live webinars with the engagement built into the slides. Presenters on WebRTC, attendees in any browser, recordings of every session.</p>
           </div>
           <FooterGroup title="Product" links={[["Engagement", "#engage"], ["Branding", "#branding"], ["How it works", "#how"], ["Host sign in", "/login"]]} />
-          <FooterGroup title="Attending" links={[["Join with email and code", "/join"], ["Host sign in", "/login"]]} />
+          <FooterGroup title="Attending" links={[["Explore upcoming events", "/explore"], ["Join with email and code", "/join"], ["Host sign in", "/login"]]} />
         </div>
         <div className="border-t border-line">
           <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-sm text-ink-muted sm:px-6">

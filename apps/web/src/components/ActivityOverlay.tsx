@@ -155,6 +155,7 @@ function AnswerForm({ run, activity, userId }: { run: ActivityRun; activity: Act
 /** Logs a view when shown and a tap before any checkout loads, so abandonment is captured. */
 function CtaBody({ run, activity, roomSlug, pageIndex, readOnly }: { run: ActivityRun; activity: Activity; roomSlug: string; pageIndex: number | null; readOnly?: boolean }) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [publishableKey, setPublishableKey] = useState<string | null>(null);
   const [embed, setEmbed] = useState(false);
   const [busy, setBusy] = useState(false);
   const viewed = useRef<string | null>(null);
@@ -172,7 +173,8 @@ function CtaBody({ run, activity, roomSlug, pageIndex, readOnly }: { run: Activi
     try {
       const { cta_event_id } = await api<{ cta_event_id: string }>("/api/cta/event", { run_id: run.id, session_id: run.session_id, page_index: pageIndex, action: "tap" });
       if (dest === "stripe") {
-        const r = await api<{ client_secret: string }>("/api/cta/checkout", { run_id: run.id, cta_event_id, room_slug: roomSlug });
+        const r = await api<{ client_secret: string; publishable_key: string | null }>("/api/cta/checkout", { run_id: run.id, cta_event_id, room_slug: roomSlug });
+        setPublishableKey(r.publishable_key);
         setClientSecret(r.client_secret);
       } else if (dest === "embed") setEmbed(true);
       else window.open(target, "_blank", "noopener");
@@ -182,7 +184,7 @@ function CtaBody({ run, activity, roomSlug, pageIndex, readOnly }: { run: Activi
   };
 
   if (readOnly) return <p className="mt-2 text-xs text-slate-400">{dest} · {target}</p>;
-  if (clientSecret) return <div className="mt-4 overflow-hidden rounded-lg bg-white"><StripeCheckout clientSecret={clientSecret} /></div>;
+  if (clientSecret) return <div className="mt-4 overflow-hidden rounded-lg bg-white"><StripeCheckout clientSecret={clientSecret} publishableKey={publishableKey} /></div>;
   if (embed) return <EmbedFrame url={target} onBlocked={() => { setEmbed(false); window.open(target, "_blank", "noopener"); }} />;
   return (
     <button

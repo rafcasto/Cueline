@@ -3,7 +3,7 @@ import { resyncInvite } from "@/lib/email/schedule";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Invite } from "@/lib/supabase/types";
 
-type Body = { id: string; title?: string; description?: string | null; starts_at?: string | null; timezone?: string };
+type Body = { id: string; title?: string; description?: string | null; starts_at?: string | null; timezone?: string; is_public?: boolean };
 
 /** Edit an event. A new start time moves every reminder that is already scheduled. */
 export const POST = handler(async (req) => {
@@ -24,6 +24,10 @@ export const POST = handler(async (req) => {
   if (body.starts_at !== undefined) {
     if (body.starts_at !== null && Number.isNaN(Date.parse(body.starts_at))) throw new HttpError(400, "Start time is not a valid date.");
     patch.starts_at = body.starts_at;
+  }
+  if (body.is_public !== undefined) {
+    if (typeof body.is_public !== "boolean") throw new HttpError(400, "is_public must be true or false.");
+    patch.is_public = body.is_public;
   }
   if (body.timezone !== undefined) {
     try {

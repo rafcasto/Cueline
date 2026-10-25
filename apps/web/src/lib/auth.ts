@@ -48,6 +48,17 @@ export async function requireOrgRole(userId: string, orgId: string, roles: OrgRo
   return data.role as OrgRole;
 }
 
+/** The platform's own admins (the "super user"): the Stripe mode switch and nothing an org owner can do. */
+export async function requirePlatformAdmin(userId: string) {
+  const { data } = await supabaseAdmin().from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle();
+  if (!data) throw new HttpError(403, "platform admins only");
+}
+
+export async function isPlatformAdmin(userId: string) {
+  const { data } = await supabaseAdmin().from("platform_admins").select("user_id").eq("user_id", userId).maybeSingle();
+  return !!data;
+}
+
 export function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, init);
 }

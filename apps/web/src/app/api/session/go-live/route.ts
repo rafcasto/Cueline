@@ -1,10 +1,16 @@
 import { handler, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { decideGoLive, endsBy, loadUsage, pickPass } from "@/lib/billing";
+import { sweepOverdue } from "@/lib/session-lifecycle";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ensureRoom, startSessionEgress } from "@/lib/video";
 
 type Body = { session_id: string };
 
-/** Waiting -> live: start the one egress (recording + HLS fallback), stamp started_at. */
+/**
+ * Waiting -> live. The plan is checked here: sessions left this month (or an event pass to
+ * spend), the participant cap set on the room, recording only where the plan includes it, and
+ * the hard stop stamped on the session. A session counts the moment it goes live.
+ */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
   const body = await readJson<Body>(req);
@@ -18,18 +24,35 @@ export const POST = handler(async (req) => {
 
   const room = (session.rooms as unknown as { livekit_room: string } | null)?.livekit_room ?? "";
   if (!room) return json({ error: "room missing" }, { status: 500 });
-  await ensureRoom(room);
-  const out = await startSessionEgress(room, session.id);
+
+  const { data: org } = await admin.from("organisations").select("id, plan, plan_status, plan_period_start, plan_period_end").eq("id", session.org_id).maybeSingle();
+  if (!org) return json({ error: "organisation not found" }, { status: 404 });
+  await sweepOverdue(admin, org.id);
+  const decision = decideGoLive(await loadUsage(admin, org));
+  if (!decision.allowed) return json({ error: decision.reason, code: "plan_limit" }, { status: 402 });
+  const limits = decision.limits;
+  const passId = decision.usePass ? await pickPass(admin, org.id, session.room_id) : null;
+  if (decision.usePass && !passId) return json({ error: "no event pass left; buy one at /host/billing", code: "plan_limit" }, { status: 402 });
+
+  // Presenters and promoted attendees sit on top of the audience cap.
+  await ensureRoom(room, limits.participants + 10);
+  const out = limits.recording ? await startSessionEgress(room, session.id) : null;
+  const started = new Date();
   const { error } = await admin
     .from("sessions")
     .update({
       state: "live",
-      started_at: new Date().toISOString(),
-      hls_url: out.hlsUrl,
-      egress_id: out.egressId,
-      recording_url: out.recordingUrl,
+      started_at: started.toISOString(),
+      hls_url: out?.hlsUrl ?? null,
+      egress_id: out?.egressId ?? null,
+      recording_url: out?.recordingUrl ?? null,
+      counted: true,
+      event_pass_id: passId,
+      max_participants: limits.participants,
+      ends_by: endsBy(started, limits).toISOString(),
     })
     .eq("id", session.id);
   if (error) throw error;
-  return json({ ok: true, hls_url: out.hlsUrl });
+  if (passId) await admin.from("event_passes").update({ used_by_session_id: session.id, updated_at: started.toISOString() }).eq("id", passId).is("used_by_session_id", null);
+  return json({ ok: true, hls_url: out?.hlsUrl ?? null, ends_by: endsBy(started, limits).toISOString(), recording: limits.recording, on_pass: !!passId });
 });

@@ -45,11 +45,12 @@ export type TokenRole = "presenter" | "viewer";
 /**
  * LiveKit creates a room when the first participant connects. Going live starts egress
  * before anyone has joined with a camera, so create the room explicitly first; createRoom
- * returns the existing room when there is one. The timeouts keep the room alive while the
+ * returns the existing room when there is one. `maxParticipants` is the plan's audience cap
+ * plus a margin for presenters; LiveKit refuses joins beyond it. The timeouts keep the room alive while the
  * host is between "Go live" and "Join with camera", and through a short reconnect.
  */
-export async function ensureRoom(room: string) {
-  await roomService().createRoom({ name: room, emptyTimeout: 60 * 60 * 4, departureTimeout: 60 * 10 });
+export async function ensureRoom(room: string, maxParticipants?: number) {
+  await roomService().createRoom({ name: room, emptyTimeout: 60 * 60 * 4, departureTimeout: 60 * 10, ...(maxParticipants ? { maxParticipants } : {}) });
 }
 
 /** Publish token for presenters and promoted participants; subscribe-only for the audience. Short TTL, re-minted on demand. */

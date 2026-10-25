@@ -33,7 +33,7 @@ function toLocalInput(iso: string | null) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-type Draft = { id?: string; title: string; startsAt: string; description: string };
+type Draft = { id?: string; title: string; startsAt: string; description: string; isPublic: boolean };
 
 /**
  * Organiser side of an event: create the invite link, copy it, edit the details, watch
@@ -74,12 +74,12 @@ export function InviteCard({ room, userId, invites, registrations, participants,
     try {
       const starts_at = draft.startsAt ? new Date(draft.startsAt).toISOString() : null;
       if (draft.id) {
-        const r = await api<{ invite: Invite }>("/api/invites/update", { id: draft.id, title: draft.title, description: draft.description || null, starts_at, timezone: browserZone() });
+        const r = await api<{ invite: Invite }>("/api/invites/update", { id: draft.id, title: draft.title, description: draft.description || null, starts_at, timezone: browserZone(), is_public: draft.isPublic });
         onInvitesChange(invites.map((i) => (i.id === r.invite.id ? r.invite : i)));
       } else {
         const { data, error } = await sb
           .from("invites")
-          .insert({ org_id: room.org_id, room_id: room.id, title: draft.title.trim() || room.name, description: draft.description.trim() || null, starts_at, timezone: browserZone(), created_by: userId })
+          .insert({ org_id: room.org_id, room_id: room.id, title: draft.title.trim() || room.name, description: draft.description.trim() || null, starts_at, timezone: browserZone(), created_by: userId, is_public: draft.isPublic })
           .select("*")
           .single();
         if (error) throw error;
@@ -112,7 +112,7 @@ export function InviteCard({ room, userId, invites, registrations, participants,
   };
 
   const joinedCount = registrations.filter((r) => participants[r.user_id]).length;
-  const newDraft = () => setDraft({ title: room.name, startsAt: "", description: "" });
+  const newDraft = () => setDraft({ title: room.name, startsAt: "", description: "", isPublic: room.is_public });
 
   return (
     <div className="space-y-6">
@@ -155,13 +155,14 @@ export function InviteCard({ room, userId, invites, registrations, participants,
                       <Badge tone="success" dot>
                         Open
                       </Badge>
+                      {inv.is_public && <Badge tone={room.is_public ? "brand" : "warning"}>{room.is_public ? "On Explore" : "Public, room not listed"}</Badge>}
                     </div>
                     <p className="mt-1 text-sm text-ink-muted">
                       {inv.starts_at ? formatStart(inv.starts_at) : "No start time set"} · {count} registered
                     </p>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => setDraft({ id: inv.id, title: inv.title, startsAt: toLocalInput(inv.starts_at), description: inv.description ?? "" })} disabled={!!draft}>
+                    <Button variant="ghost" size="sm" onClick={() => setDraft({ id: inv.id, title: inv.title, startsAt: toLocalInput(inv.starts_at), description: inv.description ?? "", isPublic: inv.is_public })} disabled={!!draft}>
                       Edit
                     </Button>
                     <Button variant="ghost" size="sm" className="text-red-700 hover:text-red-800 dark:text-red-300" onClick={() => void revoke(inv)}>
@@ -195,9 +196,19 @@ export function InviteCard({ room, userId, invites, registrations, participants,
             <Field label="Starts" htmlFor="inv-start" hint={`Your timezone (${browserZone()}). Reminder emails count back from this.`}>
               <Input id="inv-start" type="datetime-local" value={draft.startsAt} onChange={(e) => setDraft({ ...draft, startsAt: e.target.value })} className="max-w-xs" />
             </Field>
-            <Field label="What attendees will see" htmlFor="inv-desc" hint="Optional. Shown on the registration page.">
+            <Field label="What attendees will see" htmlFor="inv-desc" hint="Optional. Shown on the registration page and on Explore.">
               <Textarea id="inv-desc" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} maxLength={2000} rows={3} />
             </Field>
+            <label className="flex items-start gap-3 text-sm">
+              <input type="checkbox" checked={draft.isPublic} onChange={(e) => setDraft({ ...draft, isPublic: e.target.checked })} className="mt-0.5 size-4 accent-brand" />
+              <span>
+                <span className="font-medium text-ink">List on Explore</span>
+                <span className="block text-ink-muted">
+                  Anyone browsing tertulia.cloud/explore can find it and register.{" "}
+                  {room.is_public ? "The room is listed." : "The room is not listed yet; turn on Public listing in Settings or the event stays hidden."}
+                </span>
+              </span>
+            </label>
             <div className="flex gap-2">
               <Button type="submit" loading={busy}>
                 {draft.id ? "Save changes" : "Create link"}
