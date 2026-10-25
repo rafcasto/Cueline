@@ -52,6 +52,8 @@ pnpm dev                          # http://localhost:3000
 3. Open the invite link in a private window and register with a name and email. The welcome email arrives with a personal link and a code; try the link in another browser, or `/join` with the email and code. **Open waiting room** puts the session in `waiting`; registrants see the waiting room under their registered name. **Go live** starts the stream. **Join with camera** publishes your video.
 4. Navigate the deck, activate activities, reveal results, promote hands.
 
+`pnpm video:check` asks LiveKit which rooms are open, who is publishing, and the status and error of every egress, then fetches the playlist each one wrote from `RECORDING_PUBLIC_BASE_URL` and reports the status code, CORS header and content type. Run it after "Go live" when participants see no video.
+
 Checks: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm db:test` (needs local Postgres 16 binaries and a non-root user, no Docker; a smoke check that returns `f` fails the run).
 
 The Stripe webhook endpoint is `/api/stripe/webhook` (`checkout.session.*` events). The email dispatcher cron is `/api/emails/dispatch` (daily via `vercel.json`, authorised with `CRON_SECRET`).
