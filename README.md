@@ -2,7 +2,7 @@
 
 [tertulia.cloud](https://tertulia.cloud) (formerly Cueline). Webinars with the engagement built in. The presenter uploads a deck as a PDF, presents it in the room, and launches polls, quizzes, word clouds and calls to action as overlays for everyone watching. Each activity can carry a timer; when it runs out the presenter reveals the results as an overlay. Participants react at any time and see a waiting room before the session starts.
 
-The full design is in [docs/DESIGN.md](docs/DESIGN.md); a feature and landing-page comparison with Univid is in [docs/COMPETITOR-UNIVID.md](docs/COMPETITOR-UNIVID.md). This repo is the Phase 1 build: rooms the host creates (each with its own events, email sequence, deck, activities and waiting room), presenters on WebRTC, viewers on HLS, PDF deck, activities, Q&A, reactions, waiting room, recording. No tiers, billing or signup yet.
+The full design is in [docs/DESIGN.md](docs/DESIGN.md); a feature and landing-page comparison with Univid is in [docs/COMPETITOR-UNIVID.md](docs/COMPETITOR-UNIVID.md); tiers, costs and capacity on the self-hosted LiveKit node are in [docs/BUSINESS-MODEL.md](docs/BUSINESS-MODEL.md). This repo is the Phase 1 build: rooms the host creates (each with its own events, email sequence, deck, activities and waiting room), presenters on WebRTC, viewers on HLS, PDF deck, activities, Q&A, reactions, waiting room, recording. No tiers, billing or signup yet.
 
 ## Layout
 
