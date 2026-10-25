@@ -48,6 +48,8 @@ export type Room = {
   name: string;
   branding: RoomBranding;
   waiting_room: WaitingRoom;
+  /** The host can switch the session chat off for the room. */
+  chat_enabled: boolean;
   livekit_room: string;
   created_at: string;
 };
@@ -133,6 +135,9 @@ export type Question = {
   answered_at: string | null;
   created_at: string;
 };
+
+/** One chat message. `hidden_at` is host moderation: gone for everyone but the author and the host. */
+export type ChatMessage = { id: string; org_id: string | null; session_id: string; user_id: string; body: string; hidden_at: string | null; created_at: string };
 
 export type HandRaise = { id: string; session_id: string; user_id: string; raised_at: string; cleared_at: string | null };
 

@@ -3,6 +3,7 @@ import { DisconnectReason } from "livekit-client";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityLibrary } from "@/components/ActivityLibrary";
 import { AppShell } from "@/components/AppShell";
+import { Chat } from "@/components/Chat";
 import { EmailSequence } from "@/components/EmailSequence";
 import { InviteCard } from "@/components/InviteCard";
 import { PresenterDeck } from "@/components/PresenterDeck";
@@ -17,7 +18,7 @@ import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { currentRun, latestRun } from "@/lib/session-state";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import type { Activity, Invite, Presentation, Question, ReactionKind, Registration, Room, Session } from "@/lib/supabase/types";
+import type { Activity, ChatMessage, Invite, Presentation, Question, ReactionKind, Registration, Room, Session } from "@/lib/supabase/types";
 
 type Props = {
   room: Room;
@@ -135,6 +136,18 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
   };
   const answered = async (q: Question) => {
     await sb.from("questions").update({ answered_at: new Date().toISOString() }).eq("id", q.id);
+  };
+  const sendChat = useCallback(
+    async (body: string) => {
+      if (!live) return;
+      const { error } = await sb.from("chat_messages").insert({ org_id: room.org_id, session_id: live.id, user_id: userId, body });
+      if (error) throw new Error(error.message);
+    },
+    [sb, live, room.org_id, userId],
+  );
+  const hideChat = async (m: ChatMessage, hidden: boolean) => {
+    const { error } = await sb.from("chat_messages").update({ hidden_at: hidden ? new Date().toISOString() : null }).eq("id", m.id);
+    if (error) setMsg(error.message);
   };
   const react = useCallback(
     async (kind: ReactionKind, count: number) => {
@@ -302,6 +315,7 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
                   </div>
                 )}
               </Card>
+              {live && <Chat host state={state} userId={userId} enabled={room.chat_enabled} onSend={sendChat} onHide={hideChat} />}
               {live && <Questions host state={state} userId={userId} onAsk={async () => undefined} onUpvote={async () => undefined} onApprove={approve} onAnswered={answered} />}
             </aside>
           </div>

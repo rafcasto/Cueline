@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { RoomBrandingEditor } from "@/components/RoomBrandingEditor";
-import { Alert, Button, Card, CardHeader, Field, Input } from "@/components/ui";
+import { Alert, Button, Card, CardHeader, Field, Input, Switch } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { Room } from "@/lib/supabase/types";
 
@@ -14,7 +14,21 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [chatBusy, setChatBusy] = useState(false);
   const dirty = name.trim() !== room.name || slug.trim() !== room.slug;
+
+  const setChat = async (chat_enabled: boolean) => {
+    setChatBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ room: Room }>("/api/rooms", { action: "update", id: room.id, chat_enabled });
+      onSaved(r.room);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setChatBusy(false);
+    }
+  };
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -75,6 +89,17 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
             Save
           </Button>
         </form>
+      </Card>
+
+      <Card>
+        <CardHeader title="Chat" description="Attendees chat with the room while the doors are open and during the session. You can hide any message from the live panel." />
+        <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border border-line bg-surface-inset px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-ink">{room.chat_enabled ? "Chat is on" : "Chat is off"}</p>
+            <p className="text-sm text-ink-muted">Takes effect at once, in a running session too.</p>
+          </div>
+          <Switch checked={room.chat_enabled} onChange={(v) => void setChat(v)} label="Chat" disabled={chatBusy} />
+        </div>
       </Card>
 
       <RoomBrandingEditor room={room} onSaved={onSaved} />

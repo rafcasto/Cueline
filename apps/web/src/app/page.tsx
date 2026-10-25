@@ -76,7 +76,7 @@ export default function Home() {
               <p className="mt-3 text-lg text-ink-muted">Every activity opens as an overlay on the deck, with a timer if you want one, and the results reveal when you say so.</p>
             </div>
             <ul className="mt-8 flex flex-wrap gap-2" aria-label="Engagement features">
-              {["Polls", "Quizzes with scores", "Word clouds", "Calls to action", "Q&A with upvotes", "Reactions", "Raise hand", "Bring on stage"].map((t) => (
+              {["Polls", "Quizzes with scores", "Word clouds", "Calls to action", "Live chat", "Q&A with upvotes", "Reactions", "Raise hand", "Bring on stage"].map((t) => (
                 <li key={t}>
                   <Badge tone="brand" className="px-3 py-1 text-sm">
                     {t}
@@ -97,7 +97,7 @@ export default function Home() {
                 title="Calls to action that convert in the room"
                 body="Open a page in a new tab, embed it over the slide, or take a card payment with Stripe without the attendee leaving. Views, taps and conversions are logged per slide."
               />
-              <Feature title="Q&A the host moderates" body="Attendees ask and upvote. The host approves what everyone sees and marks questions answered as they go." />
+              <Feature title="Chat and Q&A the host moderates" body="Attendees chat with the room and ask questions with upvotes. The host approves the questions everyone sees, hides a chat message with one tap, and marks questions answered." />
               <Feature title="Reactions and hands" body="Six reactions float across everyone's screen. A raised hand can be promoted to the stage, camera and all, in about a second." />
               <Feature title="A waiting room with sound" body="A picture or a looping video, music, and your welcome text on a 16:9 canvas while the doors are open. It stops the moment you go live." />
             </div>

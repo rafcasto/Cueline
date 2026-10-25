@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityOverlay } from "@/components/ActivityOverlay";
+import { Chat } from "@/components/Chat";
 import { LiveViewer } from "@/components/LiveViewer";
 import { PdfPage } from "@/components/PdfPage";
 import { Questions } from "@/components/Questions";
@@ -8,11 +9,11 @@ import { ReactionBar } from "@/components/ReactionBar";
 import { BrandScope, RoomCtaButton, RoomMark } from "@/components/RoomBrand";
 import { RoomStage } from "@/components/RoomStage";
 import { WaitingRoom } from "@/components/WaitingRoom";
-import { Alert, Badge, Button, cx } from "@/components/ui";
+import { Alert, Badge, Button, Tabs, cx } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { normalizeBranding } from "@/lib/branding";
-import { currentRun } from "@/lib/session-state";
+import { chatMessages, currentRun } from "@/lib/session-state";
 import { publicUrl } from "@/lib/storage";
 import { ensureViewerIdentity, supabaseBrowser } from "@/lib/supabase/browser";
 import type { Presentation, ReactionKind, Room, Session } from "@/lib/supabase/types";
@@ -67,6 +68,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   const presentation = usePresentation(initialPresentation, session?.presentation_id ?? null, userId);
   const [stage, setStage] = useState<{ url: string; token: string } | null>(null);
   const [handUp, setHandUp] = useState(false);
+  const [panel, setPanel] = useState<"chat" | "qa">("chat");
 
   useEffect(() => {
     void ensureViewerIdentity().then((s) => setUserId(s.user.id)).catch((err: Error) => setIdentityError(err.message));
@@ -113,6 +115,15 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   }, [myRoster, sid]);
 
   const ask = useCallback(async (body: string) => { if (userId) await sb.from("questions").insert({ session_id: sid, user_id: userId, body }); }, [sb, sid, userId]);
+  // The chat surfaces the database's reason (rate limit, chat off), so this one throws.
+  const chat = useCallback(
+    async (body: string) => {
+      if (!userId) return;
+      const { error } = await sb.from("chat_messages").insert({ session_id: sid, user_id: userId, body });
+      if (error) throw new Error(error.message);
+    },
+    [sb, sid, userId],
+  );
   const upvote = useCallback(async (question_id: string) => { if (userId) await sb.from("question_votes").insert({ session_id: sid, question_id, user_id: userId }); }, [sb, sid, userId]);
   const react = useCallback(async (kind: ReactionKind, count: number) => { await sb.rpc("bump_reaction", { p_session: sid, p_kind: kind, p_count: count }); }, [sb, sid]);
   const toggleHand = useCallback(async () => {
@@ -167,6 +178,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
         <div className="mt-4 flex justify-center">
           <ReactionBar onFlush={react} lastReaction={state.lastReaction} disabled />
         </div>
+        {room.chat_enabled && <Chat state={state} userId={userId} enabled onSend={chat} className="mt-6" />}
       </RoomFrame>
     );
   }
@@ -223,7 +235,19 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
         </section>
 
         <aside>
-          <Questions state={state} userId={userId} onAsk={ask} onUpvote={upvote} />
+          <div className="rounded-xl border border-line bg-surface-raised p-6 shadow-card">
+            <Tabs
+              value={panel}
+              onChange={setPanel}
+              items={[
+                { value: "chat", label: "Chat", count: chatMessages(state, userId).length },
+                { value: "qa", label: "Q&A", count: Object.values(state.questions).filter((q) => q.approved || q.user_id === userId).length },
+              ]}
+            />
+            <div className="mt-4">
+              {panel === "chat" ? <Chat bare state={state} userId={userId} enabled={room.chat_enabled} onSend={chat} /> : <Questions bare state={state} userId={userId} onAsk={ask} onUpvote={upvote} />}
+            </div>
+          </div>
         </aside>
       </div>
     </RoomFrame>

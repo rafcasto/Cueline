@@ -151,3 +151,48 @@ delete from public.room_emails where room_id = '00000000-0000-0000-0000-00000000
 select 'deleting a room step removes the inherited copy' as check, count(*) = 5 as pass
   from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
 reset role;
+
+-- Chat: attendees and hosts post, the body is trimmed and the org filled, hidden messages leave
+-- everyone's view but the author's, a sender is rate-limited, and the room switch turns chat off.
+set role authenticated;
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+insert into public.chat_messages(session_id, user_id, body) values ('33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', '  Hello from Ada  ');
+select 'chat fills org and trims' as check, org_id = '00000000-0000-0000-0000-000000000001' and body = 'Hello from Ada' as pass from public.chat_messages where user_id = auth.uid();
+do $$ begin
+  insert into public.chat_messages(session_id, user_id, body) values ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'spoof');
+  raise exception 'RLS should have rejected a chat message as another user';
+exception when insufficient_privilege then null; end $$;
+do $$ begin
+  insert into public.chat_messages(session_id, user_id, body) values ('33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', '   ');
+  raise exception 'a blank message should be rejected';
+exception when check_violation then null; end $$;
+insert into public.chat_messages(session_id, user_id, body)
+  select '33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', 'msg ' || g from generate_series(1, 4) g;
+do $$ begin
+  insert into public.chat_messages(session_id, user_id, body) values ('33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', 'one too many');
+  raise exception 'a sixth message in ten seconds should be rejected';
+exception when raise_exception then if sqlerrm <> 'slow down' then raise; end if; end $$;
+select set_config('request.jwt.claim.sub', '77777777-7777-7777-7777-777777777777', false);
+do $$ begin
+  insert into public.chat_messages(session_id, user_id, body) values ('33333333-3333-3333-3333-333333333333', '77777777-7777-7777-7777-777777777777', 'not seated');
+  raise exception 'someone without a seat should not chat';
+exception when raise_exception then if sqlerrm <> 'join the room before chatting' then raise; end if; end $$;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+insert into public.chat_messages(session_id, user_id, body) values ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'Welcome everyone');
+select 'host chats without a seat' as check, count(*) = 1 as pass from public.chat_messages where user_id = auth.uid();
+update public.chat_messages set hidden_at = now() where body = 'msg 1';
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+select 'author still sees own hidden message' as check, count(*) = 1 as pass from public.chat_messages where hidden_at is not null;
+select set_config('request.jwt.claim.sub', '77777777-7777-7777-7777-777777777777', false);
+select 'others never see a hidden message' as check, count(*) = 5 and bool_and(hidden_at is null) as pass from public.chat_messages;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+update public.rooms set chat_enabled = false where id = '00000000-0000-0000-0000-000000000002';
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+do $$ begin
+  insert into public.chat_messages(session_id, user_id, body) values ('33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', 'anyone there?');
+  raise exception 'chat should be off for the room';
+exception when raise_exception then if sqlerrm <> 'chat is off' then raise; end if; end $$;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+update public.rooms set chat_enabled = true where id = '00000000-0000-0000-0000-000000000002';
+reset role;
+select 'chat broadcasts' as check, count(*) = 7 as pass from realtime.messages where event = 'chat_messages';

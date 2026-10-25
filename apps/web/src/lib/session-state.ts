@@ -7,6 +7,7 @@ import type {
   Activity,
   ActivityResponse,
   ActivityRun,
+  ChatMessage,
   HandRaise,
   Participant,
   Question,
@@ -27,6 +28,7 @@ export type SessionData = {
   participants: Record<string, Participant>;
   questions: Record<string, Question>;
   questionVotes: Record<string, number>;
+  chat: Record<string, ChatMessage>;
   handRaises: HandRaise[];
   roster: Record<string, StageRoster>;
   reactions: Record<string, number>; // kind -> count in the latest bucket
@@ -45,6 +47,7 @@ export const emptyState: SessionData = {
   participants: {},
   questions: {},
   questionVotes: {},
+  chat: {},
   handRaises: [],
   roster: {},
   reactions: {},
@@ -61,6 +64,7 @@ export type Snapshot = Partial<{
   participants: Participant[];
   questions: Question[];
   questionVotes: { question_id: string }[];
+  chat: ChatMessage[];
   handRaises: HandRaise[];
   roster: StageRoster[];
   lastSlide: SlideEvent | null;
@@ -76,6 +80,7 @@ export function fromSnapshot(s: Snapshot): SessionData {
   for (const p of s.participants ?? []) st.participants[p.user_id] = p;
   for (const q of s.questions ?? []) st.questions[q.id] = q;
   for (const v of s.questionVotes ?? []) st.questionVotes[v.question_id] = (st.questionVotes[v.question_id] ?? 0) + 1;
+  for (const m of s.chat ?? []) st.chat[m.id] = m;
   st.handRaises = (s.handRaises ?? []).filter((h) => !h.cleared_at);
   for (const r of s.roster ?? []) st.roster[r.user_id] = r;
   st.lastSlide = s.lastSlide ?? null;
@@ -149,6 +154,18 @@ export function reduce(state: SessionData, msg: SessionBroadcast, me: string | n
       const id = (record as { question_id: string }).question_id;
       return { ...state, questionVotes: { ...state.questionVotes, [id]: (state.questionVotes[id] ?? 0) + 1 } };
     }
+    case "chat_messages": {
+      if (operation === "DELETE") {
+        const id = (old_record as unknown as ChatMessage | null)?.id;
+        if (!id || !state.chat[id]) return state;
+        const chat = { ...state.chat };
+        delete chat[id];
+        return { ...state, chat };
+      }
+      if (!record) return state;
+      const m = record as unknown as ChatMessage;
+      return { ...state, chat: { ...state.chat, [m.id]: m } };
+    }
     case "hand_raises": {
       const h = (record ?? old_record) as unknown as HandRaise;
       const rest = state.handRaises.filter((x) => x.id !== h.id);
@@ -172,6 +189,16 @@ export function reduce(state: SessionData, msg: SessionBroadcast, me: string | n
     default:
       return state;
   }
+}
+
+/**
+ * Chat in order, oldest first. A hidden message stays only for its author (shown as removed)
+ * and for the host (who can restore it); everyone else never sees it.
+ */
+export function chatMessages(state: SessionData, me: string | null, host = false): ChatMessage[] {
+  return Object.values(state.chat)
+    .filter((m) => !m.hidden_at || host || m.user_id === me)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
 }
 
 /** Add or replace one activity (a run can arrive for an activity created after the snapshot). */
