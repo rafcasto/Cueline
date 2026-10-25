@@ -2,7 +2,7 @@
 
 25 Oct 2026 · Rafael Castillo
 
-Supersedes the *Pricing, free tier and economics* section of [DESIGN.md](DESIGN.md), which assumed LiveKit Cloud. The video server is now self-hosted LiveKit on a Hostinger KVM VPS, and that changes the economics more than anything else in this document.
+Supersedes the *Pricing, free tier and economics* section of [DESIGN.md](DESIGN.md), which assumed LiveKit Cloud. The video server is now self-hosted LiveKit on a Hostinger KVM 8 VPS (8 vCPU, 32 GB RAM, 32 TB transfer a month, about $26–30 a month), and that changes the economics more than anything else in this document.
 
 ## The one-line model
 
@@ -12,38 +12,37 @@ Tertulia sells **a room a host owns**: scheduled, branded, with the engagement o
 
 On LiveKit Cloud every viewer-minute and every gigabyte is a variable cost. On a VPS the cost is a **fixed step**: the node costs the same whether 5 or 300 people are watching, until it is full, and then the next step is another node. Three consequences:
 
-1. **Margin per customer is close to 100 %** below capacity. A Starter host running four 50-person, 90-minute sessions a month moves about 200 GB; on Cloud that is roughly $25 of bandwidth against a $29 price, on a KVM 4 it is 1.3 % of the monthly transfer allowance. The VPS is not a stopgap: it is what makes a $29 tier possible. Moving to Cloud later means repricing to roughly $49 / $129 or cutting the caps in half.
-2. **The scarce resources are concurrency and recording, not minutes.** The SFU itself is cheap; what fills the box is (a) simultaneous viewers against the uplink and (b) room-composite egress, which runs a headless Chrome plus an encoder and wants 2–4 vCPU per concurrent recording. So tiers are expressed as *participants per session* and *session length*, recording is a paid feature, and the number of sessions recorded at the same time is the first thing that forces a second node.
+1. **Margin per customer is close to 100 %** below capacity. A Starter host running four 50-person, 90-minute sessions a month moves about 200 GB; on Cloud that is roughly $25 of bandwidth against a $29 price, on the KVM 8 it is 0.6 % of the monthly transfer allowance. The VPS is not a stopgap: it is what makes a $29 tier possible. Moving to Cloud later means repricing to roughly $49 / $129 or cutting the caps in half.
+2. **The scarce resources are concurrency and recording, not minutes.** The SFU itself is cheap; what fills the box is (a) simultaneous viewers against the uplink and (b) room-composite egress, which runs a headless Chrome plus an encoder and wants 2–4 vCPU per concurrent recording. So tiers are expressed as *participants per session* and *session length*, recording is a paid feature, and the number of sessions recorded at the same time (two, perhaps three, on the KVM 8 while the SFU runs beside them) is the first thing that forces a second node.
 3. **One node is one region and one point of failure.** Put it where the primary audience is (Hostinger has São Paulo, several European sites, the US and Asia). Attendees on the other side of the world will relay through TURN on that same box. This is acceptable for the first paying hosts and must be said plainly in the terms: no uptime SLA on Free and Starter.
 
-### Capacity of one node (to verify with `lk load-test`)
+### Capacity of the node (to verify with `lk load-test`)
 
-Assumptions: audience subscribes to one 720p simulcast track at ~1.5 Mbps average (≈0.7 GB per viewer-hour); Hostinger's published transfer allowances; a 1 Gbps port of which ~500 Mbps is usable in practice. Hostinger's own page should be checked for the current price and transfer figure of each plan; third-party listings disagree.
+Assumptions: audience subscribes to one 720p simulcast track at ~1.5 Mbps average (≈0.7 GB per viewer-hour); Hostinger's published transfer allowance; a 1 Gbps port of which ~500 Mbps is usable in practice. The KVM 8 row is the node you have; the smaller rows show what a second, cheaper node would add if it is ever needed.
 
 | Node | vCPU / RAM | Transfer / month | Viewer-hours / month on transfer | Concurrent viewers on uplink | Concurrent recordings | Price (24-month, approx.) |
 | --- | --- | --- | --- | --- | --- | --- |
-| KVM 2 | 2 / 8 GB | 8 TB | ~11,000 | ~300 | 0 (SFU only) | $9–15 |
+| **KVM 8 (current)** | 8 / 32 GB | 32 TB | ~45,000 | ~300 | 2–3 with the SFU on the same box | $26–30 |
 | KVM 4 | 4 / 16 GB | 16 TB | ~23,000 | ~300 | 1 at 720p | $13–26 |
-| KVM 8 | 8 / 32 GB | 32 TB | ~45,000 | ~300 | 2–3 | $26–30 |
+| KVM 2 | 2 / 8 GB | 8 TB | ~11,000 | ~300 | 0 (SFU only) | $9–15 |
 
-The uplink column is the same on every plan because the port, not the CPU, is the ceiling; a bigger plan buys more transfer and more recordings, not more simultaneous viewers. Two levers raise the viewer ceiling without a second node: cap the audience layer at 540p for Free (halves per-viewer bandwidth) and offer an audio-plus-slides mode (the deck is rendered client-side from the PDF, so a 50 kbps audio track still carries the whole presentation).
+The uplink column is the same on every plan because the port, not the CPU, is the ceiling; the KVM 8 buys transfer and recordings, not more simultaneous viewers. 45,000 viewer-hours a month is far beyond what the first year of hosts will use: at the Pro fair-use pool it is thirty-seven Pro hosts at full use. Two levers raise the viewer ceiling without a second node: cap the audience layer at 540p for Free (halves per-viewer bandwidth) and offer an audio-plus-slides mode (the deck is rendered client-side from the PDF, so a 50 kbps audio track still carries the whole presentation).
 
-**Scaling rule.** Keep the SFU and TURN on one KVM 4. Run egress on its own KVM 4 and add one egress node per concurrent recorded session you need to promise. Move to LiveKit Cloud (Ship, $50/month plus $0.12/GB) only when you need a second region or more than three nodes; at that point reprice.
+**Scaling rule.** Everything runs on the KVM 8: SFU, TURN, Redis and the egress service. The first limit you will hit is concurrent recordings, not transfer or CPU for the SFU. When you need to promise more than two recorded sessions at the same time, add a KVM 4 as a dedicated egress node (one per extra concurrent recording) and leave the SFU where it is. Move to LiveKit Cloud (Ship, $50/month plus $0.12/GB) only when you need a second region or more than three nodes; at that point reprice.
 
 ## Fixed cost before the first customer
 
 | Item | $/month |
 | --- | --- |
-| Hostinger KVM 4, SFU + TURN | 13–26 |
-| Hostinger KVM 4, egress (from the first recording customer) | 13–26 |
+| Hostinger KVM 8: SFU, TURN, Redis and egress on one box | 26–30 |
 | Supabase Pro (anonymous attendees count as MAU; decks and media outgrow the free 1 GB) | 25 |
 | Vercel Pro (Hobby is non-commercial) | 20 |
 | Resend (free to 3,000 emails/month; five emails per registrant → ~600 registrants) | 0–20 |
 | Cloudflare R2 for recordings and HLS (no egress fee) | ~2 |
 | Domain, sending domain | ~2 |
-| **Total** | **~$75–120** |
+| **Total** | **~$75–100** |
 
-Break-even is three to four Starter hosts or one Pro host plus one Starter. Everything above that is margin until a node fills.
+Break-even is three Starter hosts or one Pro host. Everything above that is margin until the node fills.
 
 ## Tiers
 
@@ -67,9 +66,9 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 | Fair-use pool | — | 300 participant-hours / month | 1,200 participant-hours / month | 150 |
 | Support | community | email | email, 1 business day | email |
 
-**Why these numbers.** Free: 10 × 20 min ≈ 2 GB per session, no recording, no CPU beyond the SFU; it costs nothing measurable and it is enough to run one real quiz with a timer and a reveal. Starter: a coach, teacher or community host running weekly sessions. Pro: the 150 cap keeps one host's single session at half the node's uplink, so two Pro sessions can overlap on one node. Event pass: for the host who runs a webinar twice a year; it also converts people who baulk at a subscription, and it is priced so that two passes cost more than a month of Starter.
+**Why these numbers.** Free: 10 × 20 min ≈ 2 GB per session, no recording, no CPU beyond the SFU; it costs nothing measurable and it is enough to run one real quiz with a timer and a reveal. Starter: a coach, teacher or community host running weekly sessions. Pro: the 150 cap keeps one host's single session at half the node's uplink, so two Pro sessions can overlap on the node, which matches the two recordings it can run at once. Event pass: for the host who runs a webinar twice a year; it also converts people who baulk at a subscription, and it is priced so that two passes cost more than a month of Starter.
 
-**Fair use, not metering.** DESIGN.md proposed an attendee-hour pool with per-hour overage. With a VPS the marginal hour is free until the node fills, so metered billing adds a Stripe usage pipeline for no revenue. Keep the pool as a stated fair-use line (Pro at 1,200 participant-hours is about 840 GB, so nineteen Pro hosts at the full pool fit on one KVM 4's transfer) and enforce the two things that actually protect the node: the participant cap and the session length. Revisit metering if a host regularly exceeds the pool; that host is a candidate for a custom plan on their own node.
+**Fair use, not metering.** DESIGN.md proposed an attendee-hour pool with per-hour overage. With a VPS the marginal hour is free until the node fills, so metered billing adds a Stripe usage pipeline for no revenue. Keep the pool as a stated fair-use line (Pro at 1,200 participant-hours is about 840 GB, so thirty-seven Pro hosts at the full pool fit in the KVM 8's transfer) and enforce the two things that actually protect the node: the participant cap and the session length. Revisit metering if a host regularly exceeds the pool; that host is a candidate for a custom plan on their own node.
 
 **Concurrency.** The participant and length caps bound one host; they do not bound the sum of hosts at 10 a.m. on a Tuesday. Events already have a start time and a plan-derived maximum audience, so the capacity calendar is a query, not a product: sum the caps of events scheduled in each hour and warn (later: refuse or add a node) when the sum approaches the uplink ceiling. Free rooms should also be limited to a small number live at the same time, so a burst of trials cannot push a paying session off the box.
 
@@ -97,7 +96,7 @@ Hosts pay through Stripe Billing: a Checkout session in subscription mode for St
 ## Assumptions to verify before the pricing page goes up
 
 - [ ] Actual uplink of the Hostinger node and viewers it sustains at 720p and 540p (`lk load-test` from a second machine).
-- [ ] CPU of one room-composite egress at 720p30 on the node, and whether the SFU on the same box stays clean while it runs.
+- [ ] CPU of one room-composite egress at 720p30 on the node, and whether the SFU stays clean with two or three running at once; this number sets how many recorded sessions you can promise concurrently.
 - [ ] Hostinger's current transfer allowance and what happens at the cap (throttle or overage).
 - [ ] Supabase anonymous MAU count under real attendance, against the Pro plan's included MAU.
 - [ ] The Univid free and Growth limits on their live pricing page, and whether a regional price is needed for the first market.
