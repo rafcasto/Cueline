@@ -124,7 +124,7 @@ export function LiveViewer({ sessionId, ready, hlsUrl, onLatency, className }: P
   const videos = list.filter(([, t]) => t.kind === "video").length;
   return (
     <div className={cx("relative overflow-hidden bg-black", className)}>
-      <div className={cx("grid h-full w-full gap-px", videos > 1 && "grid-cols-2")}>
+      <div className={cx("grid h-full w-full auto-rows-fr gap-px", videos > 1 && "grid-cols-2")}>
         {list.map(([k, track]) => (
           <TrackView key={k} track={track} />
         ))}

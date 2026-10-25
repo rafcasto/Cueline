@@ -16,6 +16,8 @@ type Props = {
   onHide?: (m: ChatMessage, hidden: boolean) => Promise<void>;
   /** No card chrome, for a tab panel that already has it. */
   bare?: boolean;
+  /** Take the height of the column (from lg up): the list grows to fill it and scrolls inside, the composer stays at the bottom. */
+  fill?: boolean;
   className?: string;
 };
 
@@ -36,7 +38,7 @@ function explain(message: string) {
  * Hidden messages are gone for everyone but their author, who sees them marked removed, and
  * the host, who can restore them.
  */
-export function Chat({ state, userId, enabled, onSend, host, onHide, bare, className }: Props) {
+export function Chat({ state, userId, enabled, onSend, host, onHide, bare, fill, className }: Props) {
   const messages = chatMessages(state, userId, host);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
@@ -90,8 +92,8 @@ export function Chat({ state, userId, enabled, onSend, host, onHide, bare, class
 
   const inner = (
     <>
-      <div className="relative">
-        <div ref={listRef} onScroll={onScroll} className="max-h-[50vh] min-h-48 space-y-3 overflow-y-auto overscroll-contain pr-1" role="log" aria-live="polite" aria-label="Chat messages">
+      <div className={cx("relative", fill && "flex min-h-0 flex-col lg:flex-1")}>
+        <div ref={listRef} onScroll={onScroll} className={cx("max-h-[50vh] min-h-48 space-y-3 overflow-y-auto overscroll-contain pr-1", fill && "lg:max-h-none lg:min-h-0 lg:flex-1")} role="log" aria-live="polite" aria-label="Chat messages">
           {messages.length === 0 && <p className="py-8 text-center text-sm text-ink-muted">{enabled ? "No messages yet. Say hello." : "Chat is off for this room."}</p>}
           {messages.map((m) => {
             const mine = m.user_id === userId;
@@ -124,7 +126,7 @@ export function Chat({ state, userId, enabled, onSend, host, onHide, bare, class
         )}
       </div>
       {enabled && (
-        <form onSubmit={(e) => void submit(e)} className="mt-4">
+        <form onSubmit={(e) => void submit(e)} className="mt-4 shrink-0">
           <div className="flex gap-2">
             <Input value={body} onChange={(e) => setBody(e.target.value)} maxLength={500} placeholder={userId ? "Say something" : "Taking your seat…"} aria-label="Your message" disabled={!userId} autoComplete="off" />
             <Button type="submit" size="md" className="shrink-0" disabled={!userId || !body.trim()} loading={busy}>
@@ -141,7 +143,7 @@ export function Chat({ state, userId, enabled, onSend, host, onHide, bare, class
     </>
   );
 
-  if (bare) return <div className={className}>{inner}</div>;
+  if (bare) return <div className={cx(fill && "flex min-h-0 flex-col lg:h-full", className)}>{inner}</div>;
   return (
     <Card className={className}>
       <CardHeader title="Chat" description={host ? "Hide a message to take it off everyone's screen; its author sees it was removed." : undefined} />

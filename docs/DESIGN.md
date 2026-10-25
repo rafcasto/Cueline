@@ -72,7 +72,11 @@ Every table carries `org_id`; every session-scoped table also carries `session_i
 
 ## Component 3 — Presentation and activities
 
-**Decision:** no Google Slides integration. The deck is a PDF uploaded to Supabase Storage and presented inside the room. The presenter navigates it in the host panel; participants render the same page from the same PDF with pdf.js. The presenter's video sits in a corner of the slide. This removes the extension, the Slides API, the URL-polling assumption and the Chrome Web Store review from the critical path.
+**Decision:** no Google Slides integration. The deck is a PDF uploaded to Supabase Storage and presented inside the room. The presenter navigates it in the host panel; participants render the same page from the same PDF with pdf.js. The presenter's video sits on the slide where the host puts it (see *Stage layout* below). This removes the extension, the Slides API, the URL-polling assumption and the Chrome Web Store review from the critical path.
+
+### Stage layout
+
+Where the video sits against the deck page is the host's choice, made in the live panel and changed at any time: the deck with the camera in the corner (default), a talking head (camera full stage, deck hidden), side by side (deck left, camera right, half each), or a custom position dragged into place on the stage and resized from its corner. The host edits on the very component attendees render, around their own camera, so the preview is the result rather than a diagram of it. Stored as `sessions.layout` (jsonb) so it travels on the session broadcast; `rooms.stage_layout` remembers the last choice for the next session. Geometry is percent of a 16:9 stage, and a 16:9 box in a 16:9 stage is as tall in percent as it is wide, so a custom position is `{x, y, w}`. The host and attendee rooms, and the picker's miniatures, all draw from the same `stageBoxes()` so they can never disagree.
 
 ### Deck
 

@@ -1,19 +1,24 @@
 "use client";
 import { DisconnectReason, RemoteTrack, Room, RoomEvent, Track, type RemoteTrackPublication, type RemoteParticipant } from "livekit-client";
 import { useEffect, useRef, useState } from "react";
+import { Spinner, cx } from "@/components/ui";
 
 type Props = {
   /** Publish token + URL from /api/token (presenters) or /api/stage (promoted viewers). */
   connection: { url: string; token: string } | null;
   publish: boolean;
   onDisconnected?: (reason?: DisconnectReason) => void;
+  /** Where to put a camera or connection problem instead of over the video (the host panel shows it in its alert). */
+  onError?: (message: string) => void;
+  className?: string;
 };
 
 /**
  * WebRTC leg: presenters and promoted viewers. Connects to the room, publishes
- * camera + mic when allowed, and renders every remote video track.
+ * camera + mic when allowed, and renders every video track (the local camera first) in a
+ * grid that fills whatever box the stage layout gives it.
  */
-export function RoomStage({ connection, publish, onDisconnected }: Props) {
+export function RoomStage({ connection, publish, onDisconnected, onError, className }: Props) {
   const [room, setRoom] = useState<Room | null>(null);
   const [remote, setRemote] = useState<Map<string, RemoteTrack>>(new Map());
   // Keyed by connection so a fresh token starts clean without a reset inside the effect.
@@ -21,8 +26,10 @@ export function RoomStage({ connection, publish, onDisconnected }: Props) {
   const error = failure && failure.connection === connection ? failure.message : null;
   const localRef = useRef<HTMLVideoElement>(null);
   const disconnectedRef = useRef(onDisconnected);
+  const errorRef = useRef(onError);
   useEffect(() => {
     disconnectedRef.current = onDisconnected;
+    errorRef.current = onError;
   });
 
   useEffect(() => {
@@ -44,7 +51,10 @@ export function RoomStage({ connection, publish, onDisconnected }: Props) {
     });
 
     let active = true;
-    const setError = (message: string) => setFailure({ connection, message });
+    const setError = (message: string) => {
+      if (errorRef.current) errorRef.current(message);
+      else setFailure({ connection, message });
+    };
     (async () => {
       await r.connect(connection.url, connection.token);
       if (!active) return;
@@ -72,19 +82,28 @@ export function RoomStage({ connection, publish, onDisconnected }: Props) {
     };
   }, [connection, publish]);
 
+  const remoteVideos = [...remote.entries()].filter(([, t]) => t.kind === Track.Kind.Video).length;
+  const tiles = (publish ? 1 : 0) + remoteVideos;
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {publish && <video ref={localRef} autoPlay muted playsInline className="aspect-video w-full rounded bg-black" />}
-      {[...remote.entries()].map(([key, track]) => (
-        <TrackView key={key} track={track} />
-      ))}
-      {!room && connection && !error && <p className="text-sm text-neutral-500">Connecting…</p>}
-      {error && <p className="text-sm text-red-600 dark:text-red-400 sm:col-span-2">{error}</p>}
+    <div className={cx("relative h-full w-full overflow-hidden bg-black", className)}>
+      <div className={cx("grid h-full w-full auto-rows-fr gap-px", tiles > 1 && "grid-cols-2")}>
+        {publish && <video ref={localRef} autoPlay muted playsInline className="h-full w-full bg-black object-cover [transform:scaleX(-1)]" />}
+        {[...remote.entries()].map(([key, track]) => (
+          <TrackView key={key} track={track} />
+        ))}
+      </div>
+      {!room && connection && !error && (
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center text-xs text-slate-300">
+          <Spinner className="size-5" />
+          Connecting…
+        </div>
+      )}
+      {error && <p className="absolute inset-x-0 bottom-0 bg-red-700/90 px-3 py-1.5 text-center text-xs leading-snug text-white">{error}</p>}
     </div>
   );
 }
 
-/** One remote track: a video tile, or an audio element with no UI. Shared with the audience view. */
+/** One remote track: a video tile that fills its cell, or an audio element with no UI. Shared with the audience view. */
 export function TrackView({ track }: { track: RemoteTrack }) {
   const ref = useRef<HTMLVideoElement & HTMLAudioElement>(null);
   useEffect(() => {
@@ -96,5 +115,5 @@ export function TrackView({ track }: { track: RemoteTrack }) {
     };
   }, [track]);
   if (track.kind === Track.Kind.Audio) return <audio ref={ref} autoPlay />;
-  return <video ref={ref} autoPlay playsInline className="aspect-video w-full rounded bg-black object-cover" />;
+  return <video ref={ref} autoPlay playsInline className="h-full w-full bg-black object-cover" />;
 }

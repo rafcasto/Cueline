@@ -68,8 +68,12 @@ async function loadActivity(sb: Client, id: string): Promise<Activity | null> {
 }
 
 export function useSession(sessionId: string | null, opts: Options) {
-  const [state, setState] = useState<SessionData>(emptyState);
-  const [status, setStatus] = useState<string>("idle");
+  // Held together with the session it belongs to, so a session that ends (or changes) reads as empty at
+  // once instead of lingering until the next snapshot: the host panel otherwise kept showing the ended
+  // session's controls and chat.
+  const [held, setHeld] = useState<{ sessionId: string | null; data: SessionData; status: string }>({ sessionId: null, data: emptyState, status: "idle" });
+  const state = held.sessionId === sessionId ? held.data : emptyState;
+  const status = held.sessionId === sessionId ? held.status : "idle";
   const latencyRef = useRef(opts.getLatencyMs);
   const meRef = useRef(opts.userId ?? null);
   useEffect(() => {
@@ -83,6 +87,13 @@ export function useSession(sessionId: string | null, opts: Options) {
     const sb = supabaseBrowser();
     let cancelled = false;
     const scheduler = createCueScheduler(() => latencyRef.current?.() ?? 0);
+    // Writes are stamped with this effect's session; an update for a session that is no longer the current one is dropped.
+    const setState = (next: SessionData | ((s: SessionData) => SessionData)) =>
+      setHeld((h) => {
+        const base = h.sessionId === sessionId ? h.data : emptyState;
+        return { sessionId, data: typeof next === "function" ? next(base) : next, status: h.sessionId === sessionId ? h.status : "idle" };
+      });
+    const setStatus = (status: string) => setHeld((h) => ({ sessionId, data: h.sessionId === sessionId ? h.data : emptyState, status }));
 
     // Messages that arrive while a snapshot is loading are replayed on top of it, so nothing
     // written in that window is lost or applied to the state the snapshot then replaces.

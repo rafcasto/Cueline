@@ -38,6 +38,14 @@ export type WaitingRoomElement = {
 };
 export type WaitingRoom = { background: WaitingRoomBackground; elements: WaitingRoomElement[] };
 
+/**
+ * Where the presenter video sits against the deck page; see lib/stage-layout. `video` is the
+ * custom position in percent of a 16:9 stage (a 16:9 box there is as tall as it is wide, so only `w`).
+ */
+export type StageLayoutMode = "default" | "talking_head" | "split" | "custom";
+export type StageVideoBox = { x: number; y: number; w: number };
+export type StageLayout = { mode: StageLayoutMode; video?: StageVideoBox };
+
 /** Accent colour, logo and standing call to action; see normalizeBranding() in lib/branding. */
 export type RoomBranding = { accent?: string; logo_url?: string; cta?: { label: string; url: string } };
 
@@ -50,6 +58,8 @@ export type Room = {
   waiting_room: WaitingRoom;
   /** The host can switch the session chat off for the room. */
   chat_enabled: boolean;
+  /** The stage layout the next session starts with: the host's last choice. */
+  stage_layout: StageLayout;
   livekit_room: string;
   created_at: string;
 };
@@ -76,6 +86,8 @@ export type Session = {
   hls_url: string | null;
   egress_id: string | null;
   recording_url: string | null;
+  /** Where the presenter video sits for attendees right now; the host changes it live. */
+  layout: StageLayout;
 };
 
 export type ActivityOption = { id: string; label: string; correct?: boolean };
