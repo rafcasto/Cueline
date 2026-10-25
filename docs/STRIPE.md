@@ -1,30 +1,30 @@
 # Stripe setup
 
-25 Oct 2026. What exists in the Stripe **sandbox** (account `acct_1UUNhQPrgcwtAwaD`, test mode), created through the API. Repeat the same objects in live mode before launch; the app resolves prices by **lookup key**, never by id, so the live ids may differ. No secrets in this file: keys and the webhook signing secret live in `.env.local` and Vercel.
+25 Oct 2026. What exists in Stripe, created through the API in both modes: the **sandbox** (`acct_1UUNhQPrgcwtAwaD`) and the **live** account (`acct_1UUNhHPrQoeO5F66`, Tertulia, NZ, default currency NZD; prices are in USD). The app resolves prices by **lookup key**, never by id, so the ids below are for reference only. No secrets in this file: keys and the webhook signing secrets live in `.env.local` and Vercel.
 
 ## Products and prices
 
-| Product | `metadata.plan` | Price | Lookup key | Sandbox price id |
-| --- | --- | --- | --- | --- |
-| Tertulia Starter (`prod_VVP6KUx3LyMXkv`) | `starter` | $29 / month | `starter_monthly` | `price_1UUOITPrgcwtAwaD0c917kpP` |
-| | | $290 / year | `starter_yearly` | `price_1UUOITPrgcwtAwaDq0pI35DL` |
-| Tertulia Pro (`prod_VVP6GKux2fONjd`) | `pro` | $79 / month | `pro_monthly` | `price_1UUOIUPrgcwtAwaDyLtli08H` |
-| | | $790 / year | `pro_yearly` | `price_1UUOIUPrgcwtAwaDF8HoXvMq` |
-| Tertulia Event Pass (`prod_VVP6xMHkHD30eP`) | `event_pass` | $19 one-off | `event_pass` | `price_1UUOIVPrgcwtAwaDvnckOaHC` |
+| Product | `metadata.plan` | Price | Lookup key | Sandbox price id | Live price id |
+| --- | --- | --- | --- | --- | --- |
+| Tertulia Starter (sandbox `prod_VVP6KUx3LyMXkv`, live `prod_VVPU6driZXbwLg`) | `starter` | $29 / month | `starter_monthly` | `price_1UUOITPrgcwtAwaD0c917kpP` | `price_1UUOftPrQoeO5F66uQY8cCpf` |
+| | | $290 / year | `starter_yearly` | `price_1UUOITPrgcwtAwaDq0pI35DL` | `price_1UUOftPrQoeO5F66WV6upiQA` |
+| Tertulia Pro (sandbox `prod_VVP6GKux2fONjd`, live `prod_VVPUkW3KWOUPMd`) | `pro` | $79 / month | `pro_monthly` | `price_1UUOIUPrgcwtAwaDyLtli08H` | `price_1UUOfuPrQoeO5F660tAOANDe` |
+| | | $790 / year | `pro_yearly` | `price_1UUOIUPrgcwtAwaDF8HoXvMq` | `price_1UUOfuPrQoeO5F66DxF4D7K1` |
+| Tertulia Event Pass (sandbox `prod_VVP6xMHkHD30eP`, live `prod_VVPUjp7VQBHHup`) | `event_pass` | $19 one-off | `event_pass` | `price_1UUOIVPrgcwtAwaDvnckOaHC` | `price_1UUOfvPrQoeO5F667E7Jpwlu` |
 
 All prices USD, tax behaviour exclusive, tax code `txcd_10103001` (SaaS, business use), statement descriptor `TERTULIA`. The free tier is not a Stripe object; it is the default of `organisations.plan`. Participant caps, session caps and minutes are **not** in Stripe metadata: they live in the app's plan limits (see [BUSINESS-MODEL.md](BUSINESS-MODEL.md)). The only metadata the webhook reads is `plan`.
 
 ## Customer Portal
 
-Default configuration `bpc_1UUOIlPrgcwtAwaDD3ai7L86`: invoice history, payment method update, email and address update, cancel at period end with a reason, and switching between the four Starter and Pro prices with proration. Return URL `https://tertulia.cloud/host/billing`.
+Default configuration in each mode (sandbox `bpc_1UUOIlPrgcwtAwaDD3ai7L86`, live `bpc_1UUOhAPrQoeO5F6641lhcqsT`): invoice history, payment method update, email and address update, cancel at period end with a reason, and switching between the four Starter and Pro prices with proration. Return URL `https://tertulia.cloud/host/billing`.
 
 ## Launch offer
 
-Coupon `njXi6nqC`: 50 % off for three months. Promotion code **`TERTULIA50`**, first purchase only. Checkout must be created with `allow_promotion_codes: true` for the field to appear.
+Coupon 50 % off for three months (sandbox `njXi6nqC`, live `sDTvV7C5`). Promotion code **`TERTULIA50`** in both modes, first purchase only. Checkout must be created with `allow_promotion_codes: true` for the field to appear.
 
 ## Webhook
 
-Endpoint `we_1UUOJAPrgcwtAwaDaef1b5fe` → `https://tertulia.cloud/api/stripe/webhook`, events:
+One endpoint per mode, both → `https://tertulia.cloud/api/stripe/webhook` (sandbox `we_1UUOJAPrgcwtAwaDaef1b5fe`, live `we_1UUOfwPrQoeO5F6699FDAqo1`), events:
 
 ```
 checkout.session.completed
@@ -38,7 +38,7 @@ invoice.paid
 invoice.payment_failed
 ```
 
-Its signing secret is shown once under Developers → Webhooks in the Dashboard; put it in `STRIPE_WEBHOOK_SECRET` on Vercel. For local development run `stripe listen --forward-to localhost:3000/api/stripe/webhook` and use the secret it prints instead.
+Each endpoint's signing secret is shown once under Developers → Webhooks in the Dashboard (toggle test/live); put them in `STRIPE_WEBHOOK_SECRET_TEST` and `STRIPE_WEBHOOK_SECRET_LIVE` on Vercel. For local development run `stripe listen --forward-to localhost:3000/api/stripe/webhook` and use the secret it prints instead.
 
 ## How the app uses it
 
@@ -58,5 +58,4 @@ Its signing secret is shown once under Developers → Webhooks in the Dashboard;
 - Settings → Emails: successful payments, refunds and failed payments on.
 - Billing → Subscriptions and emails → Manage failed payments: Smart Retries on, then *cancel the subscription* after the last retry (this is what downgrades the org to free).
 - Stripe Tax: register and switch on automatic tax in Checkout once a threshold is crossed; prices are already exclusive so nothing needs repricing.
-- Create a **restricted key** per mode for the app (write: Checkout Sessions, Customers, Subscriptions, Billing Portal; read: Prices, Products) and use it as `STRIPE_SECRET_KEY_TEST` / `_LIVE` instead of the full secret key. Roll the sandbox secret key that was pasted into chat on 25 Oct 2026.
-- In live mode, recreate the products, prices (same lookup keys), portal configuration, coupon and webhook endpoint; the app finds everything by lookup key.
+- Create a **restricted key** per mode for the app (write: Checkout Sessions, Customers, Subscriptions, Billing Portal; read: Prices, Products) and use it as `STRIPE_SECRET_KEY_TEST` / `_LIVE` instead of the full secret key. **Roll both secret keys** that were pasted into chat on 25 Oct 2026 (Developers → API keys → Roll key); the objects above stay.
