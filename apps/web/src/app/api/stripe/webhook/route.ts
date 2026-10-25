@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
  * One endpoint for both Stripe modes and every kind of payment: CTA orders bought by attendees
- * in the room, plan subscriptions, and event passes. The signature says which mode the event
+ * in the room and plan subscriptions. The signature says which mode the event
  * came from; the event id makes a redelivery a no-op. Access is granted here and nowhere else.
  */
 export async function POST(req: Request) {
@@ -31,18 +31,10 @@ export async function POST(req: Request) {
     case "checkout.session.completed":
     case "checkout.session.async_payment_succeeded": {
       const cs = event.data.object;
-      const kind = cs.metadata?.kind;
       if (cs.mode === "subscription" && typeof cs.subscription === "string") {
         const orgId = cs.metadata?.org_id ?? cs.client_reference_id ?? null;
         const sub = await stripeFor(mode).subscriptions.retrieve(cs.subscription);
         await applySubscription(admin, mode, sub, orgId);
-      } else if (kind === "event_pass") {
-        if (cs.payment_status === "paid") {
-          await admin
-            .from("event_passes")
-            .update({ status: "paid", amount_total: cs.amount_total, currency: cs.currency, updated_at: now })
-            .eq("stripe_session_id", cs.id);
-        }
       } else {
         await completeCtaOrder(admin, cs);
       }
@@ -51,10 +43,7 @@ export async function POST(req: Request) {
     case "checkout.session.async_payment_failed":
     case "checkout.session.expired": {
       const id = event.data.object.id;
-      await Promise.all([
-        admin.from("orders").update({ status: "failed", updated_at: now }).eq("stripe_session_id", id),
-        admin.from("event_passes").update({ status: "failed", updated_at: now }).eq("stripe_session_id", id),
-      ]);
+      await admin.from("orders").update({ status: "failed", updated_at: now }).eq("stripe_session_id", id);
       break;
     }
     case "customer.subscription.created":

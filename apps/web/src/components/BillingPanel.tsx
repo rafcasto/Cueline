@@ -18,7 +18,6 @@ export type BillingSummary = {
   };
   used: number;
   cap: number | null;
-  passes: number;
   period_end: string;
   owner: boolean;
 };
@@ -27,6 +26,9 @@ const PLAN_ROWS: { plan: Plan; monthly: PriceLookup; yearly: PriceLookup }[] = [
   { plan: "starter", monthly: "starter_monthly", yearly: "starter_yearly" },
   { plan: "pro", monthly: "pro_monthly", yearly: "pro_yearly" },
 ];
+
+/** The one step up from the current plan: the row that gets the emphasis, so the choice is a nudge rather than a menu. */
+const NEXT_PLAN: Record<Plan, Plan | null> = { free: "starter", starter: "pro", pro: null };
 
 /** One organisation's plan: what it allows, what has been used, and the buttons that change it. */
 export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode: StripeMode }) {
@@ -73,8 +75,8 @@ export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode:
       />
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <Stat value={summary.cap === null ? `${summary.used}` : `${summary.used} / ${summary.cap}`} label={summary.cap === null ? `sessions this month (unlimited)` : `sessions used, resets ${resets}`} />
-        <Stat value={summary.passes} label="event passes ready to use" />
         <Stat value={limits.participants} label="attendees per session" />
+        <Stat value={limits.minutes >= 60 ? `${limits.minutes / 60} h` : `${limits.minutes} min`} label="per session, hard stop" />
       </div>
       {org.plan_status === "past_due" && (
         <Alert tone="warning" className="mt-4">
@@ -96,11 +98,13 @@ export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode:
           {PLAN_ROWS.map((row) => {
             const l = PLAN_LIMITS[row.plan];
             const current = org.plan === row.plan;
+            const next = NEXT_PLAN[org.plan] === row.plan;
             return (
-              <div key={row.plan} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-4">
+              <div key={row.plan} className={next ? "flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-brand bg-brand-soft/40 p-4" : "flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line p-4"}>
                 <div>
                   <p className="text-sm font-semibold text-ink">
                     {l.label} {current && <Badge tone="success">current</Badge>}
+                    {next && <Badge tone="brand">next step up</Badge>}
                   </p>
                   <p className="text-xs text-ink-muted">
                     {l.sessionsPerMonth === null ? "Unlimited sessions" : `${l.sessionsPerMonth} sessions a month`} · {l.participants} attendees · {l.minutes / 60} h ·{" "}
@@ -109,25 +113,16 @@ export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode:
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant={current ? "ghost" : "primary"} onClick={() => void buy(row.monthly)} loading={busy === row.monthly} disabled={!!busy}>
+                  <Button size="sm" variant={current ? "ghost" : next ? "primary" : "secondary"} onClick={() => void buy(row.monthly)} loading={busy === row.monthly} disabled={!!busy}>
                     {PRICE_LABELS[row.monthly].amount}/{PRICE_LABELS[row.monthly].period}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => void buy(row.yearly)} loading={busy === row.yearly} disabled={!!busy}>
-                    {PRICE_LABELS[row.yearly].amount}/{PRICE_LABELS[row.yearly].period}
+                    {PRICE_LABELS[row.yearly].amount}/{PRICE_LABELS[row.yearly].period} · 2 months free
                   </Button>
                 </div>
               </div>
             );
           })}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-line p-4">
-            <div>
-              <p className="text-sm font-semibold text-ink">Event pass</p>
-              <p className="text-xs text-ink-muted">One more session this month: 50 attendees, 3 hours, recorded. Spent automatically when the plan&apos;s sessions are used up.</p>
-            </div>
-            <Button size="sm" variant="secondary" onClick={() => void buy("event_pass")} loading={busy === "event_pass"} disabled={!!busy}>
-              {PRICE_LABELS.event_pass.amount} per event
-            </Button>
-          </div>
           {org.has_subscription && <p className="text-xs text-ink-faint">Choosing another plan opens the billing portal, where the change is prorated; cancelling is there too.</p>}
         </div>
       ) : (

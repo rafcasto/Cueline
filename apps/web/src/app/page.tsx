@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { EventCard, RoomCard, TopicChips } from "@/components/ExploreCards";
-import { Badge, Button, ButtonLink, EmptyState, Input, Logo } from "@/components/ui";
+import { Badge, Button, ButtonLink, EmptyState, Input, Logo, cx } from "@/components/ui";
 import { listPublicEvents, listPublicRooms, listTopics, type PublicEvent, type PublicRoom } from "@/lib/explore";
+import { PLAN_LIMITS, PRICE_LABELS, type Plan, type PlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,17 @@ export const dynamic = "force-dynamic";
  * Landing page, built the way Meetup's front door is: a promise about people and a search box
  * first, then what is actually happening (upcoming public events and the communities running
  * them, read live from the directory), how it works for someone joining and for someone
- * organising, and a closing invitation to start a community. Every line still describes
- * something the product does today: no ratings, logos or percentages until there are real ones.
+ * organising, the plans, and a closing invitation to start a community. Every line still
+ * describes something the product does today: no ratings, logos or percentages until there are
+ * real ones.
+ *
+ * The plans section is built to move an organiser from Free to Starter without hiding anything:
+ * three tiers read from PLAN_LIMITS so the page never drifts from the gates (good-better-best,
+ * with Pro as the anchor on the right), Starter carries the only primary button and the only
+ * raised card (the default effect), Free is shown as the trial it is, with its limits in plain
+ * words next to Starter's (contrast), the price is restated per day and per year (mental
+ * accounting), and the proration and cancel-any-time line sits under the cards so there is no
+ * regret to fear. Nothing is scarce or urgent because nothing is.
  *
  * Attendees also land here from a bookmark, so the typed door (email + code) stays reachable
  * from the header, the hero and the footer.
@@ -38,6 +48,9 @@ export default async function Home() {
             </a>
             <a href="#organise" className="hover:text-ink">
               Organise
+            </a>
+            <a href="#pricing" className="hover:text-ink">
+              Pricing
             </a>
           </nav>
           <div className="flex items-center gap-2">
@@ -214,17 +227,67 @@ export default async function Home() {
                 <ButtonLink href="/login" size="lg" className="w-full sm:w-auto">
                   Start a community
                 </ButtonLink>
-                <ButtonLink href="/explore?view=rooms" variant="secondary" size="lg" className="w-full sm:w-auto">
-                  See how others run theirs
+                <ButtonLink href="#pricing" variant="secondary" size="lg" className="w-full sm:w-auto">
+                  See the plans
                 </ButtonLink>
               </div>
+              <p className="mt-4 text-sm text-ink-muted">
+                Free to start: one short session a month to try the whole engagement layer. The weekly organiser is on Starter at {PRICE_LABELS.starter_monthly.amount} a month.
+              </p>
             </div>
             <BrandMock />
           </div>
         </section>
 
+        {/* Plans */}
+        <section id="pricing" className="border-t border-line scroll-mt-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand">Plans for organisers</p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Pay for the room you run, not for the people in it</h2>
+              <p className="mt-3 text-lg text-ink-muted">Attendees never pay. You pay a flat monthly fee for the audience size, the session length and the recording; everything on the slide is in every plan.</p>
+            </div>
+            <ul className="mx-auto mt-12 grid max-w-5xl gap-6 lg:grid-cols-3 lg:items-start">
+              <PlanCard
+                plan="free"
+                blurb="A trial of the whole engagement layer: run one real quiz with a timer and a reveal."
+                price="$0"
+                per="forever"
+                note="No card. Go live today."
+                cta="Start free"
+                href="/login"
+                variant="secondary"
+              />
+              <PlanCard
+                plan="starter"
+                featured
+                blurb="The weekly organiser: a full room, a two-hour session and a recording to send afterwards."
+                price={PRICE_LABELS.starter_monthly.amount}
+                per="a month"
+                note={`Under a dollar a day. Or ${PRICE_LABELS.starter_yearly.amount} a year, two months free.`}
+                cta="Start with Starter"
+                href="/login?next=/host/billing"
+                variant="primary"
+              />
+              <PlanCard
+                plan="pro"
+                blurb="Several sessions a week, a bigger room, longer sessions, and a checkout on the slide."
+                price={PRICE_LABELS.pro_monthly.amount}
+                per="a month"
+                note={`Or ${PRICE_LABELS.pro_yearly.amount} a year, two months free.`}
+                cta="Go Pro"
+                href="/login?next=/host/billing"
+                variant="secondary"
+              />
+            </ul>
+            <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-ink-muted">
+              Prices in USD, billed through Stripe. Move up or down from your billing page whenever you like; the difference is prorated, and cancelling takes effect at the end of the period you have paid for. A session counts the moment you press <em>Go live</em>; a false start nobody joined is given back.
+            </p>
+          </div>
+        </section>
+
         {/* Closing CTA */}
-        <section className="border-t border-line">
+        <section className="border-t border-line bg-surface-raised">
           <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
             <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Your next session is a browser tab away</h2>
             <p className="mx-auto mt-3 max-w-xl text-lg text-ink-muted">Join a community and register for what is coming up, or start one of your own and invite the people you want in the room.</p>
@@ -236,6 +299,13 @@ export default async function Home() {
                 Start a community
               </ButtonLink>
             </div>
+            <p className="mt-4 text-sm text-ink-muted">
+              Organisers start free; the weekly room is{" "}
+              <a href="#pricing" className="font-medium text-brand hover:underline">
+                Starter at {PRICE_LABELS.starter_monthly.amount} a month
+              </a>
+              .
+            </p>
           </div>
         </section>
       </main>
@@ -248,7 +318,7 @@ export default async function Home() {
           </div>
           <FooterGroup title="Discover" links={[["Upcoming events", "/explore"], ["Communities", "/explore?view=rooms"], ["How it works", "#how"], ["In the session", "#together"]]} />
           <FooterGroup title="Attending" links={[["Join with email and code", "/join"], ["Happening soon", "#events"]]} />
-          <FooterGroup title="Organise" links={[["Start a community", "/login"], ["For organisers", "#organise"], ["Host sign in", "/login"]]} />
+          <FooterGroup title="Organise" links={[["Start a community", "/login"], ["For organisers", "#organise"], ["Pricing", "#pricing"], ["Host sign in", "/login"]]} />
         </div>
         <div className="border-t border-line">
           <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-sm text-ink-muted sm:px-6">
@@ -309,6 +379,69 @@ function Feature({ title, body }: { title: string; body: string }) {
       <h3 className="text-base font-semibold text-ink">{title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-ink-muted">{body}</p>
     </div>
+  );
+}
+
+/**
+ * What a plan includes, in the order an organiser weighs it: how often, how many, how long,
+ * then what the paid plans add. Read from PLAN_LIMITS so the page and the gates never disagree.
+ * A line the plan lacks stays visible but recedes (faint, no tick) instead of a red cross: the
+ * contrast with the next card does the persuading, not alarm.
+ */
+function planLines(l: PlanLimits): { text: string; included: boolean }[] {
+  const sessions = l.sessionsPerMonth === null ? "Unlimited sessions" : l.sessionsPerMonth === 1 ? "1 session a month" : `${l.sessionsPerMonth} sessions a month`;
+  const length = l.minutes >= 60 ? `${l.minutes / 60} hours per session` : `${l.minutes} minutes per session, hard stop`;
+  return [
+    { text: sessions, included: true },
+    { text: `${l.participants} attendees per session`, included: true },
+    { text: length, included: true },
+    { text: "Polls, quizzes, word clouds, chat and Q&A", included: true },
+    { text: "Welcome email and reminders for every event", included: true },
+    { text: l.recording ? "Every session recorded" : "Sessions recorded", included: l.recording },
+    { text: l.promoteSlots > 0 ? `${l.promoteSlots} ${l.promoteSlots === 1 ? "guest" : "guests"} on stage at a time` : "Guests on stage", included: l.promoteSlots > 0 },
+    { text: "Fallback stream when the room is full", included: l.hlsFallback },
+    { text: "Sell with a Stripe checkout on the slide", included: l.stripeCta },
+  ];
+}
+
+function PlanCard({ plan, featured, blurb, price, per, note, cta, href, variant }: { plan: Plan; featured?: boolean; blurb: string; price: string; per: string; note: string; cta: string; href: string; variant: "primary" | "secondary" }) {
+  const l = PLAN_LIMITS[plan];
+  return (
+    <li
+      className={cx(
+        "relative flex flex-col rounded-2xl p-8",
+        featured ? "border-2 border-brand bg-surface-raised shadow-float lg:-my-4 lg:py-12" : "border border-line bg-surface-raised shadow-card",
+      )}
+    >
+      {featured && (
+        <Badge tone="brand" className="absolute -top-3 left-8">
+          For the weekly organiser
+        </Badge>
+      )}
+      <h3 className="text-base font-semibold text-ink">{l.label}</h3>
+      <p className="mt-1 text-sm leading-relaxed text-ink-muted">{blurb}</p>
+      <p className="mt-6 flex items-baseline gap-2">
+        <span className="text-4xl font-semibold tracking-tight text-ink">{price}</span>
+        <span className="text-sm text-ink-muted">{per}</span>
+      </p>
+      <p className="mt-1 text-xs text-ink-muted">{note}</p>
+      <ButtonLink href={href} variant={variant} size="lg" className="mt-6 w-full">
+        {cta}
+      </ButtonLink>
+      <ul className="mt-8 space-y-3 text-sm">
+        {planLines(l).map((line) => (
+          <li key={line.text} className={cx("flex items-start gap-3", line.included ? "text-ink" : "text-ink-faint")}>
+            <span aria-hidden className={cx("mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-bold", line.included ? "bg-brand-soft text-brand-ink" : "bg-surface-inset")}>
+              {line.included ? "✓" : "–"}
+            </span>
+            <span>
+              {line.text}
+              {!line.included && <span className="sr-only"> (not included)</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </li>
   );
 }
 

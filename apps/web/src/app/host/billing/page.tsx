@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  * sandbox/live switch for platform admins. The webhook is the source of truth for the plan, so
  * after a checkout this page reads the database rather than trusting the redirect.
  */
-export default async function BillingPage({ searchParams }: { searchParams: Promise<{ checkout?: string; purchase?: string }> }) {
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
   const sb = await supabaseServer();
   const { data: auth } = await sb.auth.getUser();
   if (!auth.user) redirect("/login?next=/host/billing");
@@ -40,7 +40,6 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
         org: { id: org.id, name: org.name, plan: effectivePlan(org), plan_status: org.plan_status, plan_period_end: org.plan_period_end, stripe_mode: org.stripe_mode, has_customer: !!org.stripe_customer_id, has_subscription: !!org.stripe_subscription_id },
         used: usage.used,
         cap: usage.limits.sessionsPerMonth,
-        passes: usage.passes,
         period_end: usage.period.end.toISOString(),
         owner: role === "owner",
       };
@@ -49,18 +48,13 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
   return (
     <AppShell email={auth.user.email} crumb="Billing">
-      <PageHeader title="Plan and billing" description="Sessions, attendees and length per month come from the plan. An event pass adds one session on top of it." />
+      <PageHeader title="Plan and billing" description="Sessions, attendees and length per month come from the plan. Change it here; Stripe prorates the difference." />
       {params.checkout === "success" && (
         <Alert tone="success" className="mt-6" title="Payment received">
           Stripe is confirming the subscription; the plan below updates within a few seconds. Reload if it still shows the old one.
         </Alert>
       )}
-      {params.purchase === "pass" && (
-        <Alert tone="success" className="mt-6" title="Event pass bought">
-          It is spent automatically the next time this organisation goes live beyond the plan&apos;s sessions.
-        </Alert>
-      )}
-      {(params.checkout === "cancelled" || params.purchase === "cancelled") && (
+      {params.checkout === "cancelled" && (
         <Alert tone="neutral" className="mt-6">
           Nothing was charged.
         </Alert>

@@ -48,29 +48,33 @@ Break-even is three Starter hosts or one Pro host. Everything above that is marg
 
 Univid's free plan is exactly 20 minutes and 10 live attendees, and its first paid plan starts at €99 for 100 live and 4 hours. Zoom Webinars and Livestorm sit at $79–99. The proposed prices sit under all of them on purpose; the free tier matches Univid rather than beating it, and competes on what is *inside* the 20 minutes.
 
-| | Free | Starter | Pro | Event pass |
-| --- | --- | --- | --- | --- |
-| Price | $0 | $29 / month | $79 / month | $19 per event |
-| Participants per session | 10 | 50 | 150 | 50 |
-| Session length | 20 min, hard stop | 2 h | 4 h | 3 h, one session |
-| Sessions | 1 per month | 4 per month | unlimited, within fair use | 1, in addition to the plan's sessions |
-| Polls, quizzes, word clouds, timers, reveals | yes | yes | yes | yes |
-| Chat, Q&A, reactions, waiting room | yes | yes | yes | yes |
-| Deck | yes | yes | yes | yes |
-| Audience video quality | up to 540p | 720p | 720p | 720p |
-| Recording | no | MP4 | MP4 + HLS fallback | MP4 |
-| Branding | Tertulia mark | accent + logo | accent + logo + CTA, no *Powered by* | accent + logo |
-| Promote to stage | no | 1 at a time | 3 at a time | 1 |
-| Email sequence | welcome only | welcome + 4 reminders | welcome + 4 reminders, editable | full |
-| Call to action with Stripe checkout | no | no | yes | no |
-| Fair-use pool | — | 300 participant-hours / month | 1,200 participant-hours / month | 150 |
-| Support | community | email | email, 1 business day | email |
+| | Free | Starter | Pro |
+| --- | --- | --- | --- |
+| Price | $0 | $29 / month | $79 / month |
+| Participants per session | 10 | 50 | 150 |
+| Session length | 20 min, hard stop | 2 h | 4 h |
+| Sessions | 1 per month | 4 per month | unlimited, within fair use |
+| Polls, quizzes, word clouds, timers, reveals | yes | yes | yes |
+| Chat, Q&A, reactions, waiting room | yes | yes | yes |
+| Deck | yes | yes | yes |
+| Audience video quality | up to 540p | 720p | 720p |
+| Recording | no | MP4 | MP4 + HLS fallback |
+| Branding | Tertulia mark | accent + logo | accent + logo + CTA, no *Powered by* |
+| Promote to stage | no | 1 at a time | 3 at a time |
+| Email sequence | welcome only | welcome + 4 reminders | welcome + 4 reminders, editable |
+| Call to action with Stripe checkout | no | no | yes |
+| Fair-use pool | — | 300 participant-hours / month | 1,200 participant-hours / month |
+| Support | community | email | email, 1 business day |
 
-**Why these numbers.** Free: 10 × 20 min ≈ 2 GB per session, no recording, no CPU beyond the SFU; it costs nothing measurable and it is enough to run one real quiz with a timer and a reveal. One a month keeps it a trial rather than a free plan. Starter: the weekly host; a fifth session in the month is an event pass. Pro: the host running several sessions a week, or a bigger room; the 150 cap keeps one host's single session at half the node's uplink, so two Pro sessions can overlap on the node, which matches the two recordings it can run at once. Event pass: for the host who runs a webinar twice a year, and the top-up for a Starter host who needs one more; it also converts people who baulk at a subscription, and it is priced so that two passes cost more than a month of Starter.
+Yearly prices are ten months for twelve ($290 and $790), so the landing page can say "two months free" without a discount code.
 
-**Session caps.** A session counts the moment the host presses *Go live*; opening the waiting room, rehearsing, or scheduling an event does not. The month is the billing period for paid plans and the calendar month for Free. At the cap, *Go live* is refused with the upgrade and event-pass options in its place; the host can still create and schedule events, with a warning that the session will need a pass or an upgrade. An event pass bought for an event adds one session to that month regardless of plan. A session that ends within two minutes with no attendee ever connected is refunded to the count once per month, so a false start does not burn the only free session. Pro is unlimited in count and bounded by the fair-use pool below.
+There is no per-event pass (removed 25 Oct 2026, after a day). A fourth price split the decision on the landing page three ways and gave a Starter host at the cap a $19 exit instead of the Pro upgrade; two passes also cost more than a month of Starter, which made it a worse deal the page then had to explain. A host at the cap now sees one step: the next plan. If hosts who run a webinar twice a year turn out to matter, the answer is a monthly plan they cancel, which the portal already allows, not a fourth product.
 
-Starter covers the weekly host at $29, which is the buyer Univid and Zoom price at $79–99. What moves a host to Pro is audience (over 50), length (over 2 hours), the fallback stream, more guests on stage and the Stripe call to action, not session count; a Starter host who needs a fifth session buys a pass. If passes on Starter become frequent, that is the signal to raise the cap again rather than to cut Pro's price.
+**Why these numbers.** Free: 10 × 20 min ≈ 2 GB per session, no recording, no CPU beyond the SFU; it costs nothing measurable and it is enough to run one real quiz with a timer and a reveal. One a month keeps it a trial rather than a free plan. Starter: the weekly host; a fifth session in the month is the signal to move to Pro. Pro: the host running several sessions a week, or a bigger room; the 150 cap keeps one host's single session at half the node's uplink, so two Pro sessions can overlap on the node, which matches the two recordings it can run at once.
+
+**Session caps.** A session counts the moment the host presses *Go live*; opening the waiting room, rehearsing, or scheduling an event does not. The month is the billing period for paid plans and the calendar month for Free. At the cap, *Go live* is refused with the upgrade in its place; the host can still create and schedule events, with a warning that the session will need an upgrade. A session that ends within two minutes with no attendee ever connected is refunded to the count once per month, so a false start does not burn the only free session. Pro is unlimited in count and bounded by the fair-use pool below.
+
+Starter covers the weekly host at $29, which is the buyer Univid and Zoom price at $79–99. What moves a host to Pro is audience (over 50), length (over 2 hours), the fallback stream, more guests on stage and the Stripe call to action, and, for the host who hits four, session count. If Starter hosts regularly hit the cap and churn instead of upgrading, raise the cap rather than cut Pro's price.
 
 **Fair use, not metering.** DESIGN.md proposed an attendee-hour pool with per-hour overage. With a VPS the marginal hour is free until the node fills, so metered billing adds a Stripe usage pipeline for no revenue. Keep the pool as a stated fair-use line (Pro at 1,200 participant-hours is about 840 GB, so thirty-seven Pro hosts at the full pool fit in the KVM 8's transfer) and enforce the two things that actually protect the node: the participant cap and the session length. Revisit metering if a host regularly exceeds the pool; that host is a candidate for a custom plan on their own node.
 
@@ -78,7 +82,7 @@ Starter covers the weekly host at $29, which is the buyer Univid and Zoom price 
 
 ## Who pays and where
 
-Hosts pay through Stripe Billing: a Checkout session in subscription mode for Starter and Pro, a one-off payment for the event pass, and a webhook on `customer.subscription.*` that writes `organisations.plan`. Price in USD with Stripe's local payment methods on; add a EUR and a BRL or MXN price only when the first hosts in those markets ask. Attendees pay nothing to Tertulia; when a host sells through a CTA, the Stripe checkout is the host's own account (Stripe Connect, Phase 3), and Tertulia takes no cut at launch. A platform fee on CTA sales is a later lever once there are enough sales to measure.
+Hosts pay through Stripe Billing: a Checkout session in subscription mode for Starter and Pro, and a webhook on `customer.subscription.*` that writes `organisations.plan`. Price in USD with Stripe's local payment methods on; add a EUR and a BRL or MXN price only when the first hosts in those markets ask. Attendees pay nothing to Tertulia; when a host sells through a CTA, the Stripe checkout is the host's own account (Stripe Connect, Phase 3), and Tertulia takes no cut at launch. A platform fee on CTA sales is a later lever once there are enough sales to measure.
 
 ## Abuse and cost guardrails
 
@@ -92,10 +96,10 @@ Hosts pay through Stripe Billing: a Checkout session in subscription mode for St
 
 Built 25 Oct 2026 (items 1–4 and most of 5; see [STRIPE.md](STRIPE.md)): plan limits, the go-live, participant and recording gates, the hard stop, Stripe Checkout and Portal, the webhook, the billing page, and a sandbox/live switch for platform admins. Still open: a per-minute sweep (the hard stop is enforced by the host panel and at the next go-live), the admin capacity view, and the branding, email-step and promote-slot gates.
 
-1. **Plan limits in one place.** A `plan_limits` map (sessions per month, participants, minutes, recording, hls, promote slots, branding, stripe CTA, pool) read by every gate below. The `plan` enum already exists on `organisations`; add `event_pass` or a `passes` table keyed to an event.
-2. **Gates.** `ensureRoom` passes `maxParticipants`; the token route checks the live count; the go-live route counts this period's sessions for the org (plus unused passes) against the plan's cap before it starts anything; `startSessionEgress` runs only when the plan includes recording; promote, branding, email steps and CTA destinations check the plan at the API.
+1. **Plan limits in one place.** A `plan_limits` map (sessions per month, participants, minutes, recording, hls, promote slots, branding, stripe CTA, pool) read by every gate below. The `plan` enum already exists on `organisations`.
+2. **Gates.** `ensureRoom` passes `maxParticipants`; the token route checks the live count; the go-live route counts this period's sessions for the org against the plan's cap before it starts anything; `startSessionEgress` runs only when the plan includes recording; promote, branding, email steps and CTA destinations check the plan at the API.
 3. **Session length.** A per-minute job (Vercel cron on Pro, or `pg_cron`) ends sessions past their cap, stops the egress and deletes the room; the client shows the countdown.
-4. **Billing.** Stripe products and prices for the three paid offers; Checkout; webhook; a billing page under `/host`; `stripe_customer_id` and `plan_period_end` on `organisations`.
+4. **Billing.** Stripe products and prices for the two paid plans; Checkout; webhook; a billing page under `/host`; `stripe_customer_id` and `plan_period_end` on `organisations`.
 5. **Usage.** A `session_usage` row per session (peak participants, participant-minutes, recorded minutes) for the fair-use line and, more importantly, for your own capacity planning.
 6. **Capacity view.** An admin page summing scheduled audience per hour across all orgs against the node ceiling, so you see the Tuesday problem a week before it happens.
 

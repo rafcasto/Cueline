@@ -8,7 +8,6 @@ type EndableSession = {
   egress_id: string | null;
   started_at: string | null;
   counted: boolean;
-  event_pass_id: string | null;
 };
 
 /**
@@ -20,7 +19,6 @@ export async function endSession(admin: SupabaseClient, session: EndableSession,
   for (const id of String(session.egress_id ?? "").split(",").filter(Boolean)) await stopEgress(id);
   const ended_at = now.toISOString();
   let counted = session.counted;
-  let event_pass_id = session.event_pass_id;
 
   if (counted && session.started_at) {
     const [{ count: attendees }, { data: org }] = await Promise.all([
@@ -36,16 +34,10 @@ export async function endSession(admin: SupabaseClient, session: EndableSession,
       .eq("state", "ended")
       .gte("started_at", period.start.toISOString())
       .lt("started_at", period.end.toISOString());
-    if (isFalseStart({ started_at: session.started_at, ended_at }, attendees ?? 0, refunded ?? 0)) {
-      counted = false;
-      if (event_pass_id) {
-        await admin.from("event_passes").update({ used_by_session_id: null, updated_at: ended_at }).eq("id", event_pass_id);
-        event_pass_id = null;
-      }
-    }
+    if (isFalseStart({ started_at: session.started_at, ended_at }, attendees ?? 0, refunded ?? 0)) counted = false;
   }
 
-  const { error } = await admin.from("sessions").update({ state: "ended", ended_at, counted, event_pass_id }).eq("id", session.id);
+  const { error } = await admin.from("sessions").update({ state: "ended", ended_at, counted }).eq("id", session.id);
   if (error) throw error;
   return { counted };
 }
@@ -54,7 +46,7 @@ export async function endSession(admin: SupabaseClient, session: EndableSession,
 export async function sweepOverdue(admin: SupabaseClient, orgId: string, now = new Date()) {
   const { data } = await admin
     .from("sessions")
-    .select("id, org_id, egress_id, started_at, counted, event_pass_id")
+    .select("id, org_id, egress_id, started_at, counted")
     .eq("org_id", orgId)
     .eq("state", "live")
     .lt("ends_by", now.toISOString());

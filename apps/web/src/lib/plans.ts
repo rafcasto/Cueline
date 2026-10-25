@@ -4,7 +4,6 @@
  * by lookup key, so a cap can change without touching the Dashboard.
  */
 export type Plan = "free" | "starter" | "pro";
-export type Purchasable = Plan | "event_pass";
 
 export type PlanLimits = {
   label: string;
@@ -61,27 +60,13 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   },
 };
 
-/** One session on an event pass, whatever the plan. */
-export const EVENT_PASS_LIMITS: PlanLimits = {
-  label: "Event pass",
-  sessionsPerMonth: 1,
-  participants: 50,
-  minutes: 180,
-  recording: true,
-  hlsFallback: false,
-  promoteSlots: 1,
-  stripeCta: false,
-  poolParticipantHours: 150,
-};
-
 /** Stripe price lookup keys and what buying each one grants. Both Stripe modes carry the same keys. */
 export const PRICE_LOOKUPS = {
   starter_monthly: "starter",
   starter_yearly: "starter",
   pro_monthly: "pro",
   pro_yearly: "pro",
-  event_pass: "event_pass",
-} as const satisfies Record<string, Purchasable>;
+} as const satisfies Record<string, Plan>;
 export type PriceLookup = keyof typeof PRICE_LOOKUPS;
 
 export const PRICE_LABELS: Record<PriceLookup, { amount: string; period: string }> = {
@@ -89,7 +74,6 @@ export const PRICE_LABELS: Record<PriceLookup, { amount: string; period: string 
   starter_yearly: { amount: "$290", period: "year" },
   pro_monthly: { amount: "$79", period: "month" },
   pro_yearly: { amount: "$790", period: "year" },
-  event_pass: { amount: "$19", period: "event" },
 };
 
 export function isPriceLookup(v: unknown): v is PriceLookup {
@@ -102,10 +86,7 @@ export function isPlan(v: unknown): v is Plan {
 
 /** The plan a Stripe price grants, from its lookup key or, failing that, the product's `plan` metadata. */
 export function planFromPrice(lookupKey: string | null | undefined, productPlan: string | null | undefined): Plan | null {
-  if (lookupKey && isPriceLookup(lookupKey)) {
-    const p = PRICE_LOOKUPS[lookupKey];
-    return p === "event_pass" ? null : p;
-  }
+  if (lookupKey && isPriceLookup(lookupKey)) return PRICE_LOOKUPS[lookupKey];
   return isPlan(productPlan) ? productPlan : null;
 }
 

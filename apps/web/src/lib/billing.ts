@@ -4,7 +4,7 @@
  * the loaders at the bottom read Supabase with the service client.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { EVENT_PASS_LIMITS, type Plan, type PlanLimits, planLimits } from "@/lib/plans";
+import { type Plan, type PlanLimits, planLimits } from "@/lib/plans";
 
 export type BillingOrg = {
   id: string;
@@ -59,31 +59,23 @@ export type Usage = {
   period: Period;
   /** Sessions that went live in the period and still count. */
   used: number;
-  /** Paid, unused event passes. */
-  passes: number;
   limits: PlanLimits;
   /** A past-due subscription keeps its plan until Stripe cancels it; a cancelled one is free. */
   effectivePlan: Plan;
 };
 
-export type GoLiveDecision =
-  | { allowed: true; limits: PlanLimits; usePass: boolean }
-  | { allowed: false; reason: string; limits: PlanLimits };
+export type GoLiveDecision = { allowed: true; limits: PlanLimits } | { allowed: false; reason: string; limits: PlanLimits };
 
-/**
- * May the organisation start one more session right now? The plan's sessions come first; when
- * they are spent a paid pass is used, with the pass's own limits. Pro is unlimited in count.
- */
+/** May the organisation start one more session right now? Pro is unlimited in count. */
 export function decideGoLive(u: Usage): GoLiveDecision {
   const cap = u.limits.sessionsPerMonth;
-  if (cap === null || u.used < cap) return { allowed: true, limits: u.limits, usePass: false };
-  if (u.passes > 0) return { allowed: true, limits: EVENT_PASS_LIMITS, usePass: true };
+  if (cap === null || u.used < cap) return { allowed: true, limits: u.limits };
   const plan = u.limits.label;
   const next = u.period.end.toISOString().slice(0, 10);
   const reason =
     u.effectivePlan === "free"
-      ? `The free plan includes one session a month and this month's has been used (resets ${next}). Upgrade or buy an event pass at /host/billing to go live now.`
-      : `${plan} includes ${cap} sessions a month and all ${cap} have been used (resets ${next}). Buy an event pass or upgrade at /host/billing to go live now.`;
+      ? `The free plan includes one session a month and this month's has been used (resets ${next}). Upgrade to Starter at /host/billing to go live now.`
+      : `${plan} includes ${cap} sessions a month and all ${cap} have been used (resets ${next}). Upgrade to Pro at /host/billing for unlimited sessions.`;
   return { allowed: false, reason, limits: u.limits };
 }
 
@@ -113,28 +105,12 @@ export function endsBy(startedAt: Date, limits: PlanLimits): Date {
 export async function loadUsage(admin: SupabaseClient, org: BillingOrg, now = new Date()): Promise<Usage> {
   const period = billingPeriod(org, now);
   const plan = effectivePlan(org);
-  const [{ count: used }, { count: passes }] = await Promise.all([
-    admin
-      .from("sessions")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", org.id)
-      .eq("counted", true)
-      .gte("started_at", period.start.toISOString())
-      .lt("started_at", period.end.toISOString()),
-    admin.from("event_passes").select("id", { count: "exact", head: true }).eq("org_id", org.id).eq("status", "paid").is("used_by_session_id", null),
-  ]);
-  return { period, used: used ?? 0, passes: passes ?? 0, limits: planLimits(plan), effectivePlan: plan };
-}
-
-/** The oldest paid, unused pass; one bought for an event in this room first. */
-export async function pickPass(admin: SupabaseClient, orgId: string, roomId: string): Promise<string | null> {
-  const { data } = await admin
-    .from("event_passes")
-    .select("id, invites(room_id)")
-    .eq("org_id", orgId)
-    .eq("status", "paid")
-    .is("used_by_session_id", null)
-    .order("created_at");
-  const rows = (data ?? []) as unknown as { id: string; invites: { room_id: string } | null }[];
-  return rows.find((p) => p.invites?.room_id === roomId)?.id ?? rows[0]?.id ?? null;
+  const { count: used } = await admin
+    .from("sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", org.id)
+    .eq("counted", true)
+    .gte("started_at", period.start.toISOString())
+    .lt("started_at", period.end.toISOString());
+  return { period, used: used ?? 0, limits: planLimits(plan), effectivePlan: plan };
 }
