@@ -11,6 +11,7 @@
     "db:reset": "supabase db reset",
     "db:types": "supabase gen types typescript --local > apps/web/src/lib/supabase/database.types.ts",
     "db:test": "scripts/db-test.sh",
-    "admin:create": "node scripts/create-admin.mjs"
+    "admin:create": "node scripts/create-admin.mjs",
+    "video:check": "node scripts/check-livekit.mjs"
   }
 }
