@@ -1,12 +1,12 @@
 "use client";
-import { RemoteTrack, Room, RoomEvent, Track, type RemoteTrackPublication, type RemoteParticipant } from "livekit-client";
+import { DisconnectReason, RemoteTrack, Room, RoomEvent, Track, type RemoteTrackPublication, type RemoteParticipant } from "livekit-client";
 import { useEffect, useRef, useState } from "react";
 
 type Props = {
   /** Publish token + URL from /api/token (presenters) or /api/stage (promoted viewers). */
   connection: { url: string; token: string } | null;
   publish: boolean;
-  onDisconnected?: () => void;
+  onDisconnected?: (reason?: DisconnectReason) => void;
 };
 
 /**
@@ -38,7 +38,10 @@ export function RoomStage({ connection, publish, onDisconnected }: Props) {
       });
     r.on(RoomEvent.TrackSubscribed, onTrack);
     r.on(RoomEvent.TrackUnsubscribed, offTrack);
-    r.on(RoomEvent.Disconnected, () => disconnectedRef.current?.());
+    r.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+      if (reason !== undefined && reason !== DisconnectReason.CLIENT_INITIATED) console.warn("room disconnected:", DisconnectReason[reason]);
+      disconnectedRef.current?.(reason);
+    });
 
     let active = true;
     const setError = (message: string) => setFailure({ connection, message });

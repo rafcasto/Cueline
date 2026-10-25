@@ -26,7 +26,13 @@ export const POST = handler(async (req) => {
 
   if (body.role === "viewer") {
     const { data: seat } = await admin.from("participants").select("display_name").eq("session_id", session.id).eq("user_id", user.id).maybeSingle();
-    const t = await mintRoomToken({ room, identity: user.id, name: seat?.display_name ?? "Participant", role: "viewer" });
+    // LiveKit allows one connection per identity per room and disconnects the older one when a
+    // duplicate joins. The audience connection therefore never shares the user's identity, or a
+    // host previewing the attendee page in a second tab would kick their own camera out of the
+    // room (and the retry would kick the preview, and so on). Fresh suffix per token: two tabs
+    // of the same attendee coexist, and the publish connection (identity = user id) is untouched.
+    const identity = `${user.id}:v:${crypto.randomUUID().slice(0, 8)}`;
+    const t = await mintRoomToken({ room, identity, name: seat?.display_name ?? "Participant", role: "viewer" });
     return json({ mode: "webrtc", ...t, hls_url: session.hls_url });
   }
 
