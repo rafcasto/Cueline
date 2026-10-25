@@ -53,7 +53,7 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 | Price | $0 | $29 / month | $79 / month | $19 per event |
 | Participants per session | 10 | 50 | 150 | 50 |
 | Session length | 20 min, hard stop | 2 h | 4 h | 3 h, one session |
-| Sessions | 1 per month | 2 per month | unlimited, within fair use | 1, in addition to the plan's sessions |
+| Sessions | 1 per month | 4 per month | unlimited, within fair use | 1, in addition to the plan's sessions |
 | Polls, quizzes, word clouds, timers, reveals | yes | yes | yes | yes |
 | Chat, Q&A, reactions, waiting room | yes | yes | yes | yes |
 | Deck | yes | yes | yes | yes |
@@ -66,11 +66,11 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 | Fair-use pool | — | 300 participant-hours / month | 1,200 participant-hours / month | 150 |
 | Support | community | email | email, 1 business day | email |
 
-**Why these numbers.** Free: 10 × 20 min ≈ 2 GB per session, no recording, no CPU beyond the SFU; it costs nothing measurable and it is enough to run one real quiz with a timer and a reveal. One a month keeps it a trial rather than a free plan. Starter: a host running a fortnightly session; a third session in the month is an event pass. Pro: the weekly or daily host; the 150 cap keeps one host's single session at half the node's uplink, so two Pro sessions can overlap on the node, which matches the two recordings it can run at once. Event pass: for the host who runs a webinar twice a year, and the top-up for a Starter host who needs one more; it also converts people who baulk at a subscription, and it is priced so that two passes cost more than a month of Starter.
+**Why these numbers.** Free: 10 × 20 min ≈ 2 GB per session, no recording, no CPU beyond the SFU; it costs nothing measurable and it is enough to run one real quiz with a timer and a reveal. One a month keeps it a trial rather than a free plan. Starter: the weekly host; a fifth session in the month is an event pass. Pro: the host running several sessions a week, or a bigger room; the 150 cap keeps one host's single session at half the node's uplink, so two Pro sessions can overlap on the node, which matches the two recordings it can run at once. Event pass: for the host who runs a webinar twice a year, and the top-up for a Starter host who needs one more; it also converts people who baulk at a subscription, and it is priced so that two passes cost more than a month of Starter.
 
 **Session caps.** A session counts the moment the host presses *Go live*; opening the waiting room, rehearsing, or scheduling an event does not. The month is the billing period for paid plans and the calendar month for Free. At the cap, *Go live* is refused with the upgrade and event-pass options in its place; the host can still create and schedule events, with a warning that the session will need a pass or an upgrade. An event pass bought for an event adds one session to that month regardless of plan. A session that ends within two minutes with no attendee ever connected is refunded to the count once per month, so a false start does not burn the only free session. Pro is unlimited in count and bounded by the fair-use pool below.
 
-The gap between Starter and Pro is the one place a competitor can undercut: a host with four sessions a month pays $29 plus two passes ($67) or $79. If that host turns out to be the common case, raise Starter to four sessions before cutting Pro's price.
+Starter covers the weekly host at $29, which is the buyer Univid and Zoom price at $79–99. What moves a host to Pro is audience (over 50), length (over 2 hours), the fallback stream, more guests on stage and the Stripe call to action, not session count; a Starter host who needs a fifth session buys a pass. If passes on Starter become frequent, that is the signal to raise the cap again rather than to cut Pro's price.
 
 **Fair use, not metering.** DESIGN.md proposed an attendee-hour pool with per-hour overage. With a VPS the marginal hour is free until the node fills, so metered billing adds a Stripe usage pipeline for no revenue. Keep the pool as a stated fair-use line (Pro at 1,200 participant-hours is about 840 GB, so thirty-seven Pro hosts at the full pool fit in the KVM 8's transfer) and enforce the two things that actually protect the node: the participant cap and the session length. Revisit metering if a host regularly exceeds the pool; that host is a candidate for a custom plan on their own node.
 
