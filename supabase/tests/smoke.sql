@@ -11,6 +11,8 @@ insert into public.activities(id, org_id, room_id, kind, title, options, timer_s
    '[{"id":"a","label":"Auckland"},{"id":"b","label":"Wellington","correct":true}]', 30);
 insert into public.activity_runs(id, org_id, session_id, activity_id) values ('55555555-5555-5555-5555-555555555555', '00000000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444');
 select 'timer sets closes_at' as check, closes_at = opened_at + interval '30 seconds' as pass from public.activity_runs where id = '55555555-5555-5555-5555-555555555555';
+select 'stage layout defaults to the corner' as check, layout = '{"mode":"default"}'::jsonb as pass from public.sessions where id = '33333333-3333-3333-3333-333333333333';
+update public.sessions set layout = '{"mode":"custom","video":{"x":10,"y":10,"w":30}}'::jsonb where id = '33333333-3333-3333-3333-333333333333';
 insert into public.slide_events(org_id, session_id, page_index) values ('00000000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', 3);
 
 -- A participant (anonymous auth) joins, answers, reacts, asks, raises a hand.

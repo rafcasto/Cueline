@@ -17,8 +17,9 @@ import { Alert, Badge, Button, Card, CardHeader, Tabs, type Tone } from "@/compo
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { currentRun, latestRun } from "@/lib/session-state";
+import { normalizeStageLayout, sameLayout } from "@/lib/stage-layout";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import type { Activity, ChatMessage, Invite, Presentation, Question, ReactionKind, Registration, Room, Session } from "@/lib/supabase/types";
+import type { Activity, ChatMessage, Invite, Presentation, Question, ReactionKind, Registration, Room, Session, StageLayout } from "@/lib/supabase/types";
 
 type Props = {
   room: Room;
@@ -36,8 +37,9 @@ type Tab = "live" | "event" | "emails" | "waiting" | "settings";
 /**
  * Host panel for one room: share the invite link and watch registrations, edit the room's
  * email sequence (inherited by every event), open the room (waiting room), go live, navigate
- * the deck, activate activities with timers and reveal results, run the hand-raise queue with
- * promote-to-stage, moderate Q&A, edit the waiting room, and rename or delete the room.
+ * the deck, place the camera on the stage (corner, talking head, side by side, or dragged
+ * anywhere), activate activities with timers and reveal results, run the hand-raise queue
+ * with promote-to-stage, moderate Q&A, edit the waiting room, and rename or delete the room.
  */
 export function HostPanel({ room: initialRoom, initialSession, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations }: Props) {
   const [room, setRoom] = useState(initialRoom);
@@ -51,6 +53,11 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
   );
   const [page, setPage] = useState(0);
   const [stage, setStage] = useState<{ url: string; token: string } | null>(null);
+  // The layout with no session open (the room's remembered one), and the host's own change shown at once
+  // while the write is in flight: it is keyed to the session layout it replaces, so the broadcast of the
+  // same write (or of another tab's) takes over the moment it lands.
+  const [draftLayout, setDraftLayout] = useState<StageLayout>(() => normalizeStageLayout(initialRoom.stage_layout));
+  const [pendingLayout, setPendingLayout] = useState<{ layout: StageLayout; base: string } | null>(null);
   // Start on the event tab until there is a link to share; the live panel is useless without attendees.
   const [tab, setTab] = useState<Tab>(initialInvites.some((i) => !i.revoked_at) ? "live" : "event");
   const [msg, setMsg] = useState<string | null>(null);
@@ -58,6 +65,10 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
   const { state, status } = useSession(session?.id ?? null, { userId, roomId: room.id });
   const live = state.session ?? session;
   const sb = supabaseBrowser();
+
+  const liveLayout = live ? normalizeStageLayout(live.layout) : null;
+  const liveLayoutKey = JSON.stringify(liveLayout);
+  const layout = liveLayout ? (pendingLayout?.base === liveLayoutKey ? pendingLayout.layout : liveLayout) : draftLayout;
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -95,6 +106,23 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
     run(async () => {
       if (live) setStage(await api<{ url: string; token: string }>("/api/token", { session_id: live.id, role: "presenter" }));
     });
+
+  /** Where the camera sits: attendees follow through the session row; the room remembers it for the next session. */
+  const changeLayout = async (next: StageLayout) => {
+    const clean = normalizeStageLayout(next);
+    if (sameLayout(clean, layout)) return;
+    setDraftLayout(clean);
+    if (live) setPendingLayout({ layout: clean, base: liveLayoutKey });
+    setMsg(null);
+    const writes = [sb.from("rooms").update({ stage_layout: clean }).eq("id", room.id)];
+    if (live) writes.push(sb.from("sessions").update({ layout: clean }).eq("id", live.id));
+    const results = await Promise.all(writes);
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
+      setPendingLayout(null);
+      setMsg(`Could not save the video placement: ${failed.error.message}`);
+    } else setRoom((r) => ({ ...r, stage_layout: clean }));
+  };
 
   const selectDeck = async (p: Presentation | null) => {
     setDeck(p);
@@ -232,17 +260,6 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
         ) : (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
             <section className="space-y-6">
-              {stage && (
-                <RoomStage
-                  connection={stage}
-                  publish
-                  onDisconnected={(reason) => {
-                    setStage(null);
-                    if (reason === DisconnectReason.DUPLICATE_IDENTITY) setMsg("Your camera was disconnected because this account joined the room from another tab or device. Close it, then click \"Join with camera\" again.");
-                    else if (reason !== undefined && reason !== DisconnectReason.CLIENT_INITIATED) setMsg(`Your camera was disconnected (${DisconnectReason[reason]}). Click "Join with camera" to rejoin.`);
-                  }}
-                />
-              )}
               <PresenterDeck
                 room={room}
                 presentations={presentations}
@@ -252,6 +269,25 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
                 page={page}
                 participantsPage={live?.state === "live" ? (state.lastSlide?.page_index ?? 0) : null}
                 onNavigate={navigate}
+                layout={layout}
+                onLayoutChange={(l) => void changeLayout(l)}
+                layoutHint={live ? "Attendees follow at once." : "Applies when you open the room."}
+                video={
+                  stage ? (
+                    <RoomStage
+                      connection={stage}
+                      publish
+                      onError={setMsg}
+                      onDisconnected={(reason) => {
+                        setStage(null);
+                        if (reason === DisconnectReason.DUPLICATE_IDENTITY) setMsg("Your camera was disconnected because this account joined the room from another tab or device. Close it, then click \"Join with camera\" again.");
+                        else if (reason !== undefined && reason !== DisconnectReason.CLIENT_INITIATED) setMsg(`Your camera was disconnected (${DisconnectReason[reason]}). Click "Join with camera" to rejoin.`);
+                      }}
+                    />
+                  ) : (
+                    <CameraPlaceholder live={!!live} />
+                  )
+                }
               />
               {currentRunRow && currentActivity && live && <RunControls state={state} run={currentRunRow} activity={currentActivity} userId={userId} />}
               <ActivityLibrary roomId={room.id} orgId={room.org_id} activities={activities} onChange={setActivities} onActivate={live?.state === "live" ? activate : undefined} activeId={visibleRun?.activity_id ?? null} />
@@ -322,5 +358,19 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
         )}
       </div>
     </AppShell>
+  );
+}
+
+/** Stands in for the host's camera on the stage until they join with it, so the layout can be set up in advance. */
+function CameraPlaceholder({ live }: { live: boolean }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-slate-800 px-3 text-center text-slate-300 @container">
+      <svg viewBox="0 0 24 24" className="size-6 shrink-0 opacity-70" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <rect x="3" y="6" width="13" height="12" rx="2" />
+        <path d="m16 10 5-3v10l-5-3" />
+      </svg>
+      <p className="text-xs font-medium leading-tight">Your camera</p>
+      <p className="hidden text-xs leading-tight text-slate-400 @[12rem]:block">{live ? "Join with camera to put it here." : "Open the room, then join with camera."}</p>
+    </div>
   );
 }

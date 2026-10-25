@@ -1,9 +1,13 @@
 import { handler, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { normalizeStageLayout } from "@/lib/stage-layout";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 type Body = { room_slug: string; presentation_id?: string | null };
 
-/** Open the room: a session in `waiting` state. Participants see the waiting room until go-live. */
+/**
+ * Open the room: a session in `waiting` state. Participants see the waiting room until go-live.
+ * The session starts with the stage layout the host last used in this room.
+ */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
   const body = await readJson<Body>(req);
@@ -18,7 +22,7 @@ export const POST = handler(async (req) => {
 
   const { data: session, error } = await admin
     .from("sessions")
-    .insert({ org_id: room.org_id, room_id: room.id, presentation_id: body.presentation_id ?? null, state: "waiting" })
+    .insert({ org_id: room.org_id, room_id: room.id, presentation_id: body.presentation_id ?? null, state: "waiting", layout: normalizeStageLayout(room.stage_layout) })
     .select("id")
     .single();
   if (error) throw error;

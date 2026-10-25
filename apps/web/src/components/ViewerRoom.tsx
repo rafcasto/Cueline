@@ -8,12 +8,14 @@ import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
 import { BrandScope, RoomCtaButton, RoomMark } from "@/components/RoomBrand";
 import { RoomStage } from "@/components/RoomStage";
+import { StageCanvas } from "@/components/StageCanvas";
 import { WaitingRoom } from "@/components/WaitingRoom";
 import { Alert, Badge, Button, Tabs, cx } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { normalizeBranding } from "@/lib/branding";
 import { chatMessages, currentRun } from "@/lib/session-state";
+import { normalizeStageLayout } from "@/lib/stage-layout";
 import { publicUrl } from "@/lib/storage";
 import { ensureViewerIdentity, supabaseBrowser } from "@/lib/supabase/browser";
 import type { Presentation, ReactionKind, Room, Session } from "@/lib/supabase/types";
@@ -40,9 +42,10 @@ function usePresentation(initial: Presentation | null, presentationId: string | 
 
 /**
  * The participant view. The page behind it has already checked registration, so the
- * attendee lands straight in the waiting room under their registered name; then the
- * deck page (rendered from the PDF) with the presenter video (WebRTC, HLS fallback) beside it, the activity
- * overlay on top, reactions and Q&A underneath.
+ * attendee lands straight in the waiting room under their registered name; then the stage:
+ * the deck page (rendered from the PDF) and the presenter video (WebRTC, HLS fallback)
+ * placed by the session's layout, which the host changes live; the activity overlay on top,
+ * reactions underneath, and chat and Q&A in a panel as tall as the stage beside it.
  */
 export function ViewerRoom({ room, session: initialSession, presentation: initialPresentation, attendee }: Props) {
   const [userId, setUserId] = useState<string | null>(null);
@@ -199,15 +202,18 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
     >
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)]">
         <section>
-          <div className="relative overflow-hidden rounded-xl border border-line bg-black shadow-float">
-            <PdfPage url={pdfUrl} pageIndex={pageIndex} className="aspect-video" />
-            <div className="absolute bottom-3 right-3 w-40 overflow-hidden rounded-lg shadow-overlay ring-1 ring-white/20 sm:w-56">
-              {myRoster === "live" && stage ? (
+          <StageCanvas
+            layout={normalizeStageLayout(session.layout)}
+            slide={<PdfPage url={pdfUrl} pageIndex={pageIndex} className="aspect-video" />}
+            video={
+              myRoster === "live" && stage ? (
                 <RoomStage connection={stage} publish onDisconnected={() => setStage(null)} />
               ) : (
-                <LiveViewer sessionId={session.id} ready={!!userId} hlsUrl={session.hls_url} onLatency={(ms) => (latency.current = ms)} className="aspect-video w-full bg-black" />
-              )}
-            </div>
+                <LiveViewer sessionId={session.id} ready={!!userId} hlsUrl={session.hls_url} onLatency={(ms) => (latency.current = ms)} className="h-full w-full" />
+              )
+            }
+            className="rounded-xl border border-line shadow-float"
+          >
             {run && activity && (
               // On a phone the slide is a short strip that would clip the overlay, so there the layer is fixed
               // to the viewport (overflow-hidden does not clip fixed descendants); from lg up the slide is tall
@@ -216,7 +222,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
                 <ActivityOverlay state={state} run={run} activity={activity} userId={userId} roomSlug={room.slug} />
               </div>
             )}
-          </div>
+          </StageCanvas>
 
           {myRoster === "invited" && (
             <Alert tone="brand" className="mt-4" title="The host invited you on stage">
@@ -234,8 +240,9 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
           </div>
         </section>
 
-        <aside>
-          <div className="rounded-xl border border-line bg-surface-raised p-6 shadow-card">
+        {/* As tall as the stage column from lg up: the grid row is set by the stage, the panel stretches to it and its list scrolls inside. */}
+        <aside className="lg:min-h-0">
+          <div className="flex flex-col rounded-xl border border-line bg-surface-raised p-6 shadow-card lg:h-full lg:min-h-[32rem]">
             <Tabs
               value={panel}
               onChange={setPanel}
@@ -244,8 +251,14 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
                 { value: "qa", label: "Q&A", count: Object.values(state.questions).filter((q) => q.approved || q.user_id === userId).length },
               ]}
             />
-            <div className="mt-4">
-              {panel === "chat" ? <Chat bare state={state} userId={userId} enabled={room.chat_enabled} onSend={chat} /> : <Questions bare state={state} userId={userId} onAsk={ask} onUpvote={upvote} />}
+            <div className="mt-4 flex min-h-0 flex-1 flex-col">
+              {panel === "chat" ? (
+                <Chat bare fill state={state} userId={userId} enabled={room.chat_enabled} onSend={chat} />
+              ) : (
+                <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+                  <Questions bare state={state} userId={userId} onAsk={ask} onUpvote={upvote} />
+                </div>
+              )}
             </div>
           </div>
         </aside>

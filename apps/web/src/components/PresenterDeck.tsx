@@ -1,11 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { PdfPage } from "@/components/PdfPage";
-import { Button, Card, CardHeader, Select, buttonClass } from "@/components/ui";
+import { StageCanvas } from "@/components/StageCanvas";
+import { StageLayoutPicker } from "@/components/StageLayoutPicker";
+import { Button, Card, CardHeader, Eyebrow, Select, buttonClass } from "@/components/ui";
 import { countPages } from "@/lib/pdf";
+import { describeLayout } from "@/lib/stage-layout";
 import { publicUrl, uploadToBucket } from "@/lib/storage";
 import { supabaseBrowser } from "@/lib/supabase/browser";
-import type { Presentation, Room } from "@/lib/supabase/types";
+import type { Presentation, Room, StageLayout } from "@/lib/supabase/types";
 
 type Props = {
   room: Room;
@@ -18,10 +21,21 @@ type Props = {
   /** Live: the page participants currently see, for the "participants on N" hint. */
   participantsPage: number | null;
   onNavigate: (pageIndex: number) => Promise<void>;
+  /** Where the camera sits on the stage, and what to do when the host moves it. */
+  layout: StageLayout;
+  onLayoutChange: (layout: StageLayout) => void;
+  /** The host's own camera (or a placeholder for it), placed on the stage by the layout. */
+  video: ReactNode;
+  /** When the change reaches attendees: now, or when the session starts. */
+  layoutHint: string;
 };
 
-/** Upload a PDF deck and step through it; every navigation is a slide_events row for participants. */
-export function PresenterDeck({ room, presentations, onPresentationsChange, selected, onSelect, page, participantsPage, onNavigate }: Props) {
+/**
+ * The host's stage: the deck page with the camera placed exactly as attendees see it.
+ * Upload a PDF and step through it (every navigation is a slide_events row), and choose
+ * where the video goes, by preset or by dragging it on the stage itself.
+ */
+export function PresenterDeck({ room, presentations, onPresentationsChange, selected, onSelect, page, participantsPage, onNavigate, layout, onLayoutChange, video, layoutHint }: Props) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -55,7 +69,10 @@ export function PresenterDeck({ room, presentations, onPresentationsChange, sele
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === "INPUT" || (e.target as HTMLElement)?.tagName === "TEXTAREA") return;
+      const t = e.target as HTMLElement | null;
+      if (t?.tagName === "INPUT" || t?.tagName === "TEXTAREA") return;
+      // The camera box on the stage takes the arrows for itself while it has focus.
+      if (t?.getAttribute("role") === "group") return;
       if (e.key === "ArrowRight" || e.key === "PageDown") void go(page + 1);
       if (e.key === "ArrowLeft" || e.key === "PageUp") void go(page - 1);
     };
@@ -68,8 +85,8 @@ export function PresenterDeck({ room, presentations, onPresentationsChange, sele
   return (
     <Card>
       <CardHeader
-        title="Deck"
-        description={selected ? "Arrow keys step through it; participants follow once you are live." : "Upload a PDF and present it page by page."}
+        title="Stage"
+        description="What attendees see: the deck page with your camera where you put it."
         actions={
           <>
             <Select value={selected?.id ?? ""} onChange={(e) => onSelect(presentations.find((p) => p.id === e.target.value) ?? null)} className="h-8 w-auto max-w-56 text-sm" aria-label="Deck">
@@ -88,10 +105,12 @@ export function PresenterDeck({ room, presentations, onPresentationsChange, sele
         }
       />
       {msg && <p className="mt-3 text-sm text-ink-muted">{msg}</p>}
-      <div className="mt-6">
-        <PdfPage url={url} pageIndex={page} className="aspect-video overflow-hidden rounded-lg border border-line bg-black" />
-        {selected && (
-          <div className="mt-4 flex items-center justify-between">
+
+      <StageCanvas layout={layout} editable onChange={onLayoutChange} slide={<PdfPage url={url} pageIndex={page} className="aspect-video" />} video={video} className="mt-6 rounded-lg border border-line" />
+
+      <div className="mt-4 flex min-h-8 items-center justify-between gap-4">
+        {selected ? (
+          <>
             <Button variant="secondary" size="sm" onClick={() => void go(page - 1)} disabled={page === 0}>
               ← Previous
             </Button>
@@ -102,8 +121,22 @@ export function PresenterDeck({ room, presentations, onPresentationsChange, sele
             <Button variant="secondary" size="sm" onClick={() => void go(page + 1)} disabled={page >= selected.page_count - 1}>
               Next →
             </Button>
-          </div>
+          </>
+        ) : (
+          <p className="text-sm text-ink-muted">{layout.mode === "talking_head" ? "No deck is needed for a talking head." : "Upload a PDF to present it page by page; arrow keys step through it."}</p>
         )}
+      </div>
+
+      <div className="mt-6 border-t border-line pt-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <Eyebrow>Video placement</Eyebrow>
+          <p className="text-xs text-ink-faint">{layoutHint}</p>
+        </div>
+        <StageLayoutPicker value={layout} onChange={onLayoutChange} className="mt-3" />
+        <p className="mt-3 text-sm text-ink-muted" role="status">
+          {describeLayout(layout)}
+          {layout.mode === "custom" ? " Drag it on the stage; the corner resizes it. Arrow keys nudge, plus and minus resize." : " Drag the camera on the stage to place it yourself."}
+        </p>
       </div>
     </Card>
   );
