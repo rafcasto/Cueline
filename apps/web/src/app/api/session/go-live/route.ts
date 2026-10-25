@@ -1,6 +1,6 @@
-import { handler, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { ensureRoom, startHlsEgress, startRecordingEgress } from "@/lib/video";
+import { checkPublicBase, ensureRoom, startHlsEgress, startRecordingEgress } from "@/lib/video";
 
 type Body = { session_id: string };
 
@@ -18,6 +18,10 @@ export const POST = handler(async (req) => {
 
   const room = (session.rooms as unknown as { livekit_room: string } | null)?.livekit_room ?? "";
   if (!room) return json({ error: "room missing" }, { status: 500 });
+  // Fail here, in the host's panel, rather than in every participant's player.
+  await checkPublicBase().catch((err: Error) => {
+    throw new HttpError(500, err.message);
+  });
   await ensureRoom(room);
   const [hls, rec] = await Promise.all([startHlsEgress(room, session.id), startRecordingEgress(room, session.id)]);
   const { error } = await admin

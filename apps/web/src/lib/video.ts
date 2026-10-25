@@ -101,6 +101,33 @@ export async function startHlsEgress(room: string, sessionId: string) {
   return { egressId: info.egressId, hlsUrl: `${base}/${prefix}/live.m3u8` };
 }
 
+/**
+ * Participants fetch the playlist from RECORDING_PUBLIC_BASE_URL, which has to be the bucket's
+ * public URL (R2's r2.dev subdomain or a custom domain connected to it). A placeholder or a
+ * domain with no DNS record gives every viewer a player that spins for ever, with nothing in
+ * the host's panel to say why. So before egress starts, make one request to that host and
+ * refuse to go live if it cannot be reached. Any HTTP status is fine; only a failed connection
+ * (no DNS, refused, TLS) fails the check, so a bucket that answers 403 or 404 at its root passes.
+ */
+export async function checkPublicBase(): Promise<void> {
+  const base = env("RECORDING_PUBLIC_BASE_URL").replace(/\/$/, "");
+  const host = (() => {
+    try {
+      return new URL(base).host;
+    } catch {
+      return null;
+    }
+  })();
+  if (!host) throw new Error(`RECORDING_PUBLIC_BASE_URL is not a URL: "${base}". Set it to the bucket's public URL, e.g. https://pub-xxxx.r2.dev.`);
+  try {
+    await fetch(`${base}/`, { method: "HEAD", signal: AbortSignal.timeout(8000) });
+  } catch (err) {
+    const code = (err as { cause?: { code?: string } }).cause?.code ?? (err as Error).name;
+    const why = code === "ENOTFOUND" ? "has no DNS record" : `could not be reached (${code})`;
+    throw new Error(`Cannot go live: RECORDING_PUBLIC_BASE_URL points at ${host}, which ${why}. Set it to the bucket's public URL (R2: bucket Settings, Public access) and redeploy.`);
+  }
+}
+
 /** Recording: a single MP4 per session, next to the HLS segments. */
 export async function startRecordingEgress(room: string, sessionId: string) {
   const filepath = `sessions/${sessionId}/recording.mp4`;

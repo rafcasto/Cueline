@@ -34,6 +34,15 @@ export function HlsPlayer({ src, onLatency, className }: Props) {
   // Which source has a parsed playlist; a new src is therefore "not ready" without a reset.
   const [readySrc, setReadySrc] = useState<string | null>(null);
   const ready = !!src && readySrc === src;
+  // Set after the playlist has failed to load, so the spinner can say which host it is waiting on.
+  const [failing, setFailing] = useState<string | null>(null);
+  const host = (() => {
+    try {
+      return src ? new URL(src).host : "";
+    } catch {
+      return "";
+    }
+  })();
   const [sound, setSound] = useState<Sound>("on");
   useEffect(() => {
     latencyRef.current = onLatency;
@@ -88,6 +97,7 @@ export function HlsPlayer({ src, onLatency, className }: Props) {
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setReadySrc(src);
+        setFailing(null);
         void play(false);
       });
       hls.on(Hls.Events.ERROR, (_event, data) => {
@@ -99,6 +109,7 @@ export function HlsPlayer({ src, onLatency, className }: Props) {
         // Network (playlist not there yet, or the stream dropped) and anything else: ask again shortly.
         console.warn("hls", data.details, data.response?.code ?? "");
         setReadySrc(null);
+        setFailing(`${data.details}${data.response?.code ? ` (${data.response.code})` : ""}`);
         retryLater(() => hls.loadSource(src));
       });
       const t = report(() => hls.latency * 1000);
@@ -122,6 +133,7 @@ export function HlsPlayer({ src, onLatency, className }: Props) {
       };
       const onError = () => {
         setReadySrc(null);
+        setFailing(video.error?.message || "could not load");
         retryLater(load);
       };
       video.addEventListener("loadedmetadata", onMeta);
@@ -153,7 +165,14 @@ export function HlsPlayer({ src, onLatency, className }: Props) {
       {src && !ready && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center text-xs text-slate-300">
           <Spinner className="size-5" />
-          Connecting to the stream…
+          {failing ? (
+            <>
+              <span>Waiting for the stream from {host}…</span>
+              <span className="text-[10px] text-slate-500">{failing}</span>
+            </>
+          ) : (
+            "Connecting to the stream…"
+          )}
         </div>
       )}
       {!src && <p className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-slate-400">Waiting for the stream to start…</p>}
