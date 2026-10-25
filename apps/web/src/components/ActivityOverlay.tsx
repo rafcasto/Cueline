@@ -22,22 +22,35 @@ type Props = {
 /**
  * The participant overlay: answer while the run is open, wait when it closes,
  * see results when the presenter shows them. Sits over the slide.
+ *
+ * The card never grows past the layer it sits in: it is capped at that height and scrolls
+ * inside, so a long quiz on a short phone screen is reached by scrolling the card, not lost
+ * under the edge of the slide. The title carries the countdown or the phase on its right.
  */
 export function ActivityOverlay({ state, run, activity, userId, roomSlug, readOnly }: Props) {
   const now = useNow();
   const phase = runPhase(run, now);
   const left = timeLeftMs(run, now);
   const mine = state.myResponses[run.id];
+  const status =
+    left !== null && phase === "open" ? (
+      <span className={cx("tabular-nums", left < 5000 && "text-red-400")}>{Math.ceil(left / 1000)}s</span>
+    ) : phase === "closed" ? (
+      <span>Time&apos;s up</span>
+    ) : phase === "results" ? (
+      <span>Results</span>
+    ) : null;
 
   return (
-    <div className="pointer-events-auto w-full max-w-lg animate-rise rounded-2xl border border-white/10 bg-slate-950/90 p-6 text-white shadow-overlay backdrop-blur">
-      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
-        <span>{label(activity.kind)}</span>
-        {left !== null && phase === "open" && <span className={cx("tabular-nums", left < 5000 && "text-red-400")}>{Math.ceil(left / 1000)}s</span>}
-        {phase === "closed" && <span>Time&apos;s up</span>}
-        {phase === "results" && <span>Results</span>}
+    <div
+      role="dialog"
+      aria-label={activity.title}
+      className="pointer-events-auto max-h-full w-full max-w-lg animate-rise overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-slate-950/90 p-5 text-white shadow-overlay backdrop-blur sm:p-6"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="min-w-0 text-base font-semibold leading-snug sm:text-lg">{activity.title}</h3>
+        {status && <div className="shrink-0 pt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{status}</div>}
       </div>
-      <h3 className="mt-2 text-lg font-semibold leading-snug">{activity.title}</h3>
 
       {phase === "results" ? (
         <ResultsView state={state} run={run} activity={activity} userId={userId} dark />
@@ -56,10 +69,6 @@ export function ActivityOverlay({ state, run, activity, userId, roomSlug, readOn
       )}
     </div>
   );
-}
-
-function label(kind: Activity["kind"]) {
-  return { poll: "Poll", quiz: "Quiz", wordcloud: "Word cloud", cta: "Call to action" }[kind];
 }
 
 const overlayPrimary =
@@ -127,7 +136,7 @@ function AnswerForm({ run, activity, userId }: { run: ActivityRun; activity: Act
                 type="button"
                 onClick={() => toggle(o.id)}
                 aria-pressed={on}
-                className={cx("w-full cursor-pointer rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors", on ? "bg-brand text-white" : "bg-white/10 hover:bg-white/15")}
+                className={cx("w-full cursor-pointer rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors", on ? "bg-brand text-brand-contrast" : "bg-white/10 hover:bg-white/15")}
               >
                 {o.label}
               </button>
@@ -180,7 +189,7 @@ function CtaBody({ run, activity, roomSlug, pageIndex, readOnly }: { run: Activi
       type="button"
       onClick={() => void tap()}
       disabled={busy}
-      className="mt-4 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-lg bg-amber-400 px-4 font-semibold text-slate-900 transition-colors hover:bg-amber-300 disabled:pointer-events-none disabled:opacity-50"
+      className="mt-4 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-lg bg-brand px-4 font-semibold text-brand-contrast transition-colors hover:bg-brand-hover disabled:pointer-events-none disabled:opacity-50"
     >
       {dest === "stripe" ? "Buy now" : "Open"}
     </button>
@@ -196,5 +205,5 @@ function EmbedFrame({ url, onBlocked }: { url: string; onBlocked: () => void }) 
     }, 4000);
     return () => clearTimeout(t);
   }, [loaded, onBlocked]);
-  return <iframe src={url} onLoad={() => setLoaded(true)} className="mt-4 h-[420px] w-full rounded-lg bg-white" sandbox="allow-forms allow-scripts allow-same-origin allow-popups" />;
+  return <iframe src={url} onLoad={() => setLoaded(true)} className="mt-4 h-[min(420px,60dvh)] w-full rounded-lg bg-white" sandbox="allow-forms allow-scripts allow-same-origin allow-popups" />;
 }

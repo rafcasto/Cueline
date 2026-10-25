@@ -5,11 +5,13 @@ import { LiveViewer } from "@/components/LiveViewer";
 import { PdfPage } from "@/components/PdfPage";
 import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
+import { BrandScope, RoomCtaButton, RoomMark } from "@/components/RoomBrand";
 import { RoomStage } from "@/components/RoomStage";
 import { WaitingRoom } from "@/components/WaitingRoom";
-import { Alert, Badge, Button, Logo, cx } from "@/components/ui";
+import { Alert, Badge, Button, cx } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
+import { normalizeBranding } from "@/lib/branding";
 import { currentRun } from "@/lib/session-state";
 import { publicUrl } from "@/lib/storage";
 import { ensureViewerIdentity, supabaseBrowser } from "@/lib/supabase/browser";
@@ -133,9 +135,10 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
 
   if (!session || session.state === "ended") {
     return (
-      <RoomFrame title={room.name} status={<Badge>Not live</Badge>}>
+      <RoomFrame room={room} status={<Badge>Not live</Badge>}>
         <WaitingRoom config={room.waiting_room} />
         <p className="mt-4 text-center text-sm text-ink-muted">This webinar is not live right now. Keep this page open, or come back with the link from your email.</p>
+        <MobileCta room={room} />
       </RoomFrame>
     );
   }
@@ -143,10 +146,10 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   if (session.state === "waiting") {
     return (
       <RoomFrame
-        title={room.name}
+        room={room}
         status={
           <>
-            <span className="hidden text-xs text-ink-muted sm:inline">{joined ? `You are in as ${attendee.name}` : "Taking your seat…"}</span>
+            <span className="hidden text-xs text-ink-muted lg:inline">{joined ? `You are in as ${attendee.name}` : "Taking your seat…"}</span>
             <Badge tone="brand" dot>
               {here} waiting
             </Badge>
@@ -160,6 +163,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
           </Alert>
         )}
         <p className="mt-4 text-center text-sm text-ink-muted">Doors are open. The host will start shortly.</p>
+        <MobileCta room={room} />
         <div className="mt-4 flex justify-center">
           <ReactionBar onFlush={react} lastReaction={state.lastReaction} disabled />
         </div>
@@ -170,7 +174,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   return (
     <RoomFrame
       wide
-      title={room.name}
+      room={room}
       status={
         <>
           <span className="hidden text-xs text-ink-faint lg:inline">{status}</span>
@@ -193,7 +197,10 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
               )}
             </div>
             {run && activity && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4">
+              // On a phone the slide is a short strip that would clip the overlay, so there the layer is fixed
+              // to the viewport (overflow-hidden does not clip fixed descendants); from lg up the slide is tall
+              // enough and the layer sits over it, the card capped at its height and scrolling inside.
+              <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-4 lg:absolute lg:z-10">
                 <ActivityOverlay state={state} run={run} activity={activity} userId={userId} roomSlug={room.slug} />
               </div>
             )}
@@ -206,9 +213,12 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
           )}
           <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
             <ReactionBar onFlush={react} lastReaction={state.lastReaction} />
-            <Button variant={handUp ? "primary" : "secondary"} onClick={() => void toggleHand()} className={cx("rounded-full")}>
-              <span aria-hidden>✋</span> {handUp ? "Lower hand" : "Raise hand"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <RoomCtaButton branding={room.branding} size="md" className="rounded-full sm:hidden" />
+              <Button variant={handUp ? "primary" : "secondary"} onClick={() => void toggleHand()} className={cx("rounded-full")}>
+                <span aria-hidden>✋</span> {handUp ? "Lower hand" : "Raise hand"}
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -220,21 +230,38 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   );
 }
 
-/** Attendee chrome for the room: room name on the left, state on the right, nothing else. */
-function RoomFrame({ title, status, wide, children }: { title: string; status: React.ReactNode; wide?: boolean; children: React.ReactNode }) {
+/** The call to action where the header has no room for it: under the content, phones only. */
+function MobileCta({ room }: { room: Room }) {
+  if (!normalizeBranding(room.branding).cta) return null;
+  return (
+    <div className="mt-4 flex justify-center sm:hidden">
+      <RoomCtaButton branding={room.branding} size="md" className="rounded-full" />
+    </div>
+  );
+}
+
+/**
+ * Attendee chrome for the room, in the room's branding: its logo (or the product mark) and
+ * name on the left, the call to action and the state on the right, nothing else. The accent
+ * is scoped here so everything in the room, overlay included, takes the room's colour.
+ */
+function RoomFrame({ room, status, wide, children }: { room: Room; status: React.ReactNode; wide?: boolean; children: React.ReactNode }) {
   const width = wide ? "max-w-screen-2xl" : "max-w-4xl";
   return (
-    <>
+    <BrandScope branding={room.branding} className="flex flex-1 flex-col">
       <header className="border-b border-line bg-surface-raised">
         <div className={cx("mx-auto flex h-14 items-center justify-between gap-4 px-4 sm:px-6", width)}>
           <div className="flex min-w-0 items-center gap-3">
-            <Logo wordmark={false} />
-            <h1 className="truncate text-base font-semibold text-ink">{title}</h1>
+            <RoomMark branding={room.branding} name={room.name} />
+            <h1 className="truncate text-base font-semibold text-ink">{room.name}</h1>
           </div>
-          <div className="flex shrink-0 items-center gap-2">{status}</div>
+          <div className="flex shrink-0 items-center gap-2">
+            <RoomCtaButton branding={room.branding} className="hidden sm:inline-flex" />
+            {status}
+          </div>
         </div>
       </header>
       <main className={cx("mx-auto w-full flex-1 px-4 py-6 sm:px-6", width)}>{children}</main>
-    </>
+    </BrandScope>
   );
 }

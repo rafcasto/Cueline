@@ -38,12 +38,15 @@ export type WaitingRoomElement = {
 };
 export type WaitingRoom = { background: WaitingRoomBackground; elements: WaitingRoomElement[] };
 
+/** Accent colour, logo and standing call to action; see normalizeBranding() in lib/branding. */
+export type RoomBranding = { accent?: string; logo_url?: string; cta?: { label: string; url: string } };
+
 export type Room = {
   id: string;
   org_id: string;
   slug: string;
   name: string;
-  branding: Record<string, unknown>;
+  branding: RoomBranding;
   waiting_room: WaitingRoom;
   livekit_room: string;
   created_at: string;

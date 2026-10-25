@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { PublicShell } from "@/components/AppShell";
+import { BrandScope, RoomMark } from "@/components/RoomBrand";
 import { ViewerRoom } from "@/components/ViewerRoom";
 import { WaitingRoom } from "@/components/WaitingRoom";
 import { ButtonLink, Card } from "@/components/ui";
@@ -34,10 +35,13 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
     if (invite) redirect(`/join/${invite.token}`);
     return (
       <PublicShell>
-        <div className="mx-auto max-w-3xl">
+        <BrandScope branding={(room as Room).branding} className="mx-auto max-w-3xl">
           <WaitingRoom config={(room as Room).waiting_room} />
           <Card className="mx-auto -mt-8 max-w-xl p-8 text-center">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{(room as Room).name}</p>
+            <div className="flex items-center justify-center gap-3">
+              <RoomMark branding={(room as Room).branding} name={(room as Room).name} />
+              <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{(room as Room).name}</p>
+            </div>
             <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">Registration is by invite only</h1>
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">
               This webinar has no open invite link right now. Already registered? Use the link from your email, or your email and code.
@@ -46,7 +50,7 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
               Join with email and code
             </ButtonLink>
           </Card>
-        </div>
+        </BrandScope>
       </PublicShell>
     );
   }

@@ -1,11 +1,12 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { RoomBrandingEditor } from "@/components/RoomBrandingEditor";
 import { Alert, Button, Card, CardHeader, Field, Input } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { Room } from "@/lib/supabase/types";
 
-/** Name and address of the room, and the way to delete it. */
+/** Name and address of the room, its branding, and the way to delete it. */
 export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; hasOpenSession: boolean; onSaved: (room: Room) => void }) {
   const router = useRouter();
   const [name, setName] = useState(room.name);
@@ -75,6 +76,8 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
           </Button>
         </form>
       </Card>
+
+      <RoomBrandingEditor room={room} onSaved={onSaved} />
 
       <Card>
         <CardHeader title="Delete this room" description={hasOpenSession ? "End the session first; a room with the doors open cannot be deleted." : "Removes everything in the room and cancels the reminders still scheduled for its registrants."} />
