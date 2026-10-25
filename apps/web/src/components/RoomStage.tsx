@@ -81,7 +81,8 @@ export function RoomStage({ connection, publish, onDisconnected }: Props) {
   );
 }
 
-function TrackView({ track }: { track: RemoteTrack }) {
+/** One remote track: a video tile, or an audio element with no UI. Shared with the audience view. */
+export function TrackView({ track }: { track: RemoteTrack }) {
   const ref = useRef<HTMLVideoElement & HTMLAudioElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -92,5 +93,5 @@ function TrackView({ track }: { track: RemoteTrack }) {
     };
   }, [track]);
   if (track.kind === Track.Kind.Audio) return <audio ref={ref} autoPlay />;
-  return <video ref={ref} autoPlay playsInline className="aspect-video w-full rounded bg-black" />;
+  return <video ref={ref} autoPlay playsInline className="aspect-video w-full rounded bg-black object-cover" />;
 }

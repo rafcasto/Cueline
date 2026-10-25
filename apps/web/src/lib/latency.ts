@@ -1,7 +1,8 @@
 /**
- * HLS viewers sit 2–5 s behind the presenters. A cue that fires the instant the
- * presenter advances would arrive before the slide. The player reports its
- * live-edge latency; the client schedules each popup at server_ts + latency.
+ * Participants on the HLS fallback sit 6–10 s behind the presenters. A cue that fires
+ * the instant the presenter advances would arrive before the slide. The player reports
+ * its live-edge latency; the client schedules each popup at server_ts + latency.
+ * Over WebRTC the reported latency is 0 and cues show at once.
  */
 
 export type LatencyClock = {

@@ -24,8 +24,11 @@ Use a third-party transport with server-side participant permissions and built-i
 
 | Mode | Transport | Cost basis | When |
 | --- | --- | --- | --- |
-| Viewer (default) | HLS player only, no WebRTC socket | Egress / bandwidth (~1 GB per viewer-hour) | Everyone on join |
-| Promoted | WebRTC publisher in the room | Real-time participant-minutes | While on the stage roster |
+| Viewer (default) | WebRTC subscriber in the room, publishes nothing | Connection minutes + downstream bandwidth | Everyone on join |
+| Fallback | HLS player on the egress playlist, no WebRTC socket | Transcode minutes (shared with the recording) + bucket egress | Room full, WebRTC blocked, or a join that keeps failing |
+| Promoted | WebRTC publisher in the room | Connection minutes + bandwidth | While on the stage roster |
+
+> **Revision 25 Oct 2026.** The first build put the whole audience on HLS. Egress writes plain 2 s segments (no LL-HLS), so viewers sat 6–10 s behind and lost audio on every late upload; the 2–5 s assumed below never materialised. The audience now subscribes over WebRTC and HLS is the fallback. LiveKit's current pricing bills connection minutes and bandwidth rather than per-participant real-time premiums, so the cost gap that justified HLS-only is smaller than planned; re-check per-100-viewer-hour cost on the Ship plan.
 
 ### Promote-to-stage flow
 
@@ -34,9 +37,9 @@ Use a third-party transport with server-side participant permissions and built-i
 3. Host confirms; viewer tears down the HLS player, joins the room, publishes. Roster state `live`.
 4. Revoke: roster state `revoked` is written first, then the server removes the participant from the room; the client falls back to HLS. Supabase is the source of truth if the vendor call fails.
 
-**Latency.** HLS viewers sit 2–5s behind the presenters. A poll that fires the instant the presenter advances arrives before the slide. The player reports its live-edge latency; the client schedules each popup at `slide_event.server_ts + measured_latency`. Same rule for CTAs.
+**Latency.** WebRTC participants are within a second of the presenters and cues show at once. On the HLS fallback a poll that fires the instant the presenter advances would arrive before the slide, so the player reports its live-edge latency and the client schedules each popup at `slide_event.server_ts + measured_latency`. Same rule for CTAs.
 
-**Recording.** Room-composite egress to object storage (S3/R2) per session; store the URL on `sessions`.
+**Recording.** One room-composite egress per session writes both the MP4 recording and the HLS segments to object storage (S3/R2); the URLs live on `sessions`. One composite, not two: egress is billed per transcode minute.
 
 ## Component 2 — Engagement layer (Supabase)
 
@@ -170,7 +173,7 @@ Not legal advice; have an IP lawyer confirm before spending on branding.
 ## Open decisions and prototype checklist
 
 - [ ] Pick the video vendor after a pricing check: participant-minute rate, HLS egress rate, recording storage
-- [ ] Measure real HLS latency on the chosen vendor and confirm the player exposes live-edge latency
+- [x] Measure real HLS latency on the chosen vendor: 6–10 s with plain segments, which is why the audience moved to WebRTC
 - [ ] Check pdf.js render time for a 60-page deck with photos on a mid-range phone
 - [x] Decide reactions storage: batched per second via `bump_reaction()`
 - [x] Decide participant identity: anonymous auth plus a display name on join

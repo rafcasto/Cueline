@@ -18,7 +18,8 @@ type Sound = "on" | "muted" | "blocked";
 const RETRY_MS = 3000;
 
 /**
- * Broadcast-only viewer: an HLS player and nothing else. No WebRTC socket is opened.
+ * HLS fallback: an HLS player and nothing else, used when the WebRTC room cannot take a
+ * participant (see LiveViewer). Sits 6-10 s behind the presenters.
  *
  * Two things used to leave attendees with a black box until they refreshed. The playlist
  * does not exist for the first seconds after "Go live" (egress is still starting), and
@@ -83,7 +84,10 @@ export function HlsPlayer({ src, onLatency, className }: Props) {
       }, 1000);
 
     if (Hls.isSupported()) {
-      const hls = new Hls({ lowLatencyMode: true, liveSyncDurationCount: 2, liveMaxLatencyDurationCount: 6 });
+      // Egress writes plain 2 s segments, not LL-HLS parts, so low-latency mode has nothing to work
+      // with. Three segments of buffer absorb a late upload to the bucket; two left the audio
+      // dropping out on every hiccup for a second saved.
+      const hls = new Hls({ lowLatencyMode: false, liveSyncDurationCount: 3, liveMaxLatencyDurationCount: 8 });
       hls.loadSource(src);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
