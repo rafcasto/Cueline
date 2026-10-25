@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { RoomBrandingEditor } from "@/components/RoomBrandingEditor";
-import { Alert, Button, Card, CardHeader, Field, Input, Switch } from "@/components/ui";
+import { Alert, Button, Card, CardHeader, Field, Input, Switch, Textarea } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { Room } from "@/lib/supabase/types";
 
@@ -15,6 +15,40 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
+  const [description, setDescription] = useState(room.description ?? "");
+  const [topics, setTopics] = useState(room.topics.join(", "));
+  const [listingBusy, setListingBusy] = useState(false);
+  const [listingSaved, setListingSaved] = useState(false);
+  const listingDirty = description.trim() !== (room.description ?? "") || topics !== room.topics.join(", ");
+
+  const saveListing = async (e: FormEvent) => {
+    e.preventDefault();
+    setListingBusy(true);
+    setError(null);
+    setListingSaved(false);
+    try {
+      const r = await api<{ room: Room }>("/api/rooms", { action: "update", id: room.id, description, topics });
+      onSaved(r.room);
+      setTopics(r.room.topics.join(", "));
+      setListingSaved(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setListingBusy(false);
+    }
+  };
+  const setPublic = async (is_public: boolean) => {
+    setListingBusy(true);
+    setError(null);
+    try {
+      const r = await api<{ room: Room }>("/api/rooms", { action: "update", id: room.id, is_public });
+      onSaved(r.room);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setListingBusy(false);
+    }
+  };
   const dirty = name.trim() !== room.name || slug.trim() !== room.slug;
 
   const setChat = async (chat_enabled: boolean) => {
@@ -100,6 +134,33 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
           </div>
           <Switch checked={room.chat_enabled} onChange={(v) => void setChat(v)} label="Chat" disabled={chatBusy} />
         </div>
+      </Card>
+
+      <Card>
+        <CardHeader title="Public listing" description="List the room on Explore (tertulia.cloud/explore), where anyone can find it and register for the events you mark public." />
+        <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border border-line bg-surface-inset px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-ink">{room.is_public ? "Listed on Explore" : "Not listed"}</p>
+            <p className="text-sm text-ink-muted">{room.is_public ? `Public at /explore/${room.slug}. Events still need "List on Explore" ticked.` : "Only people with an invite link can find the room."}</p>
+          </div>
+          <Switch checked={room.is_public} onChange={(v) => void setPublic(v)} label="Public listing" disabled={listingBusy} />
+        </div>
+        {listingSaved && !error && (
+          <Alert tone="success" className="mt-4">
+            Saved.
+          </Alert>
+        )}
+        <form onSubmit={(e) => void saveListing(e)} className="mt-4 max-w-xl space-y-4">
+          <Field label="About the room" htmlFor="room-description" hint="Up to 600 characters. What the sessions are about and who they are for.">
+            <Textarea id="room-description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={600} rows={3} />
+          </Field>
+          <Field label="Topics" htmlFor="room-topics" hint="Up to six, separated by commas: letters, digits, spaces and hyphens. Visitors filter Explore by them.">
+            <Input id="room-topics" value={topics} onChange={(e) => setTopics(e.target.value)} placeholder="product management, startups, design" />
+          </Field>
+          <Button type="submit" variant="secondary" loading={listingBusy} disabled={!listingDirty}>
+            Save listing
+          </Button>
+        </form>
       </Card>
 
       <RoomBrandingEditor room={room} onSaved={onSaved} />

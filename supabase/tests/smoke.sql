@@ -211,3 +211,19 @@ select 'app_settings is service-role only' as check, count(*) = 0 as pass from p
 select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
 select 'attendee cannot read passes' as check, count(*) = 0 as pass from public.event_passes;
 reset role;
+
+-- Explore: listed rooms and public events are readable anonymously through the views; nothing else leaks.
+reset role;
+insert into public.invites(id, org_id, room_id, title, starts_at, is_public) values
+  ('77777777-7777-7777-7777-777777777771', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Public talk', now() + interval '1 day', true),
+  ('77777777-7777-7777-7777-777777777772', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Private talk', now() + interval '1 day', false);
+set role anon;
+select 'unlisted room hides its public event' as check, count(*) = 0 as pass from public.public_events;
+reset role;
+update public.rooms set is_public = true, description = 'Weekly product talks', topics = '{product,startups}' where id = '00000000-0000-0000-0000-000000000002';
+set role anon;
+select 'anon sees the listed room with its topics' as check, count(*) = 1 and bool_and('product' = any(topics)) as pass from public.public_rooms where slug = 'main';
+select 'anon sees only the public event, with its token' as check, count(*) = 1 and bool_and(title = 'Public talk' and token <> '') as pass from public.public_events;
+select 'anon cannot read invites directly' as check, count(*) = 0 as pass from public.invites;
+select 'anon cannot read registrations' as check, count(*) = 0 as pass from public.registrations;
+reset role;

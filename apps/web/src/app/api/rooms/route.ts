@@ -1,5 +1,6 @@
 import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
 import { parseBranding } from "@/lib/branding";
+import { parseTopics } from "@/lib/explore";
 import { cancelRoomEmails } from "@/lib/email/schedule";
 import { SLUG_PATTERN, slugify, uniqueSlug } from "@/lib/rooms";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -7,7 +8,7 @@ import type { Room } from "@/lib/supabase/types";
 
 type Body =
   | { action: "create"; org_id: string; name: string }
-  | { action: "update"; id: string; name?: string; slug?: string; branding?: unknown; chat_enabled?: unknown }
+  | { action: "update"; id: string; name?: string; slug?: string; branding?: unknown; chat_enabled?: unknown; is_public?: unknown; description?: unknown; topics?: unknown }
   | { action: "delete"; id: string };
 
 /**
@@ -66,6 +67,21 @@ export const POST = handler(async (req) => {
   if (body.chat_enabled !== undefined) {
     if (typeof body.chat_enabled !== "boolean") throw new HttpError(400, "chat_enabled must be true or false.");
     patch.chat_enabled = body.chat_enabled;
+  }
+  if (body.is_public !== undefined) {
+    if (typeof body.is_public !== "boolean") throw new HttpError(400, "is_public must be true or false.");
+    patch.is_public = body.is_public;
+  }
+  if (body.description !== undefined) {
+    if (body.description !== null && typeof body.description !== "string") throw new HttpError(400, "Description must be text.");
+    const d = (body.description ?? "").trim();
+    if (d.length > 600) throw new HttpError(400, "Description must be 600 characters or fewer.");
+    patch.description = d || null;
+  }
+  if (body.topics !== undefined) {
+    const parsed = parseTopics(body.topics);
+    if ("error" in parsed) throw new HttpError(400, parsed.error);
+    patch.topics = parsed.topics;
   }
   if (body.branding !== undefined) {
     const parsed = parseBranding(body.branding);

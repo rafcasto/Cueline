@@ -92,6 +92,10 @@ export type Room = {
   chat_enabled: boolean;
   /** The stage layout the next session starts with: the host's last choice. */
   stage_layout: StageLayout;
+  /** Listed on /explore, with a description and topics; see lib/explore. */
+  is_public: boolean;
+  description: string | null;
+  topics: string[];
   livekit_room: string;
   created_at: string;
 };
@@ -218,6 +222,8 @@ export type Invite = {
   created_by: string | null;
   created_at: string;
   revoked_at: string | null;
+  /** Listed on /explore when its room is listed too. */
+  is_public: boolean;
 };
 
 export type Registration = {

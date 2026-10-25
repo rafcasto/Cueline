@@ -46,9 +46,14 @@ export function PublicShell({ children, narrow }: { children: ReactNode; narrow?
         <Link href="/">
           <Logo />
         </Link>
-        <Link href="/login" className="text-sm font-medium text-ink-muted hover:text-ink">
-          Host sign in
-        </Link>
+        <nav className="flex items-center gap-4 text-sm font-medium text-ink-muted">
+          <Link href="/explore" className="hover:text-ink">
+            Explore
+          </Link>
+          <Link href="/login" className="hover:text-ink">
+            Host sign in
+          </Link>
+        </nav>
       </header>
       <main className={narrow ? "mx-auto w-full max-w-md flex-1 px-4 pb-16 pt-6 sm:px-6" : "mx-auto w-full max-w-5xl flex-1 px-4 pb-16 pt-4 sm:px-6"}>{children}</main>
     </>
