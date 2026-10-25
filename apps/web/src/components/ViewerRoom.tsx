@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityOverlay } from "@/components/ActivityOverlay";
-import { HlsPlayer } from "@/components/HlsPlayer";
+import { LiveViewer } from "@/components/LiveViewer";
 import { PdfPage } from "@/components/PdfPage";
 import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
@@ -38,7 +38,7 @@ function usePresentation(initial: Presentation | null, presentationId: string | 
 /**
  * The participant view. The page behind it has already checked registration, so the
  * attendee lands straight in the waiting room under their registered name; then the
- * deck page (rendered from the PDF) with the presenter video beside it, the activity
+ * deck page (rendered from the PDF) with the presenter video (WebRTC, HLS fallback) beside it, the activity
  * overlay on top, reactions and Q&A underneath.
  */
 export function ViewerRoom({ room, session: initialSession, presentation: initialPresentation, attendee }: Props) {
@@ -46,7 +46,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   const [identityError, setIdentityError] = useState<string | null>(null);
   const [joinedLocal, setJoinedLocal] = useState(false);
   const [knownSession, setKnownSession] = useState<Session | null>(initialSession);
-  // 0 until the player reports a live-edge distance; overlays are not held back for a video that is not playing.
+  // 0 over WebRTC and until the HLS fallback reports a live-edge distance; overlays are not held back for a video that is not playing.
   const latency = useRef(0);
   const { state, status } = useSession(knownSession?.id ?? null, { getLatencyMs: () => latency.current, userId, roomId: room.id, enabled: !!userId });
   const session = state.session ?? knownSession;
@@ -189,7 +189,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
               {myRoster === "live" && stage ? (
                 <RoomStage connection={stage} publish onDisconnected={() => setStage(null)} />
               ) : (
-                <HlsPlayer src={session.hls_url} onLatency={(ms) => (latency.current = ms)} className="aspect-video w-full bg-black" />
+                <LiveViewer sessionId={session.id} ready={!!userId} hlsUrl={session.hls_url} onLatency={(ms) => (latency.current = ms)} className="aspect-video w-full bg-black" />
               )}
             </div>
             {run && activity && (

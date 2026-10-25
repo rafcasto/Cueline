@@ -1,7 +1,8 @@
 /**
- * Video vendor adapter. LiveKit Cloud today: token grants cover publish/subscribe,
- * room-composite egress covers both the HLS leg for viewers and the recording.
- * Keep every vendor call behind this module so Daily/100ms can be swapped in.
+ * Video vendor adapter. LiveKit Cloud today: token grants cover publish (presenters, promoted
+ * participants) and subscribe-only (everyone else, over WebRTC); one room-composite egress
+ * writes the recording and an HLS fallback. Keep every vendor call behind this module so
+ * Daily/100ms can be swapped in.
  */
 import {
   AccessToken,
@@ -51,7 +52,7 @@ export async function ensureRoom(room: string) {
   await roomService().createRoom({ name: room, emptyTimeout: 60 * 60 * 4, departureTimeout: 60 * 10 });
 }
 
-/** Publish token for presenters and promoted viewers; subscribe-only otherwise. Short TTL, re-minted on demand. */
+/** Publish token for presenters and promoted participants; subscribe-only for the audience. Short TTL, re-minted on demand. */
 export async function mintRoomToken(opts: { room: string; identity: string; name?: string; role: TokenRole; ttlSeconds?: number }) {
   const at = new AccessToken(env("LIVEKIT_API_KEY"), env("LIVEKIT_API_SECRET"), {
     identity: opts.identity,
@@ -65,6 +66,9 @@ export async function mintRoomToken(opts: { room: string; identity: string; name
     canPublish: publish,
     canPublishData: publish,
     canSubscribe: true,
+    // The audience is hidden: not drawn by the egress composite, not listed to presenters, and a
+    // join does not fan a participant update out to every other participant in the room.
+    hidden: !publish,
   });
   return { token: await at.toJwt(), url: env("LIVEKIT_URL") };
 }
@@ -80,12 +84,16 @@ export async function removeFromRoom(room: string, identity: string) {
 }
 
 /**
- * Start the HLS leg: room-composite egress writing segments to object storage.
- * Returns the egress id and the public playlist URL viewers will play.
+ * One room-composite egress per session carrying both outputs: the MP4 recording and the
+ * HLS segments. Participants watch over WebRTC, so the HLS leg is a fallback (room full,
+ * WebRTC blocked) and the live playlist for anyone the room cannot take. A single composite
+ * costs one transcode minute per minute; running the recording and the HLS as two egresses
+ * doubled that and burned through the free plan's allowance in half an hour.
  */
-export async function startHlsEgress(room: string, sessionId: string) {
+export async function startSessionEgress(room: string, sessionId: string) {
   const prefix = `sessions/${sessionId}/live`;
-  const output = new SegmentedFileOutput({
+  const filepath = `sessions/${sessionId}/recording.mp4`;
+  const segments = new SegmentedFileOutput({
     protocol: SegmentedFileProtocol.HLS_PROTOCOL,
     filenamePrefix: `${prefix}/seg`,
     playlistName: `${prefix}/index.m3u8`,
@@ -93,28 +101,17 @@ export async function startHlsEgress(room: string, sessionId: string) {
     segmentDuration: 2,
     output: { case: "s3", value: s3Output() },
   });
-  const info = await egress().startRoomCompositeEgress(room, output, {
-    layout: "speaker",
-    encodingOptions: EncodingOptionsPreset.H264_720P_30,
-  });
-  const base = env("RECORDING_PUBLIC_BASE_URL").replace(/\/$/, "");
-  return { egressId: info.egressId, hlsUrl: `${base}/${prefix}/live.m3u8` };
-}
-
-/** Recording: a single MP4 per session, next to the HLS segments. */
-export async function startRecordingEgress(room: string, sessionId: string) {
-  const filepath = `sessions/${sessionId}/recording.mp4`;
-  const output = new EncodedFileOutput({
+  const file = new EncodedFileOutput({
     fileType: EncodedFileType.MP4,
     filepath,
     output: { case: "s3", value: s3Output() },
   });
-  const info = await egress().startRoomCompositeEgress(room, output, {
+  const info = await egress().startRoomCompositeEgress(room, { file, segments }, {
     layout: "speaker",
     encodingOptions: EncodingOptionsPreset.H264_720P_30,
   });
   const base = env("RECORDING_PUBLIC_BASE_URL").replace(/\/$/, "");
-  return { egressId: info.egressId, recordingUrl: `${base}/${filepath}` };
+  return { egressId: info.egressId, hlsUrl: `${base}/${prefix}/live.m3u8`, recordingUrl: `${base}/${filepath}` };
 }
 
 export async function stopEgress(egressId: string) {
