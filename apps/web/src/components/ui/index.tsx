@@ -1,14 +1,15 @@
 import Link from "next/link";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import { cx } from "@/components/ui/cx";
+import { LinkBody } from "@/components/ui/LinkBody";
+import { Spinner } from "@/components/ui/Spinner";
 
 /*
  * The primitives every screen is built from. One place for the type scale, the control
  * heights, the border radius and the shadows, so screens only decide hierarchy and spacing.
  */
 
-export function cx(...parts: Array<string | false | null | undefined>) {
-  return parts.filter(Boolean).join(" ");
-}
+export { cx, Spinner };
 
 // ---------------------------------------------------------------------------
 // Buttons
@@ -57,17 +58,8 @@ export function ButtonLink({ href, variant = "primary", size = "md", className, 
   }
   return (
     <Link href={href} className={cls} {...rest}>
-      {children}
+      <LinkBody>{children}</LinkBody>
     </Link>
-  );
-}
-
-export function Spinner({ className }: { className?: string }) {
-  return (
-    <svg className={cx("animate-spin", className)} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" strokeWidth="4" />
-      <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
-    </svg>
   );
 }
 
