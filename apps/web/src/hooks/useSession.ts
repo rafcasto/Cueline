@@ -26,7 +26,7 @@ const SNAPSHOT_FALLBACK_MS = 4000;
 type Client = ReturnType<typeof supabaseBrowser>;
 
 async function loadSnapshot(sb: Client, sessionId: string, roomId: string, me: string | null): Promise<Snapshot> {
-  const [session, activities, runs, tallies, mine, participants, questions, votes, hands, roster, last] = await Promise.all([
+  const [session, activities, runs, tallies, mine, participants, questions, votes, chat, hands, roster, last] = await Promise.all([
     sb.from("sessions").select("*").eq("id", sessionId).maybeSingle(),
     sb.from("activities").select("*").eq("room_id", roomId).order("sort_order"),
     sb.from("activity_runs").select("*").eq("session_id", sessionId),
@@ -35,6 +35,8 @@ async function loadSnapshot(sb: Client, sessionId: string, roomId: string, me: s
     sb.from("participants").select("*").eq("session_id", sessionId),
     sb.from("questions").select("*").eq("session_id", sessionId),
     sb.from("question_votes").select("question_id").eq("session_id", sessionId),
+    // The latest 200; the stream carries everything after the snapshot.
+    sb.from("chat_messages").select("*").eq("session_id", sessionId).order("created_at", { ascending: false }).limit(200),
     sb.from("hand_raises").select("*").eq("session_id", sessionId).is("cleared_at", null),
     sb.from("stage_roster").select("*").eq("session_id", sessionId),
     sb.from("slide_events").select("*").eq("session_id", sessionId).order("server_ts", { ascending: false }).limit(1).maybeSingle(),
@@ -48,6 +50,7 @@ async function loadSnapshot(sb: Client, sessionId: string, roomId: string, me: s
     participants: participants.data ?? [],
     questions: questions.data ?? [],
     questionVotes: votes.data ?? [],
+    chat: chat.data ?? [],
     handRaises: hands.data ?? [],
     roster: roster.data ?? [],
     lastSlide: last.data ?? null,

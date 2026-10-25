@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentRun, emptyState, fromSnapshot, latestRun, reduce, runPhase, tallyFor, timeLeftMs, withActivity, wordCloud } from "./session-state";
+import { chatMessages, currentRun, emptyState, fromSnapshot, latestRun, reduce, runPhase, tallyFor, timeLeftMs, withActivity, wordCloud } from "./session-state";
 import type { Activity, ActivityRun, SessionBroadcast } from "./supabase/types";
 
 const msg = (table: string, operation: "INSERT" | "UPDATE" | "DELETE", record: Record<string, unknown> | null, old_record: Record<string, unknown> | null = null): SessionBroadcast => ({
@@ -14,6 +14,32 @@ const quiz: Activity = {
 const run = (over: Partial<ActivityRun> = {}): ActivityRun => ({
   id: "run1", org_id: "o", session_id: "s", activity_id: "a1", opened_at: "2026-09-30T10:00:00Z", closes_at: "2026-09-30T10:00:30Z",
   closed_at: null, results_shown_at: null, hidden_at: null, ...over,
+});
+
+describe("chat", () => {
+  const m = (id: string, user_id: string, created_at: string, hidden_at: string | null = null) => ({ id, org_id: "o", session_id: "s", user_id, body: `msg ${id}`, hidden_at, created_at });
+
+  it("keeps messages in time order from the snapshot and the stream", () => {
+    let s = fromSnapshot({ chat: [m("b", "u2", "2026-09-30T10:00:02Z"), m("a", "u1", "2026-09-30T10:00:01Z")] });
+    s = reduce(s, msg("chat_messages", "INSERT", m("c", "u1", "2026-09-30T10:00:03Z")));
+    expect(chatMessages(s, "u1").map((x) => x.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("hides a message for everyone but its author and the host, and restores it", () => {
+    let s = fromSnapshot({ chat: [m("a", "u1", "2026-09-30T10:00:01Z"), m("b", "u2", "2026-09-30T10:00:02Z")] });
+    s = reduce(s, msg("chat_messages", "UPDATE", m("b", "u2", "2026-09-30T10:00:02Z", "2026-09-30T10:01:00Z")));
+    expect(chatMessages(s, "u1").map((x) => x.id)).toEqual(["a"]);
+    expect(chatMessages(s, "u2").map((x) => [x.id, !!x.hidden_at])).toEqual([["a", false], ["b", true]]);
+    expect(chatMessages(s, "host", true).map((x) => x.id)).toEqual(["a", "b"]);
+    s = reduce(s, msg("chat_messages", "UPDATE", m("b", "u2", "2026-09-30T10:00:02Z")));
+    expect(chatMessages(s, "u1").map((x) => x.id)).toEqual(["a", "b"]);
+  });
+
+  it("drops a deleted message and ignores a delete it never saw", () => {
+    const s = fromSnapshot({ chat: [m("a", "u1", "2026-09-30T10:00:01Z")] });
+    expect(reduce(s, msg("chat_messages", "DELETE", null, m("zz", "u1", "x")))).toBe(s);
+    expect(chatMessages(reduce(s, msg("chat_messages", "DELETE", null, m("a", "u1", "x"))), "u1")).toEqual([]);
+  });
 });
 
 describe("reduce", () => {

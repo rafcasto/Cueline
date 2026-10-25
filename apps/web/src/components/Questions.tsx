@@ -13,21 +13,22 @@ type Props = {
   onApprove?: (q: Question, approved: boolean) => Promise<void>;
   onAnswered?: (q: Question) => Promise<void>;
   host?: boolean;
+  /** No card chrome, for a tab panel that already has it. */
+  bare?: boolean;
 };
 
-export function Questions({ state, userId, onAsk, onUpvote, onApprove, onAnswered, host }: Props) {
+export function Questions({ state, userId, onAsk, onUpvote, onApprove, onAnswered, host, bare }: Props) {
   const [body, setBody] = useState("");
   const [voted, setVoted] = useState<Set<string>>(new Set());
   const list = Object.values(state.questions)
     .filter((q) => host || q.approved || q.user_id === userId)
     .sort((a, b) => (state.questionVotes[b.id] ?? 0) - (state.questionVotes[a.id] ?? 0) || a.created_at.localeCompare(b.created_at));
 
-  return (
-    <Card>
-      <CardHeader title="Q&A" description={host ? "Approve questions to show them to everyone." : undefined} />
+  const inner = (
+    <>
       {!host && (
         <form
-          className="mt-4 flex gap-2"
+          className={cx("flex gap-2", !bare && "mt-4")}
           onSubmit={(e) => {
             e.preventDefault();
             if (!body.trim()) return;
@@ -90,6 +91,13 @@ export function Questions({ state, userId, onAsk, onUpvote, onApprove, onAnswere
           </li>
         ))}
       </ul>
+    </>
+  );
+  if (bare) return <div>{inner}</div>;
+  return (
+    <Card>
+      <CardHeader title="Q&A" description={host ? "Approve questions to show them to everyone." : undefined} />
+      {inner}
     </Card>
   );
 }

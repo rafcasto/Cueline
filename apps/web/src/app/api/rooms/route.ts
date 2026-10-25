@@ -7,7 +7,7 @@ import type { Room } from "@/lib/supabase/types";
 
 type Body =
   | { action: "create"; org_id: string; name: string }
-  | { action: "update"; id: string; name?: string; slug?: string; branding?: unknown }
+  | { action: "update"; id: string; name?: string; slug?: string; branding?: unknown; chat_enabled?: unknown }
   | { action: "delete"; id: string };
 
 /**
@@ -62,6 +62,10 @@ export const POST = handler(async (req) => {
       if (clash) throw new HttpError(409, "That address is already taken.");
       patch.slug = slug;
     }
+  }
+  if (body.chat_enabled !== undefined) {
+    if (typeof body.chat_enabled !== "boolean") throw new HttpError(400, "chat_enabled must be true or false.");
+    patch.chat_enabled = body.chat_enabled;
   }
   if (body.branding !== undefined) {
     const parsed = parseBranding(body.branding);

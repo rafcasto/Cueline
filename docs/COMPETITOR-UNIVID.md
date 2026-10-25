@@ -55,7 +55,7 @@ Legend: **yes** in Phase 1; **partial** exists but thinner; **no** not built; **
 | Quizzes | Not mentioned | **yes** Correct answers, points, server-side scoring, leaderboard across the session. |
 | Word clouds | Not mentioned | **yes** |
 | Q&A | **yes** Upvotes, host moderation, mark as answered. |
-| Chat | **no** Q&A only; no free-form chat. |
+| Chat | **yes** Live chat beside Q&A, in the waiting room and the session; the host hides messages and can switch chat off per room. |
 | Reactions | **yes** Six kinds, batched per second, float for everyone. |
 | Hand raise and bring on stage | Not mentioned | **yes** |
 | Call to action button that opens a website | **yes** Plus checkout and embed; see Create. |
@@ -92,7 +92,7 @@ Where Univid is ahead and it matters to the same buyer, in rough order of weight
 3. On-demand playback of the recording on the invite page after the event.
 4. Branded emails (the room's logo and accent in the templates).
 5. Self-serve signup and team invites (Phase 2), then a public pricing page (Phase 3).
-6. Chat alongside Q&A, mp4 slides, subtitles, multilingual, SSO: real but later.
+6. mp4 slides, subtitles, multilingual, SSO: real but later.
 
 ## Their landing page, and ours
 
