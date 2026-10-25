@@ -14,7 +14,7 @@ The full design is in [docs/DESIGN.md](docs/DESIGN.md); a feature and landing-pa
 
 ## How it fits together
 
-**Landing page.** Two doors: *Log in as host* and *Join a room*. Attendees who already registered join with the email and the six-character code from their welcome email, or skip the typing with the personal link in that email.
+**Landing page.** The community front door, on the Meetup pattern: a search box into Explore, the next public events and the listed rooms (read live from the directory; empty states when there are none or it cannot be reached), topic chips, how it works for someone joining and for someone organising, and *Start a community* as the host door. Attendees who already registered join with the email and the six-character code from their welcome email, or skip the typing with the personal link in that email.
 
 **Rooms.** A host creates as many rooms as they need from `/host`. A room is a standing space: its own events and invite links, email sequence, deck, activities, waiting room and branding. The Settings tab renames it, changes its `/r/` address, sets its branding, or deletes it (which cancels the reminders still scheduled for its registrants).
 
