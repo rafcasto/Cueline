@@ -32,7 +32,7 @@ const url = process.env.LIVEKIT_URL ?? "";
 const key = process.env.LIVEKIT_API_KEY ?? "";
 const secret = process.env.LIVEKIT_API_SECRET ?? "";
 if (!url || !key || !secret) await fail("LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET must be set (see .env.example).");
-if (!/^wss:\/\/[a-z0-9-]+\.livekit\.cloud$/.test(url)) warn(`LIVEKIT_URL is "${url}". LiveKit Cloud projects look like wss://<name>-<id>.livekit.cloud; copy it from the project's Settings page.`);
+if (!/^wss:\/\/[a-z0-9.-]+(:\d+)?$/.test(url)) warn(`LIVEKIT_URL is "${url}". It must be a wss:// URL: wss://<name>-<id>.livekit.cloud for LiveKit Cloud (copy it from the project's Settings page) or wss://<your-domain> for a self-hosted server.`);
 if (url === "wss://cueline.livekit.cloud") warn("That is the placeholder from .env.example, not a real project URL.");
 for (const k of ["RECORDING_S3_BUCKET", "RECORDING_S3_ACCESS_KEY", "RECORDING_S3_SECRET_KEY", "RECORDING_PUBLIC_BASE_URL"]) {
   if (!process.env[k]) warn(`${k} is not set; egress will fail to upload.`);
