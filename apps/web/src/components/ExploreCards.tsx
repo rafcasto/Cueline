@@ -74,13 +74,15 @@ export function RoomCard({ room }: { room: PublicRoom }) {
   );
 }
 
+/** Topic filter chips. `base` may already carry a query (`/explore?view=rooms`); the topic is appended either way. */
 export function TopicChips({ topics, active, className, base = "/explore" }: { topics: string[]; active?: string; className?: string; base?: string }) {
+  const sep = base.includes("?") ? "&" : "?";
   return (
     <ul className={cx("flex flex-wrap gap-1.5", className)}>
       {topics.map((t) => (
         <li key={t}>
           <Link
-            href={active === t ? base : `${base}?topic=${encodeURIComponent(t)}`}
+            href={active === t ? base : `${base}${sep}topic=${encodeURIComponent(t)}`}
             className={cx(
               "inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
               active === t ? "border-brand bg-brand text-brand-contrast" : "border-line bg-surface-inset text-ink-muted hover:border-line-strong hover:text-ink",

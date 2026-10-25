@@ -1,16 +1,24 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
-import { Badge, ButtonLink, Logo } from "@/components/ui";
+import { EventCard, RoomCard, TopicChips } from "@/components/ExploreCards";
+import { Badge, Button, ButtonLink, EmptyState, Input, Logo } from "@/components/ui";
+import { listPublicEvents, listPublicRooms, listTopics, type PublicEvent, type PublicRoom } from "@/lib/explore";
+
+export const dynamic = "force-dynamic";
 
 /**
- * Landing page. The same skeleton as the category leaders (promise, engagement, branding,
- * how it works, closing call to action) but every line describes something the product does
- * today: no ratings, logos or percentages until there are real ones to show.
+ * Landing page, built the way Meetup's front door is: a promise about people and a search box
+ * first, then what is actually happening (upcoming public events and the communities running
+ * them, read live from the directory), how it works for someone joining and for someone
+ * organising, and a closing invitation to start a community. Every line still describes
+ * something the product does today: no ratings, logos or percentages until there are real ones.
  *
- * Attendees also land here from a bookmark, so the two doors (host sign in, join a room) stay
- * in the hero and in the footer.
+ * Attendees also land here from a bookmark, so the typed door (email + code) stays reachable
+ * from the header, the hero and the footer.
  */
-export default function Home() {
+export default async function Home() {
+  const { events, rooms, topics } = await directory();
+
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-line/60 bg-surface-sunken/85 backdrop-blur">
@@ -20,66 +28,155 @@ export default function Home() {
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-ink-muted md:flex" aria-label="Primary">
             <Link href="/explore" className="hover:text-ink">
-              Explore
+              Events
             </Link>
-            <a href="#engage" className="hover:text-ink">
-              Engagement
-            </a>
-            <a href="#branding" className="hover:text-ink">
-              Branding
-            </a>
+            <Link href="/explore?view=rooms" className="hover:text-ink">
+              Communities
+            </Link>
             <a href="#how" className="hover:text-ink">
               How it works
+            </a>
+            <a href="#organise" className="hover:text-ink">
+              Organise
             </a>
           </nav>
           <div className="flex items-center gap-2">
             <Link href="/join" className="hidden text-sm font-medium text-ink-muted hover:text-ink sm:inline">
-              Join a room
+              Join with a code
             </Link>
             <ButtonLink href="/login" size="sm">
-              Host sign in
+              Start a community
             </ButtonLink>
           </div>
         </div>
       </header>
 
       <main className="flex-1">
-        {/* Hero */}
+        {/* Hero: the promise and the search */}
         <section className="relative overflow-hidden">
           <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-[radial-gradient(60%_60%_at_50%_0%,var(--brand-soft),transparent_70%)]" />
           <div className="mx-auto max-w-6xl px-4 pb-16 pt-14 sm:px-6 sm:pt-24">
             <div className="mx-auto max-w-3xl text-center">
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand">Live webinars, browser only</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand">Live communities, in the browser</p>
               <h1 className="mt-3 text-4xl font-semibold leading-[1.08] tracking-tight text-ink sm:text-6xl">
-                Webinars where the slides <em className="not-italic text-brand">ask the room</em>.
+                Find your people. <em className="not-italic text-brand">Show up live.</em>
               </h1>
               <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-ink-muted">
-                Present your deck live and launch polls, quizzes, word clouds and calls to action over it. Attendees answer on the slide they are watching, from any device, with no download and no account.
+                Tertulia is where communities gather for live sessions: talks, workshops, classes and open conversations you join from any browser. Register with a name and an email, no download and no account, and take part from the first minute.
               </p>
+
+              <form action="/explore" method="get" role="search" className="mx-auto mt-8 flex max-w-xl gap-2">
+                <Input name="q" placeholder="Search events and communities" aria-label="Search events and communities" className="h-12 flex-1 text-base" />
+                <Button type="submit" size="lg">
+                  Search
+                </Button>
+              </form>
+              {topics.length > 0 && (
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2 text-sm text-ink-muted">
+                  <span>Popular:</span>
+                  <TopicChips topics={topics} className="justify-center" />
+                </div>
+              )}
+
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-                <ButtonLink href="/login" size="lg" className="w-full sm:w-auto">
-                  Create your room
+                <ButtonLink href="/explore" size="lg" className="w-full sm:w-auto">
+                  Find an event
                 </ButtonLink>
-                <ButtonLink href="/join" variant="secondary" size="lg" className="w-full sm:w-auto">
-                  I&apos;m attending, join a room
+                <ButtonLink href="/login" variant="secondary" size="lg" className="w-full sm:w-auto">
+                  Start a community
                 </ButtonLink>
               </div>
-              <p className="mt-4 text-sm text-ink-muted">Got an invite link from the organiser? Open it and register; your personal join link arrives by email.</p>
+              <p className="mt-4 text-sm text-ink-muted">
+                Already registered for a session?{" "}
+                <Link href="/join" className="font-medium text-brand hover:underline">
+                  Join with your email and code
+                </Link>
+                , or open the personal link from your welcome email.
+              </p>
             </div>
-
-            <RoomMock className="mx-auto mt-14 max-w-4xl" />
           </div>
         </section>
 
-        {/* Engagement */}
-        <section id="engage" className="border-t border-line bg-surface-raised scroll-mt-16">
-          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+        {/* Happening soon: the directory, live */}
+        <section id="events" className="border-t border-line bg-surface-raised scroll-mt-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+            <SectionHeading title="Happening soon" body="Public sessions across every listed community. Register in one tap; the organiser's reminders do the rest." href="/explore" link="See all events" />
+            {events.length === 0 ? (
+              <EmptyState
+                className="mt-8"
+                title="No public events listed yet"
+                description="Organisers list a session by ticking List on Explore when they create it. Browse the communities, or be the first to put one up."
+                action={
+                  <Link href="/explore?view=rooms" className="text-sm font-medium text-brand hover:underline">
+                    Browse communities
+                  </Link>
+                }
+              />
+            ) : (
+              <ul className="mt-8 grid gap-4 lg:grid-cols-2">
+                {events.map((e) => (
+                  <EventCard key={e.id} event={e} />
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        {/* Communities to join */}
+        <section id="communities" className="border-t border-line scroll-mt-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+            <SectionHeading title="Communities to join" body="Each one is a standing room with its own organisers, events, people and recordings. Follow the ones you care about and come back for the next session." href="/explore?view=rooms" link="Browse all communities" />
+            {rooms.length === 0 ? (
+              <EmptyState
+                className="mt-8"
+                title="No communities listed yet"
+                description="A community appears here once its organiser lists it from the room's Settings tab. Yours could be the first."
+                action={
+                  <Link href="/login" className="text-sm font-medium text-brand hover:underline">
+                    Start a community
+                  </Link>
+                }
+              />
+            ) : (
+              <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {rooms.map((r) => (
+                  <RoomCard key={r.id} room={r} />
+                ))}
+              </ul>
+            )}
+            {topics.length > 0 && (
+              <div className="mt-10">
+                <h3 className="text-sm font-semibold text-ink">Browse by topic</h3>
+                <TopicChips topics={topics} className="mt-3" base="/explore?view=rooms" />
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* How it works, for someone joining */}
+        <section id="how" className="border-t border-line bg-surface-raised scroll-mt-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
             <div className="max-w-2xl">
-              <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Engage the audience without leaving the slide</h2>
-              <p className="mt-3 text-lg text-ink-muted">Every activity opens as an overlay on the deck, with a timer if you want one, and the results reveal when you say so.</p>
+              <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">How Tertulia works</h2>
+              <p className="mt-3 text-lg text-ink-muted">Three steps from curious to in the room. Nothing to install, nothing to sign up for.</p>
             </div>
-            <ul className="mt-8 flex flex-wrap gap-2" aria-label="Engagement features">
-              {["Polls", "Quizzes with scores", "Word clouds", "Calls to action", "Live chat", "Q&A with upvotes", "Reactions", "Raise hand", "Bring on stage"].map((t) => (
+            <ol className="mt-10 grid gap-6 md:grid-cols-3">
+              <HowCard n="1" title="Find a community" body="Search by topic or browse what is listed. Every community has a public page with what it is about, who is organising it, what is coming up and what it has run before." href="/explore?view=rooms" link="Browse communities" />
+              <HowCard n="2" title="Register for an event" body="Pick a session and register with a name and an email, nothing else. A welcome email brings your personal link and a join code, and reminders arrive before the start." href="/explore" link="See upcoming events" />
+              <HowCard n="3" title="Show up live" body="Open your link when the doors open. You see and hear the organisers, answer the polls and quizzes on the slide, chat, ask questions, react, and raise a hand to be brought on stage." href="/join" link="Join with a code" />
+            </ol>
+          </div>
+        </section>
+
+        {/* Together in the session */}
+        <section id="together" className="border-t border-line scroll-mt-16">
+          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+            <div className="max-w-2xl">
+              <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">A session you take part in, not a stream you watch</h2>
+              <p className="mt-3 text-lg text-ink-muted">Every activity opens over the slide everyone is looking at, with a timer if the organiser wants one, and the results reveal when they say so.</p>
+            </div>
+            <ul className="mt-8 flex flex-wrap gap-2" aria-label="What members can do in a session">
+              {["Polls", "Quizzes with scores", "Word clouds", "Live chat", "Q&A with upvotes", "Reactions", "Raise hand", "Come on stage", "Recordings"].map((t) => (
                 <li key={t}>
                   <Badge tone="brand" className="px-3 py-1 text-sm">
                     {t}
@@ -87,72 +184,56 @@ export default function Home() {
                 </li>
               ))}
             </ul>
+            <RoomMock className="mx-auto mt-10 max-w-4xl" />
             <div className="mt-10 grid gap-6 md:grid-cols-3">
-              <Feature
-                title="Polls and word clouds"
-                body="Author them before the session, launch any of them at any slide. Attendees tap an answer or type a word; the tally or the cloud appears as the reveal."
-              />
-              <Feature
-                title="Quizzes with a leaderboard"
-                body="Mark the correct answers and set the points. Answers are scored server-side as they land, with a bonus for speed, and the leaderboard runs across the whole session."
-              />
-              <Feature
-                title="Calls to action that convert in the room"
-                body="Open a page in a new tab, embed it over the slide, or take a card payment with Stripe without the attendee leaving. Views, taps and conversions are logged per slide."
-              />
-              <Feature title="Chat and Q&A the host moderates" body="Attendees chat with the room and ask questions with upvotes. The host approves the questions everyone sees, hides a chat message with one tap, and marks questions answered." />
-              <Feature title="Reactions and hands" body="Six reactions float across everyone's screen. A raised hand can be promoted to the stage, camera and all, in about a second." />
-              <Feature title="A waiting room with sound" body="A picture or a looping video, music, and your welcome text on a 16:9 canvas while the doors are open. It stops the moment you go live." />
+              <Feature title="Answer on the slide" body="Polls, quizzes and word clouds appear over the deck as the organiser launches them. Tap an answer or type a word; the tally, the cloud or the leaderboard appears as the reveal." />
+              <Feature title="Talk to the room" body="Chat with everyone while the doors are open and during the session. Ask a question, upvote the ones you want answered, and watch the organiser mark them answered." />
+              <Feature title="Be seen, if you want to" body="Six reactions float across every screen. Raise a hand and the organiser can bring you on stage, camera and all, in about a second." />
             </div>
           </div>
         </section>
 
-        {/* Branding */}
-        <section id="branding" className="border-t border-line scroll-mt-16">
-          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-20 sm:px-6 lg:grid-cols-2">
+        {/* Organise a community */}
+        <section id="organise" className="border-t border-line bg-surface-raised scroll-mt-16">
+          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 sm:py-20 lg:grid-cols-2">
             <div>
-              <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Your colour. Your logo. Your call to action.</h2>
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand">For organisers</p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Start a community people come back to</h2>
               <p className="mt-3 text-lg text-ink-muted">
-                Pick an accent and upload a logo once per room. The invite page, the waiting room chrome and every button, badge and chosen answer in the room take your colour. Add a standing call to action and it sits in the header for the whole session.
+                A community on Tertulia is a room you own: your colour and logo, your events, your people and your recordings in one place. List it on Explore and anyone can find it; every event you publish there is a registration page too.
               </p>
               <ul className="mt-6 space-y-3 text-sm text-ink">
-                <Check>Accent colour with readable text, light or dark, chosen for you</Check>
-                <Check>Logo in place of ours, in the room and on the invite page</Check>
-                <Check>A standing call to action button, plus calls to action you launch mid-talk</Check>
+                <Check>A public page with your description, topics, upcoming and past events</Check>
+                <Check>Events that double as invite links; members register with a name and an email</Check>
                 <Check>A welcome email and four reminders per room, edited once and inherited by every event</Check>
+                <Check>Polls, quizzes, word clouds and calls to action over your slides, with timers and reveals</Check>
+                <Check>Who registered against who joined, and a recording of every session</Check>
+                <Check>Your accent colour and logo on the room, the invite page and every button in it</Check>
               </ul>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <ButtonLink href="/login" size="lg" className="w-full sm:w-auto">
+                  Start a community
+                </ButtonLink>
+                <ButtonLink href="/explore?view=rooms" variant="secondary" size="lg" className="w-full sm:w-auto">
+                  See how others run theirs
+                </ButtonLink>
+              </div>
             </div>
             <BrandMock />
           </div>
         </section>
 
-        {/* How it works */}
-        <section id="how" className="border-t border-line bg-surface-raised scroll-mt-16">
-          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-            <div className="max-w-2xl">
-              <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Webinars, the Tertulia way</h2>
-              <p className="mt-3 text-lg text-ink-muted">Four steps, one browser tab, nothing to install for anyone.</p>
-            </div>
-            <ol className="mt-10 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-              <Step n="1" title="Create" items={["Make a room with your branding", "Upload the deck as a PDF", "Author polls, quizzes, word clouds and calls to action, each with an optional timer", "Design the waiting room"]} />
-              <Step n="2" title="Invite" items={["Create an event with a start time; it is also the invite link", "Attendees register with a name and an email, nothing else", "A welcome email with a personal link and a join code", "Reminders at 48 h, 24 h, 2 h and 15 min"]} />
-              <Step n="3" title="Host" items={["Open the waiting room, then go live", "Present the deck; everyone sees the page you are on", "Launch an activity on any slide and close it when the timer ends", "Promote a raised hand to the stage"]} />
-              <Step n="4" title="Reveal" items={["Show results as an overlay: tallies, the cloud or the leaderboard", "Hide and bring back any activity at any time", "See who registered against who joined", "Every session is recorded"]} />
-            </ol>
-          </div>
-        </section>
-
         {/* Closing CTA */}
         <section className="border-t border-line">
-          <div className="mx-auto max-w-6xl px-4 py-20 text-center sm:px-6">
-            <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Run your next webinar on Tertulia</h2>
-            <p className="mx-auto mt-3 max-w-xl text-lg text-ink-muted">Sign in, create a room, share the link. Attendees need a browser and nothing else.</p>
+          <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:px-6 sm:py-20">
+            <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Your next session is a browser tab away</h2>
+            <p className="mx-auto mt-3 max-w-xl text-lg text-ink-muted">Join a community and register for what is coming up, or start one of your own and invite the people you want in the room.</p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <ButtonLink href="/login" size="lg" className="w-full sm:w-auto">
-                Host sign in
+              <ButtonLink href="/explore" size="lg" className="w-full sm:w-auto">
+                Find an event
               </ButtonLink>
-              <ButtonLink href="/join" variant="secondary" size="lg" className="w-full sm:w-auto">
-                Join with email and code
+              <ButtonLink href="/login" variant="secondary" size="lg" className="w-full sm:w-auto">
+                Start a community
               </ButtonLink>
             </div>
           </div>
@@ -160,13 +241,14 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-line bg-surface-raised">
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[2fr_1fr_1fr]">
+        <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[2fr_1fr_1fr_1fr]">
           <div>
             <Logo />
-            <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink-muted">Live webinars with the engagement built into the slides. Presenters on WebRTC, attendees in any browser, recordings of every session.</p>
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink-muted">Live communities in the browser. Find a session, register with a name and an email, and take part on the slide. Organisers run their own rooms, with recordings of every session.</p>
           </div>
-          <FooterGroup title="Product" links={[["Engagement", "#engage"], ["Branding", "#branding"], ["How it works", "#how"], ["Host sign in", "/login"]]} />
-          <FooterGroup title="Attending" links={[["Explore upcoming events", "/explore"], ["Join with email and code", "/join"], ["Host sign in", "/login"]]} />
+          <FooterGroup title="Discover" links={[["Upcoming events", "/explore"], ["Communities", "/explore?view=rooms"], ["How it works", "#how"], ["In the session", "#together"]]} />
+          <FooterGroup title="Attending" links={[["Join with email and code", "/join"], ["Happening soon", "#events"]]} />
+          <FooterGroup title="Organise" links={[["Start a community", "/login"], ["For organisers", "#organise"], ["Host sign in", "/login"]]} />
         </div>
         <div className="border-t border-line">
           <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-sm text-ink-muted sm:px-6">
@@ -179,9 +261,51 @@ export default function Home() {
   );
 }
 
+/**
+ * What the directory has to show on the front door: the next public events, the most active
+ * listed communities and the topics in use. The landing page must render for anyone, so a
+ * directory that cannot be reached (no database configured, an outage) shows the empty states
+ * rather than an error.
+ */
+async function directory(): Promise<{ events: PublicEvent[]; rooms: PublicRoom[]; topics: string[] }> {
+  try {
+    const [events, rooms, topics] = await Promise.all([listPublicEvents({}, 6), listPublicRooms({}, 6), listTopics()]);
+    return { events, rooms, topics: topics.slice(0, 8).map((t) => t.topic) };
+  } catch {
+    return { events: [], rooms: [], topics: [] };
+  }
+}
+
+function SectionHeading({ title, body, href, link }: { title: string; body: string; href: string; link: string }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="max-w-2xl">
+        <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">{title}</h2>
+        <p className="mt-3 text-lg text-ink-muted">{body}</p>
+      </div>
+      <Link href={href} className="text-sm font-medium text-brand hover:underline">
+        {link} →
+      </Link>
+    </div>
+  );
+}
+
+function HowCard({ n, title, body, href, link }: { n: string; title: string; body: string; href: string; link: string }) {
+  return (
+    <li className="flex flex-col rounded-2xl border border-line bg-surface-sunken p-6">
+      <span className="flex size-9 items-center justify-center rounded-full bg-brand text-sm font-semibold text-brand-contrast">{n}</span>
+      <h3 className="mt-4 text-lg font-semibold text-ink">{title}</h3>
+      <p className="mt-2 flex-1 text-sm leading-relaxed text-ink-muted">{body}</p>
+      <Link href={href} className="mt-4 text-sm font-medium text-brand hover:underline">
+        {link} →
+      </Link>
+    </li>
+  );
+}
+
 function Feature({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-2xl border border-line bg-surface-sunken p-6">
+    <div className="rounded-2xl border border-line bg-surface-raised p-6">
       <h3 className="text-base font-semibold text-ink">{title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-ink-muted">{body}</p>
     </div>
@@ -195,22 +319,6 @@ function Check({ children }: { children: React.ReactNode }) {
         ✓
       </span>
       <span>{children}</span>
-    </li>
-  );
-}
-
-function Step({ n, title, items }: { n: string; title: string; items: string[] }) {
-  return (
-    <li>
-      <div className="flex items-center gap-3">
-        <span className="flex size-9 items-center justify-center rounded-full bg-brand text-sm font-semibold text-brand-contrast">{n}</span>
-        <h3 className="text-lg font-semibold text-ink">{title}</h3>
-      </div>
-      <ul className="mt-4 space-y-2 border-l border-line pl-4 text-sm leading-relaxed text-ink-muted">
-        {items.map((it) => (
-          <li key={it}>{it}</li>
-        ))}
-      </ul>
     </li>
   );
 }
@@ -239,15 +347,15 @@ function FooterGroup({ title, links }: { title: string; links: [string, string][
 }
 
 /**
- * The room as attendees see it, drawn with the real layout: a slide, the presenter in the
+ * The room as members see it, drawn with the real layout: a slide, the organiser in the
  * corner, and a poll overlay mid-vote. An illustration, not a screenshot, so it stays true
  * as the product changes and ships with no image to load.
  */
 function RoomMock({ className }: { className?: string }) {
   const options: [string, number, boolean][] = [
-    ["Price", 41, false],
-    ["Onboarding time", 23, true],
-    ["Integrations", 36, false],
+    ["Once a week", 41, false],
+    ["Twice a month", 23, true],
+    ["Once a month", 36, false],
   ];
   return (
     <div className={className} aria-hidden>
@@ -255,7 +363,7 @@ function RoomMock({ className }: { className?: string }) {
         <div className="flex h-11 items-center justify-between border-b border-line px-4">
           <div className="flex items-center gap-2">
             <Logo wordmark={false} className="scale-90" />
-            <span className="text-sm font-semibold text-ink">Product launch Q4</span>
+            <span className="text-sm font-semibold text-ink">Lisbon Product Circle · October meetup</span>
           </div>
           <div className="flex items-center gap-2">
             <Badge>128 here</Badge>
@@ -272,14 +380,14 @@ function RoomMock({ className }: { className?: string }) {
             <div className="mt-2 h-2 w-56 max-w-[55%] rounded bg-white/25" />
             <div className="mt-2 h-2 w-64 max-w-[60%] rounded bg-white/25" />
           </div>
-          {/* presenter */}
+          {/* organiser */}
           <div className="absolute bottom-5 right-5 flex h-14 w-24 items-end rounded-md bg-gradient-to-t from-indigo-500/60 to-slate-700 p-1.5 ring-1 ring-white/30 sm:h-20 sm:w-32">
-            <span className="rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">Maria · host</span>
+            <span className="rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">Maria · organiser</span>
           </div>
           {/* the poll overlay */}
           <div className="absolute left-1/2 top-1/2 w-[min(88%,20rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/10 bg-slate-950/90 p-4 text-white shadow-overlay backdrop-blur">
             <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-semibold leading-snug">What slowed your last rollout the most?</p>
+              <p className="text-sm font-semibold leading-snug">How often should we meet?</p>
               <span className="shrink-0 text-xs font-semibold uppercase tracking-wider text-slate-400">12s</span>
             </div>
             <ul className="mt-3 space-y-1.5">
@@ -310,7 +418,7 @@ function RoomMock({ className }: { className?: string }) {
   );
 }
 
-/** A room header and controls in a customer's colour, with the real brand variables overridden the way the room does it. */
+/** A community's public page header and room controls in its own colour, with the real brand variables overridden the way the room does it. */
 function BrandMock() {
   const vars = {
     "--brand": "#0f766e",
@@ -324,16 +432,23 @@ function BrandMock() {
       <div className="flex h-14 items-center justify-between gap-4 border-b border-line px-4">
         <div className="flex items-center gap-3">
           <span className="flex h-8 items-center rounded-md bg-brand px-2 text-xs font-bold tracking-wide text-brand-contrast">NORTHWIND</span>
-          <span className="hidden text-sm font-semibold text-ink sm:inline">Customer day 2026</span>
+          <span className="hidden text-sm font-semibold text-ink sm:inline">Northwind Makers</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-brand-contrast">Book a demo ↗</span>
+          <span className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-brand-contrast">Register for the next event</span>
           <Badge tone="brand" dot className="hidden sm:inline-flex">
-            84 here
+            84 people
           </Badge>
         </div>
       </div>
       <div className="space-y-4 bg-surface-sunken p-5">
+        <div className="flex flex-wrap gap-1.5">
+          {["woodworking", "3d printing", "lisbon"].map((t) => (
+            <span key={t} className="rounded-full border border-line bg-surface-inset px-2.5 py-0.5 text-xs font-medium text-ink-muted">
+              {t}
+            </span>
+          ))}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-brand-contrast">Lock in</span>
           <span className="rounded-lg border border-line-strong bg-surface-raised px-3 py-1.5 text-xs font-medium text-ink">Raise hand</span>
@@ -354,7 +469,7 @@ function BrandMock() {
             </div>
           </div>
         ))}
-        <p className="text-xs text-ink-muted">Preview of a room in a customer&apos;s teal. Attendees see the invite page and the room in the same colour.</p>
+        <p className="text-xs text-ink-muted">Preview of a community in its own teal. Members see its public page, the invite page and the room in the same colour.</p>
       </div>
     </div>
   );
