@@ -1,4 +1,5 @@
 "use client";
+import { DisconnectReason } from "livekit-client";
 import { useCallback, useMemo, useState } from "react";
 import { ActivityLibrary } from "@/components/ActivityLibrary";
 import { AppShell } from "@/components/AppShell";
@@ -218,7 +219,17 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
         ) : (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
             <section className="space-y-6">
-              {stage && <RoomStage connection={stage} publish onDisconnected={() => setStage(null)} />}
+              {stage && (
+                <RoomStage
+                  connection={stage}
+                  publish
+                  onDisconnected={(reason) => {
+                    setStage(null);
+                    if (reason === DisconnectReason.DUPLICATE_IDENTITY) setMsg("Your camera was disconnected because this account joined the room from another tab or device. Close it, then click \"Join with camera\" again.");
+                    else if (reason !== undefined && reason !== DisconnectReason.CLIENT_INITIATED) setMsg(`Your camera was disconnected (${DisconnectReason[reason]}). Click "Join with camera" to rejoin.`);
+                  }}
+                />
+              )}
               <PresenterDeck
                 room={room}
                 presentations={presentations}
