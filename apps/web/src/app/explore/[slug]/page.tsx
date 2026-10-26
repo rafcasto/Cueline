@@ -35,8 +35,8 @@ export default async function PublicRoomPage({ params }: { params: Promise<{ slu
           <span aria-hidden>/</span> <span className="text-ink">{room.name}</span>
         </nav>
         <header className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start">
-          <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-surface-inset">
-            <RoomMark branding={room.branding} name={room.name} className="max-h-16 max-w-16" />
+          <div className="flex h-20 shrink-0 items-center rounded-2xl bg-brand-soft px-5">
+            <RoomMark branding={room.branding} name={room.name} className="h-10 max-w-56" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
