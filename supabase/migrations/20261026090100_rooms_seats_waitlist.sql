@@ -1,16 +1,12 @@
--- The plan belongs to the room; seats per event, a waiting list, and opting out.
+-- Rooms per plan, seats per event, a waiting list, and opting out.
 --
--- Plans. A room is either the organisation's single free room or a paid one: Starter and Pro
--- are bought per room, and every room after the first is a purchase. The plan therefore moves
--- from organisations to rooms (plan, plan_status) and the Stripe subscription behind it goes in
--- room_subscriptions, a table attendees cannot read (rooms themselves are public). The
--- organisation keeps the Stripe customer. A room without a paid plan is free while it is the
--- organisation's only room and locked otherwise (apps/web/src/lib/billing.ts, roomAccess), so a
--- free room never sits next to a paid one, through cancellation included. Rooms created by a
--- platform admin are complimentary: Pro limits, no subscription, never locked.
+-- Rooms. Every plan includes one room; more are bought one at a time through Stripe
+-- (room_purchases, one-off payments) and counted on the organisation as extra_rooms. Platform
+-- admins are not capped. The cap is enforced by /api/rooms; the plan's included rooms live in
+-- apps/web/src/lib/plans.ts, not here.
 --
 -- Seats. An event (invite) carries a capacity: how many registrants get a seat, chosen by the
--- host up to the room's participants-per-session. Registrations beyond it join a waiting list
+-- host up to the plan's participants-per-session. Registrations beyond it join a waiting list
 -- (waitlisted_at) in order of arrival. A registrant can opt out (cancelled_at), which frees the
 -- seat; the earliest person on the waiting list is moved into it. Seating is decided in
 -- register_attendee() under a lock on the invite, so two people cannot both take the last
@@ -23,46 +19,42 @@
 -- who are not coming to free their seat.
 
 -- ---------------------------------------------------------------------------
--- The plan, per room
+-- Rooms bought beyond the plan
 -- ---------------------------------------------------------------------------
-alter table public.rooms
-  add column plan public.plan not null default 'free',
-  add column plan_status public.plan_status not null default 'active',
-  -- Created by a platform admin: runs at Pro, needs no subscription, is never locked.
-  add column complimentary boolean not null default false;
+alter table public.organisations add column extra_rooms int not null default 0 check (extra_rooms >= 0);
 
--- Service-role writes (the Stripe webhook); org members may read their own.
-create table public.room_subscriptions (
-  room_id uuid primary key references public.rooms(id) on delete cascade,
+create table public.room_purchases (
+  id uuid primary key default gen_random_uuid(),
   org_id uuid not null references public.organisations(id) on delete cascade,
   stripe_mode public.stripe_mode not null,
-  -- Null until the first payment comes through (status 'unpaid' on the room meanwhile).
-  stripe_subscription_id text,
-  price_lookup text,
-  current_period_start timestamptz,
-  current_period_end timestamptz,
+  stripe_session_id text not null unique,
+  status public.order_status not null default 'pending',
+  amount_total int,
+  currency text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-create unique index room_subscriptions_stripe_idx on public.room_subscriptions (stripe_mode, stripe_subscription_id) where stripe_subscription_id is not null;
-create index room_subscriptions_org_idx on public.room_subscriptions (org_id);
-alter table public.room_subscriptions enable row level security;
-create policy "members read room subscriptions" on public.room_subscriptions for select to authenticated using (public.is_org_member(org_id));
-create trigger room_subscriptions_touch before update on public.room_subscriptions for each row execute function public.touch_updated_at();
+create index room_purchases_org_idx on public.room_purchases (org_id, status);
+alter table public.room_purchases enable row level security;
+create policy "members read room purchases" on public.room_purchases for select to authenticated using (public.is_org_member(org_id));
+create trigger room_purchases_touch before update on public.room_purchases for each row execute function public.touch_updated_at();
 
--- Sessions are now counted per room per billing period.
-create index sessions_room_started_idx on public.sessions (room_id, started_at) where counted;
-
--- The organisation's plan columns go. Nothing is carried over: there were no paid organisations
--- when this landed, and the seeded room is complimentary (seed.sql).
-drop index if exists public.organisations_stripe_subscription_idx;
-alter table public.organisations
-  drop column plan,
-  drop column plan_status,
-  drop column plan_price_lookup,
-  drop column plan_period_start,
-  drop column plan_period_end,
-  drop column stripe_subscription_id;
+-- Mark a purchase paid and add the room to the organisation, once: a redelivered webhook finds
+-- the row already paid and adds nothing. Service role only.
+create or replace function public.grant_extra_room(p_session_id text, p_amount int, p_currency text)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare v_org uuid;
+begin
+  update public.room_purchases
+     set status = 'paid', amount_total = p_amount, currency = p_currency
+   where stripe_session_id = p_session_id and status = 'pending'
+   returning org_id into v_org;
+  if v_org is null then return false; end if;
+  update public.organisations set extra_rooms = extra_rooms + 1 where id = v_org;
+  return true;
+end;
+$$;
+revoke execute on function public.grant_extra_room(text, int, text) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Seats and the waiting list
