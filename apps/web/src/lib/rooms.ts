@@ -26,17 +26,3 @@ export function uniqueSlug(base: string, taken: Iterable<string>): string {
     if (!used.has(candidate)) return candidate;
   }
 }
-
-/**
- * How many rooms an organisation may have: the plan's included rooms plus the ones it bought.
- * Platform admins are not capped (the caller passes `unlimited`).
- */
-export function roomAllowance(limits: { roomsIncluded: number }, extraRooms: number, unlimited = false): number | null {
-  if (unlimited) return null;
-  return limits.roomsIncluded + Math.max(0, extraRooms);
-}
-
-/** Rooms the organisation can still create; null means no limit. */
-export function roomsLeft(allowance: number | null, used: number): number | null {
-  return allowance === null ? null : Math.max(0, allowance - used);
-}

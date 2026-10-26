@@ -1,5 +1,5 @@
 import { handler, HttpError, json, readJson, requireUser } from "@/lib/auth";
-import { loadOrgPlan } from "@/lib/billing";
+import { loadRoomAccess } from "@/lib/billing";
 import { queueRegistrationEmails } from "@/lib/email/schedule";
 import { inviteByToken, registrationsFor } from "@/lib/invites";
 import { capacityFor, registrationStatus, seatSummary, waitlistPosition } from "@/lib/seats";
@@ -32,9 +32,9 @@ export const POST = handler(async (req) => {
   if (invite.revoked_at) throw new HttpError(410, "This invite link is no longer active.");
 
   const admin = supabaseAdmin();
-  const planned = await loadOrgPlan(admin, invite.org_id);
-  if (!planned) throw new HttpError(404, "This invite link is not valid.");
-  const capacity = capacityFor(invite, planned.limits);
+  const loaded = await loadRoomAccess(admin, invite.room_id);
+  if (!loaded) throw new HttpError(404, "This invite link is not valid.");
+  const capacity = capacityFor(invite, loaded.access.limits);
 
   const { data, error } = await admin
     .rpc("register_attendee", { p_invite: invite.id, p_user: user.id, p_name: name, p_email: email, p_capacity: capacity })

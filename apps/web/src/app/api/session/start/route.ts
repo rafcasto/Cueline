@@ -1,4 +1,5 @@
 import { handler, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { loadRoomAccess } from "@/lib/billing";
 import { normalizeStageLayout } from "@/lib/stage-layout";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -6,7 +7,8 @@ type Body = { room_slug: string; presentation_id?: string | null };
 
 /**
  * Open the room: a session in `waiting` state. Participants see the waiting room until go-live.
- * The session starts with the stage layout the host last used in this room.
+ * A locked room (no plan next to paid rooms, or a purchase not paid yet) does not open. The
+ * session starts with the stage layout the host last used in this room.
  */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
@@ -19,6 +21,8 @@ export const POST = handler(async (req) => {
 
   const { data: open } = await admin.from("sessions").select("id").eq("room_id", room.id).neq("state", "ended").maybeSingle();
   if (open) return json({ session_id: open.id, already_open: true });
+  const loaded = await loadRoomAccess(admin, room.id);
+  if (loaded?.access.locked) return json({ error: loaded.access.reason, code: "room_locked" }, { status: 402 });
 
   const { data: session, error } = await admin
     .from("sessions")

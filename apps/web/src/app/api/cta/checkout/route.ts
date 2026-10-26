@@ -1,6 +1,6 @@
 import { handler, json, readJson, requireUser } from "@/lib/auth";
 import { publicEnv } from "@/lib/env";
-import { planLimits } from "@/lib/plans";
+import { loadRoomAccess } from "@/lib/billing";
 import { activeStripeMode, stripeFor, stripeKeys } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -12,14 +12,15 @@ export const POST = handler(async (req) => {
   const body = await readJson<Body>(req);
   const admin = supabaseAdmin();
 
-  const { data: run } = await admin.from("activity_runs").select("id, org_id, session_id, activities(kind, config), organisations(plan, plan_status)").eq("id", body.run_id).maybeSingle();
+  const { data: run } = await admin.from("activity_runs").select("id, org_id, session_id, activities(kind, config), sessions(room_id)").eq("id", body.run_id).maybeSingle();
   const activity = run?.activities as unknown as { kind: string; config: { destination?: string; target?: string } } | null;
   if (!run || !activity || activity.kind !== "cta" || activity.config.destination !== "stripe" || !activity.config.target) {
     return json({ error: "not a Stripe CTA" }, { status: 400 });
   }
 
-  const org = run.organisations as unknown as { plan: string; plan_status: string } | null;
-  if (!planLimits(org?.plan_status === "canceled" ? "free" : org?.plan).stripeCta) {
+  const roomId = (run.sessions as unknown as { room_id: string } | null)?.room_id;
+  const loaded = roomId ? await loadRoomAccess(admin, roomId) : null;
+  if (!loaded?.access.limits.stripeCta) {
     return json({ error: "Stripe call to action is a Pro feature" }, { status: 402 });
   }
 

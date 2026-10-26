@@ -6,7 +6,7 @@
  */
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import type { AddonLookup, PriceLookup } from "@/lib/plans";
+import type { PriceLookup } from "@/lib/plans";
 
 export type StripeMode = "test" | "live";
 export const STRIPE_MODES: StripeMode[] = ["test", "live"];
@@ -76,7 +76,7 @@ export async function stripe(): Promise<Stripe> {
 
 // Price ids differ between modes; the app only knows lookup keys.
 const prices: Record<StripeMode, Map<string, string>> = { test: new Map(), live: new Map() };
-export async function priceIdFor(mode: StripeMode, lookupKey: PriceLookup | AddonLookup): Promise<string> {
+export async function priceIdFor(mode: StripeMode, lookupKey: PriceLookup): Promise<string> {
   const hit = prices[mode].get(lookupKey);
   if (hit) return hit;
   const list = await stripeFor(mode).prices.list({ lookup_keys: [lookupKey], active: true, limit: 1 });

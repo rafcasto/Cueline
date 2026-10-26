@@ -270,14 +270,19 @@ do $$ begin
 exception when insufficient_privilege then null; end $$;
 reset role;
 
--- Rooms beyond the plan: a one-off purchase adds one room, once.
-insert into public.room_purchases(org_id, stripe_mode, stripe_session_id) values ('00000000-0000-0000-0000-000000000001', 'test', 'cs_test_room');
+-- The plan belongs to the room: new rooms start free, the seeded one is complimentary Pro, the
+-- subscription table is for the webhook and org members only.
+select 'rooms start free' as check, plan = 'free' and plan_status = 'active' and not complimentary as pass from public.rooms where id = '00000000-0000-0000-0000-000000000003';
+select 'the seeded room is complimentary pro' as check, plan = 'pro' and complimentary as pass from public.rooms where id = '00000000-0000-0000-0000-000000000002';
+select 'organisations no longer carry a plan' as check, count(*) = 0 as pass from information_schema.columns where table_schema = 'public' and table_name = 'organisations' and column_name in ('plan', 'plan_status', 'stripe_subscription_id');
 set role service_role;
-select 'a paid purchase grants a room' as check, public.grant_extra_room('cs_test_room', 1900, 'usd') as pass;
-select 'a redelivered webhook grants nothing' as check, not public.grant_extra_room('cs_test_room', 1900, 'usd') as pass;
+insert into public.room_subscriptions(room_id, org_id, stripe_mode, stripe_subscription_id, price_lookup) values ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'test', 'sub_smoke', 'starter_monthly');
+update public.rooms set plan = 'starter' where id = '00000000-0000-0000-0000-000000000003';
 reset role;
-select 'the organisation carries the extra room' as check, extra_rooms = 1 as pass from public.organisations where id = '00000000-0000-0000-0000-000000000001';
 set role authenticated;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+select 'org member reads the room subscription' as check, count(*) = 1 as pass from public.room_subscriptions;
 select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
-select 'attendee cannot read room purchases' as check, count(*) = 0 as pass from public.room_purchases;
+select 'attendee cannot read room subscriptions' as check, count(*) = 0 as pass from public.room_subscriptions;
+select 'attendee sees the room plan but no subscription' as check, plan = 'starter' as pass from public.rooms where id = '00000000-0000-0000-0000-000000000003';
 reset role;

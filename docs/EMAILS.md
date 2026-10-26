@@ -2,7 +2,7 @@
 
 26 Oct 2026 (first version 24 Oct 2026)
 
-Every room carries an email sequence: a welcome sent on registration (or a waiting-list note when the event's seats are gone) and reminders sent at fixed times before an event starts. Every event created in the room inherits the sequence, and the app turns it into scheduled emails at Resend, one per registrant per step, timed against that event's start and carrying that registrant's personal link and opt-out link. The host edits the sequence once per room; the change reaches every open event in it. Reminders are a paid feature (Starter and Pro); the free plan sends the welcome and the waiting-list note only.
+Every room carries an email sequence: a welcome sent on registration (or a waiting-list note when the event's seats are gone) and reminders sent at fixed times before an event starts. Every event created in the room inherits the sequence, and the app turns it into scheduled emails at Resend, one per registrant per step, timed against that event's start and carrying that registrant's personal link and opt-out link. The host edits the sequence once per room; the change reaches every open event in it. Reminders are a paid feature (Starter and Pro rooms); a free room sends the welcome and the waiting-list note only.
 
 ## What the attendee gets
 
@@ -53,7 +53,7 @@ A host runs any number of rooms (created on `/host`). Each room is a standing sp
 6. **Host deletes a room** (`/api/rooms`). Every reminder still scheduled at Resend for the room's registrants is cancelled, then the room and everything under it cascades away. A room with an open session cannot be deleted.
 7. **Cron** (`vercel.json`, daily, `GET /api/emails/dispatch` with `Authorization: Bearer $CRON_SECRET`). Catches reminders that were beyond the 30-day horizon when registration happened.
 8. **Registrant opts out** (`/api/register/cancel`, from `/a/<token>/cancel` or the event page). `cancelled_at` is set, `cancelRegistrationEmails` pulls back what Resend holds for them, and `promote_waitlist()` seats the first person in line, who then goes through step 1's queueing as a seat holder (welcome, then reminders). The same promotion runs when the host raises an event's seats and when the plan grows.
-9. **Plan changes** (Stripe webhook). `applyPlanToEmails`: a move to free cancels every reminder still pending for the organisation; a move up queues the reminders for everyone seated at an upcoming event.
+9. **Plan changes** (Stripe webhook). `applyPlanToEmails(roomId)`: a room that drops to free has every reminder still pending cancelled; a room that moves up has the reminders queued for everyone seated at an upcoming event.
 
 ## Configuration
 

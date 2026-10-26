@@ -1,5 +1,5 @@
 import { handler, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
-import { decideGoLive, endsBy, loadUsage } from "@/lib/billing";
+import { decideGoLive, endsBy, loadRoomAccess, loadUsage } from "@/lib/billing";
 import { sweepOverdue } from "@/lib/session-lifecycle";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ensureRoom, startSessionEgress } from "@/lib/video";
@@ -7,9 +7,9 @@ import { ensureRoom, startSessionEgress } from "@/lib/video";
 type Body = { session_id: string };
 
 /**
- * Waiting -> live. The plan is checked here: sessions left this month, the participant cap set
- * on the room, recording only where the plan includes it, and the hard stop stamped on the
- * session. A session counts the moment it goes live.
+ * Waiting -> live. The room's plan is checked here: not locked, sessions left this month, the
+ * participant cap set on the LiveKit room, recording only where the plan includes it, and the
+ * hard stop stamped on the session. A session counts the moment it goes live.
  */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
@@ -25,10 +25,10 @@ export const POST = handler(async (req) => {
   const room = (session.rooms as unknown as { livekit_room: string } | null)?.livekit_room ?? "";
   if (!room) return json({ error: "room missing" }, { status: 500 });
 
-  const { data: org } = await admin.from("organisations").select("id, plan, plan_status, plan_period_start, plan_period_end").eq("id", session.org_id).maybeSingle();
-  if (!org) return json({ error: "organisation not found" }, { status: 404 });
-  await sweepOverdue(admin, org.id);
-  const decision = decideGoLive(await loadUsage(admin, org));
+  const loaded = await loadRoomAccess(admin, session.room_id);
+  if (!loaded) return json({ error: "room not found" }, { status: 404 });
+  await sweepOverdue(admin, session.org_id);
+  const decision = decideGoLive(await loadUsage(admin, loaded));
   if (!decision.allowed) return json({ error: decision.reason, code: "plan_limit" }, { status: 402 });
   const limits = decision.limits;
 

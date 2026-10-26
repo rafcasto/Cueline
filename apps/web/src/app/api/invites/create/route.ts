@@ -1,5 +1,5 @@
 import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
-import { loadOrgPlan } from "@/lib/billing";
+import { loadRoomAccess } from "@/lib/billing";
 import { parseCapacity } from "@/lib/seats";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Invite } from "@/lib/supabase/types";
@@ -7,9 +7,10 @@ import type { Invite } from "@/lib/supabase/types";
 type Body = { room_id: string; title?: string; description?: string | null; starts_at?: string | null; timezone?: string; is_public?: boolean; capacity?: unknown };
 
 /**
- * Create an event (an invite link) in a room. The seat count is checked against the plan here,
- * which is why events are created through the API rather than straight into the table; left
- * blank it means the plan's maximum. The room's email sequence is copied by a trigger.
+ * Create an event (an invite link) in a room. The seat count is checked against the room's
+ * plan here, which is why events are created through the API rather than straight into the
+ * table; left blank it means the plan's maximum. A locked room takes no new events. The room's
+ * email sequence is copied by a trigger.
  */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
@@ -18,8 +19,9 @@ export const POST = handler(async (req) => {
   const { data: room } = await admin.from("rooms").select("id, org_id, name").eq("id", body.room_id).maybeSingle();
   if (!room) throw new HttpError(404, "Room not found.");
   await requireOrgRole(user.id, room.org_id, ["owner", "host"]);
-  const planned = await loadOrgPlan(admin, room.org_id);
-  if (!planned) throw new HttpError(404, "Organisation not found.");
+  const loaded = await loadRoomAccess(admin, room.id);
+  if (!loaded) throw new HttpError(404, "Room not found.");
+  if (loaded.access.locked) throw new HttpError(402, loaded.access.reason ?? "This room is locked.");
 
   const title = (body.title ?? "").trim() || room.name;
   if (title.length > 200) throw new HttpError(400, "Title must be 1 to 200 characters.");
@@ -36,7 +38,7 @@ export const POST = handler(async (req) => {
       throw new HttpError(400, "Unknown timezone.");
     }
   }
-  const seats = parseCapacity(body.capacity, planned.limits);
+  const seats = parseCapacity(body.capacity, loaded.access.limits);
   if ("error" in seats) throw new HttpError(400, seats.error);
 
   const { data, error } = await admin

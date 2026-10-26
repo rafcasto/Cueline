@@ -1,5 +1,5 @@
 import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
-import { loadOrgPlan } from "@/lib/billing";
+import { loadRoomAccess } from "@/lib/billing";
 import { cancelRoomStep, syncRoomStep } from "@/lib/email/schedule";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { RoomEmail } from "@/lib/supabase/types";
@@ -16,11 +16,11 @@ type Body =
  * inherited rows cascade away. Reminders are a paid feature: on the free plan they can be read
  * but not added, edited or switched on (the welcome and the waiting-list note always can).
  */
-const PAID_ONLY = "Reminders before the event are on Starter and Pro. The free plan sends the welcome email on registration; upgrade at /host/billing to schedule reminders.";
+const PAID_ONLY = "Reminders before the event are on Starter and Pro. A free room sends the welcome email on registration; upgrade the room at /host/billing to schedule reminders.";
 
-async function requireReminders(orgId: string) {
-  const planned = await loadOrgPlan(supabaseAdmin(), orgId);
-  if (!planned?.limits.reminders) throw new HttpError(402, PAID_ONLY);
+async function requireReminders(roomId: string) {
+  const loaded = await loadRoomAccess(supabaseAdmin(), roomId);
+  if (!loaded?.access.limits.reminders) throw new HttpError(402, PAID_ONLY);
 }
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
@@ -38,7 +38,7 @@ export const POST = handler(async (req) => {
     const { data: room } = await admin.from("rooms").select("id, org_id").eq("id", body.room_id).maybeSingle();
     if (!room) throw new HttpError(404, "Room not found.");
     await requireOrgRole(user.id, room.org_id, ["owner", "host"]);
-    await requireReminders(room.org_id);
+    await requireReminders(room.id);
     validate(body);
     const { data, error } = await admin
       .from("room_emails")
@@ -64,7 +64,7 @@ export const POST = handler(async (req) => {
 
   validate(body);
   // A reminder can be switched off on any plan; everything else about it needs a paid plan.
-  if (step.kind === "reminder" && !(Object.keys(body).every((k) => ["action", "id", "enabled"].includes(k)) && body.enabled === false)) await requireReminders(step.org_id);
+  if (step.kind === "reminder" && !(Object.keys(body).every((k) => ["action", "id", "enabled"].includes(k)) && body.enabled === false)) await requireReminders(step.room_id);
   const patch: Partial<RoomEmail> = {};
   if (body.subject !== undefined) patch.subject = body.subject.trim();
   if (body.body !== undefined) patch.body = body.body;

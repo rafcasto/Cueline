@@ -1,7 +1,7 @@
 import { publicEnv } from "@/lib/env";
 import { emailConfigured, resend, RESEND_SCHEDULE_HORIZON_MS } from "@/lib/email/resend";
 import { renderTemplate, sendTimeFor, templateVars, textToHtml } from "@/lib/email/template";
-import { loadOrgPlan } from "@/lib/billing";
+import { loadRoomAccess } from "@/lib/billing";
 import { stepKindsFor } from "@/lib/seats";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Invite, InviteEmail, Registration, RegistrationEmail } from "@/lib/supabase/types";
@@ -32,10 +32,10 @@ function sendAtFor(step: StepRow, startsAt: string | null, now: number): string 
 /** Create the queued rows for one registration (the enabled steps it is due) and dispatch them. */
 export async function queueRegistrationEmails(registrationId: string, opts: { stepIds?: string[] } = {}) {
   const admin = supabaseAdmin();
-  const { data: reg } = await admin.from("registrations").select("id, org_id, invite_id, waitlisted_at, cancelled_at, invites(starts_at)").eq("id", registrationId).maybeSingle();
+  const { data: reg } = await admin.from("registrations").select("id, org_id, room_id, invite_id, waitlisted_at, cancelled_at, invites(starts_at)").eq("id", registrationId).maybeSingle();
   if (!reg) return;
-  const planned = await loadOrgPlan(admin, reg.org_id);
-  const kinds = stepKindsFor(reg, planned?.limits ?? { reminders: false });
+  const loaded = await loadRoomAccess(admin, reg.room_id);
+  const kinds = stepKindsFor(reg, loaded?.access.limits ?? { reminders: false });
   if (kinds.length === 0) return;
   const startsAt = (reg.invites as unknown as { starts_at: string | null } | null)?.starts_at ?? null;
   let q = admin.from("invite_emails").select("id, kind, minutes_before, enabled").eq("invite_id", reg.invite_id).eq("enabled", true).in("kind", kinds);
@@ -226,19 +226,19 @@ export async function cancelRegistrationEmails(registrationId: string) {
 }
 
 /**
- * After the organisation's plan changes. Reminders are a paid feature: a move to free pulls
- * back every reminder still pending for the organisation's registrants; a move up queues the
- * reminders for everyone with a seat at an event still ahead (rows already there are kept).
+ * After a room's plan changes. Reminders are a paid feature: a move to free pulls back every
+ * reminder still pending for the room's registrants; a move up queues the reminders for
+ * everyone with a seat at an event still ahead (rows already there are kept).
  */
-export async function applyPlanToEmails(orgId: string) {
+export async function applyPlanToEmails(roomId: string) {
   const admin = supabaseAdmin();
-  const planned = await loadOrgPlan(admin, orgId);
-  if (!planned) return;
-  if (!planned.limits.reminders) {
+  const loaded = await loadRoomAccess(admin, roomId);
+  if (!loaded) return;
+  if (!loaded.access.limits.reminders) {
     const { data } = await admin
       .from("registration_emails")
-      .select("id, status, resend_id, invite_emails!inner(kind)")
-      .eq("org_id", orgId)
+      .select("id, status, resend_id, invite_emails!inner(kind), registrations!inner(room_id)")
+      .eq("registrations.room_id", roomId)
       .eq("invite_emails.kind", "reminder")
       .in("status", ["queued", "scheduled", "failed"]);
     for (const row of data ?? []) {
@@ -254,7 +254,7 @@ export async function applyPlanToEmails(orgId: string) {
     if (ids.length > 0) await admin.from("registration_emails").delete().in("id", ids);
     return;
   }
-  const { data: invites } = await admin.from("invites").select("id").eq("org_id", orgId).is("revoked_at", null).gte("starts_at", new Date().toISOString());
+  const { data: invites } = await admin.from("invites").select("id").eq("room_id", roomId).is("revoked_at", null).gte("starts_at", new Date().toISOString());
   for (const inv of invites ?? []) {
     const { data: regs } = await admin.from("registrations").select("id").eq("invite_id", inv.id).is("waitlisted_at", null).is("cancelled_at", null);
     for (const r of regs ?? []) await queueRegistrationEmails(r.id);

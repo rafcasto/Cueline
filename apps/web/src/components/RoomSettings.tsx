@@ -167,7 +167,7 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
       <RoomBrandingEditor room={room} onSaved={onSaved} />
 
       <Card>
-        <CardHeader title="Delete this room" description={hasOpenSession ? "End the session first; a room with the doors open cannot be deleted." : "Removes everything in the room and cancels the reminders still scheduled for its registrants."} />
+        <CardHeader title="Delete this room" description={hasOpenSession ? "End the session first; a room with the doors open cannot be deleted." : "Removes everything in the room and cancels the reminders still scheduled for its registrants. A room with a subscription is cancelled under Manage billing first."} />
         <Button variant="danger" className="mt-4" onClick={() => void remove()} disabled={busy || hasOpenSession}>
           Delete room
         </Button>

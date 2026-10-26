@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { EventCard, RoomCard, TopicChips } from "@/components/ExploreCards";
 import { Badge, Button, ButtonLink, EmptyState, Input, Logo, cx } from "@/components/ui";
 import { listPublicEvents, listPublicRooms, listTopics, type PublicEvent, type PublicRoom } from "@/lib/explore";
-import { EXTRA_ROOM, PLAN_LIMITS, PRICE_LABELS, type Plan, type PlanLimits } from "@/lib/plans";
+import { PLAN_LIMITS, PRICE_LABELS, type Plan, type PlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -282,7 +282,7 @@ export default async function Home() {
               />
             </ul>
             <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-ink-muted">
-              Prices in USD, billed through Stripe. Move up or down from your billing page whenever you like; the difference is prorated, and cancelling takes effect at the end of the period you have paid for. A session counts the moment you press <em>Go live</em>; a false start nobody joined is given back.
+              A plan is per room: your first room is free until you upgrade it, and every further room is its own Starter or Pro subscription. Prices in USD, billed through Stripe. Move up or down from your billing page whenever you like; the difference is prorated, and cancelling takes effect at the end of the period you have paid for. A session counts the moment you press <em>Go live</em>; a false start nobody joined is given back.
             </p>
           </div>
         </section>
@@ -397,7 +397,6 @@ function planLines(l: PlanLimits): { text: string; included: boolean }[] {
     { text: `${l.participants} attendees per session`, included: true },
     { text: length, included: true },
     { text: "Polls, quizzes, word clouds, chat and Q&A", included: true },
-    { text: `${l.roomsIncluded === 1 ? "One room" : `${l.roomsIncluded} rooms`}, more at ${EXTRA_ROOM.amount} each`, included: true },
     { text: "Seats per event, with a waiting list when they are gone", included: true },
     { text: "Welcome email on registration", included: true },
     { text: "Reminder emails before every event", included: l.reminders },

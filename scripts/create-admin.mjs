@@ -53,7 +53,7 @@ if (created.error) {
   console.log(`Created user ${email}.`);
 }
 
-const org = await sb.from("organisations").upsert({ id: ORG_ID, name: "Cueline", plan: "pro" }, { onConflict: "id", ignoreDuplicates: true });
+const org = await sb.from("organisations").upsert({ id: ORG_ID, name: "Cueline" }, { onConflict: "id", ignoreDuplicates: true });
 if (org.error) throw org.error;
 const member = await sb.from("org_members").upsert({ org_id: ORG_ID, user_id: userId, role: "owner" }, { onConflict: "org_id,user_id" });
 if (member.error) throw member.error;

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/AppShell";
 import { RegisterForm } from "@/components/RegisterForm";
-import { loadOrgPlan } from "@/lib/billing";
+import { loadRoomAccess } from "@/lib/billing";
 import { inviteByToken, registrationFor, registrationsFor } from "@/lib/invites";
 import { capacityFor, registrationStatus, seatSummary, waitlistPosition } from "@/lib/seats";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -28,9 +28,9 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
 
   // A returning attendee already has an identity cookie from the first visit; skip the form for them.
   const sb = await supabaseServer();
-  const [{ data: auth }, planned, rows] = await Promise.all([sb.auth.getUser(), loadOrgPlan(supabaseAdmin(), invite.org_id), registrationsFor(invite.id)]);
+  const [{ data: auth }, loaded, rows] = await Promise.all([sb.auth.getUser(), loadRoomAccess(supabaseAdmin(), room.id), registrationsFor(invite.id)]);
   const registration = auth.user ? await registrationFor(room.id, auth.user.id, { inviteId: invite.id }) : null;
-  const capacity = capacityFor(invite, planned?.limits ?? { participants: 10 });
+  const capacity = capacityFor(invite, loaded?.access.limits ?? { participants: 10 });
 
   return (
     <PublicShell>

@@ -1,7 +1,9 @@
 /**
  * What each plan allows. The single place every gate reads from; see docs/BUSINESS-MODEL.md.
- * Nothing here is stored in Stripe: a product only carries `metadata.plan`, and prices are found
- * by lookup key, so a cap can change without touching the Dashboard.
+ * A plan belongs to a room: the organisation's single room is free until upgraded, and every
+ * further room is bought on Starter or Pro (roomAccess() in lib/billing turns a room row into
+ * its limits). Nothing here is stored in Stripe: a product only carries `metadata.plan`, and
+ * prices are found by lookup key, so a cap can change without touching the Dashboard.
  */
 export type Plan = "free" | "starter" | "pro";
 
@@ -22,8 +24,6 @@ export type PlanLimits = {
   stripeCta: boolean;
   /** Fair-use pool in participant-hours per month; null is not stated. */
   poolParticipantHours: number | null;
-  /** Rooms the plan includes. More are bought one at a time (EXTRA_ROOM); platform admins are not capped. */
-  roomsIncluded: number;
   /** Reminder emails before each event. Every plan sends the welcome and the waiting-list note. */
   reminders: boolean;
 };
@@ -39,7 +39,6 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     promoteSlots: 0,
     stripeCta: false,
     poolParticipantHours: null,
-    roomsIncluded: 1,
     reminders: false,
   },
   starter: {
@@ -52,7 +51,6 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     promoteSlots: 1,
     stripeCta: false,
     poolParticipantHours: 300,
-    roomsIncluded: 1,
     reminders: true,
   },
   pro: {
@@ -65,7 +63,6 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     promoteSlots: 3,
     stripeCta: true,
     poolParticipantHours: 1200,
-    roomsIncluded: 1,
     reminders: true,
   },
 };
@@ -85,13 +82,6 @@ export const PRICE_LABELS: Record<PriceLookup, { amount: string; period: string 
   pro_monthly: { amount: "$79", period: "month" },
   pro_yearly: { amount: "$790", period: "year" },
 };
-
-/**
- * One more room, bought outright. A one-off Stripe price (not a subscription) under this lookup
- * key in both modes; the webhook adds the room to the organisation when it is paid.
- */
-export const EXTRA_ROOM = { lookup: "extra_room", amount: "$19", label: "one extra room, one-off" } as const;
-export type AddonLookup = typeof EXTRA_ROOM.lookup;
 
 export function isPriceLookup(v: unknown): v is PriceLookup {
   return typeof v === "string" && v in PRICE_LOOKUPS;

@@ -55,7 +55,7 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 | Seats per event | host's choice, up to 10, waiting list beyond | up to 50, waiting list beyond | up to 150, waiting list beyond |
 | Session length | 20 min, hard stop | 2 h | 4 h |
 | Sessions | 1 per month | 4 per month | unlimited, within fair use |
-| Rooms | 1 included; more at $19 each, one-off | 1 included; more at $19 each, one-off | 1 included; more at $19 each, one-off |
+| Rooms | the organisation's only room | one room per subscription | one room per subscription |
 | Polls, quizzes, word clouds, timers, reveals | yes | yes | yes |
 | Chat, Q&A, reactions, waiting room | yes | yes | yes |
 | Deck | yes | yes | yes |
@@ -72,7 +72,7 @@ Yearly prices are ten months for twelve ($290 and $790), so the landing page can
 
 There is no per-event pass (removed 25 Oct 2026, after a day). A fourth price split the decision on the landing page three ways and gave a Starter host at the cap a $19 exit instead of the Pro upgrade; two passes also cost more than a month of Starter, which made it a worse deal the page then had to explain. A host at the cap now sees one step: the next plan. If hosts who run a webinar twice a year turn out to matter, the answer is a monthly plan they cancel, which the portal already allows, not a fourth product.
 
-**Rooms.** A room is the unit a host owns, so every plan includes exactly one and the second is a purchase rather than a plan feature: a one-off $19 (Stripe lookup key `extra_room`), kept on every plan and counted on the organisation. A host who needs several standing communities pays per community; one who runs several kinds of event in one community uses several events in the one room. Platform admins are not capped. The price is a first guess and is nowhere in the code but `EXTRA_ROOM` in `plans.ts` and the Stripe price itself.
+**Rooms.** A room is the unit a host owns, so the plan is the room's, not the organisation's. An organisation's first room is free; upgrading it is what buying Starter or Pro means, and every further room is its own Starter or Pro subscription. A free room never sits next to a paid one: the second room needs the first upgraded, and a paid room whose subscription lapses while others remain is locked rather than dropped to free. A host who needs several standing communities therefore pays per community; one who runs several kinds of event in one community uses several events in the one room. Platform admins create complimentary rooms (Pro limits, no subscription).
 
 **Seats and the waiting list.** The participant cap bounds the session; the host chooses how many of those seats an event offers, and registrations beyond it wait in order of arrival. Someone who cannot come frees their seat from any email or the event page, and the first in line takes it with an email to say so. This is what makes the cap livable on Free: ten seats fill, the rest queue, and the reminders (on paid plans) keep asking the no-shows to step aside.
 

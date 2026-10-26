@@ -1,5 +1,5 @@
 import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
-import { loadOrgPlan } from "@/lib/billing";
+import { loadRoomAccess } from "@/lib/billing";
 import { resyncInvite } from "@/lib/email/schedule";
 import { parseCapacity } from "@/lib/seats";
 import { promoteWaitlist } from "@/lib/seats-server";
@@ -44,16 +44,16 @@ export const POST = handler(async (req) => {
     }
     patch.timezone = body.timezone;
   }
-  const planned = await loadOrgPlan(admin, invite.org_id);
-  if (!planned) throw new HttpError(404, "Organisation not found.");
+  const loaded = await loadRoomAccess(admin, invite.room_id);
+  if (!loaded) throw new HttpError(404, "Room not found.");
   if (body.capacity !== undefined) {
-    const seats = parseCapacity(body.capacity, planned.limits);
+    const seats = parseCapacity(body.capacity, loaded.access.limits);
     if ("error" in seats) throw new HttpError(400, seats.error);
     patch.capacity = seats.capacity;
   }
   const { data, error } = await admin.from("invites").update(patch).eq("id", invite.id).select("*").single();
   if (error) throw error;
   if (patch.starts_at !== undefined && patch.starts_at !== invite.starts_at) await resyncInvite(invite.id);
-  if (patch.capacity !== undefined && patch.capacity !== invite.capacity) await promoteWaitlist(admin, data as Invite, planned.limits);
+  if (patch.capacity !== undefined && patch.capacity !== invite.capacity) await promoteWaitlist(admin, data as Invite, loaded.access.limits);
   return json({ invite: data as Invite });
 });

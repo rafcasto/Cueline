@@ -1,5 +1,5 @@
 import { handler, HttpError, json, readJson, requireUser } from "@/lib/auth";
-import { loadOrgPlan } from "@/lib/billing";
+import { loadRoomAccess } from "@/lib/billing";
 import { cancelRegistrationEmails } from "@/lib/email/schedule";
 import { inviteByToken } from "@/lib/invites";
 import { promoteWaitlist } from "@/lib/seats-server";
@@ -44,10 +44,10 @@ export const POST = handler(async (req) => {
     } catch (err) {
       console.error("cancel emails", err);
     }
-    const planned = await loadOrgPlan(admin, reg.org_id);
-    if (planned) {
+    const loaded = await loadRoomAccess(admin, reg.room_id);
+    if (loaded) {
       try {
-        await promoteWaitlist(admin, invite as Invite, planned.limits);
+        await promoteWaitlist(admin, invite as Invite, loaded.access.limits);
       } catch (err) {
         console.error("waitlist after opt-out", err);
       }
