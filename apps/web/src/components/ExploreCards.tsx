@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { RoomMark } from "@/components/RoomBrand";
+import { BrandScope, RoomMark } from "@/components/RoomBrand";
 import { Badge, ButtonLink, cx } from "@/components/ui";
 import { eventStatus, formatEventTime, isEventFull, type PublicEvent, type PublicRoom } from "@/lib/explore";
 
@@ -50,32 +50,35 @@ export function EventCard({ event }: { event: PublicEvent }) {
   );
 }
 
-/** A listed room: its mark, what it is about, and how active it is. */
+/**
+ * A listed room: its mark, what it is about, and how active it is. The logo sits in a band
+ * across the top, tinted with the room's accent, rather than in a square: hosts are asked for
+ * a wide mark 32 px tall, and a square slot clipped exactly that shape. A room with no logo
+ * shows the product mark in the same band, so the grid stays even.
+ */
 export function RoomCard({ room }: { room: PublicRoom }) {
   return (
-    <li className="rounded-xl border border-line bg-surface-raised p-5 shadow-card transition-shadow hover:shadow-float">
-      <div className="flex items-start gap-3">
-        <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-surface-inset">
-          <RoomMark branding={room.branding} name={room.name} className="max-h-10 max-w-10" />
+    <li className="overflow-hidden rounded-xl border border-line bg-surface-raised shadow-card transition-shadow hover:shadow-float">
+      <BrandScope branding={room.branding} className="flex h-16 items-center bg-brand-soft px-5">
+        <RoomMark branding={room.branding} name={room.name} className="h-8 max-w-full" />
+      </BrandScope>
+      <div className="p-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/explore/${room.slug}`} className="truncate text-base font-semibold text-ink hover:underline">
+            {room.name}
+          </Link>
+          {room.session_state === "live" && (
+            <Badge tone="live" dot>
+              Live now
+            </Badge>
+          )}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Link href={`/explore/${room.slug}`} className="truncate text-base font-semibold text-ink hover:underline">
-              {room.name}
-            </Link>
-            {room.session_state === "live" && (
-              <Badge tone="live" dot>
-                Live now
-              </Badge>
-            )}
-          </div>
-          <p className="mt-0.5 text-xs text-ink-muted">
-            {room.upcoming_events === 1 ? "1 upcoming event" : `${room.upcoming_events} upcoming events`} · {room.people === 1 ? "1 person" : `${room.people} people`}
-          </p>
-        </div>
+        <p className="mt-0.5 text-xs text-ink-muted">
+          {room.upcoming_events === 1 ? "1 upcoming event" : `${room.upcoming_events} upcoming events`} · {room.people === 1 ? "1 person" : `${room.people} people`}
+        </p>
+        {room.description && <p className="mt-3 line-clamp-3 text-sm text-ink-muted">{room.description}</p>}
+        {room.topics.length > 0 && <TopicChips topics={room.topics} className="mt-3" />}
       </div>
-      {room.description && <p className="mt-3 line-clamp-3 text-sm text-ink-muted">{room.description}</p>}
-      {room.topics.length > 0 && <TopicChips topics={room.topics} className="mt-3" />}
     </li>
   );
 }

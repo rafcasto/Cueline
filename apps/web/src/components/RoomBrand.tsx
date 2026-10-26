@@ -17,12 +17,17 @@ export function BrandScope({ branding, className, children }: { branding: RoomBr
   );
 }
 
-/** The room's logo where the product mark would go; the product mark when there is none. */
-export function RoomMark({ branding, name, className }: { branding: RoomBranding; name: string; className?: string }) {
+/**
+ * The room's logo where the product mark would go; the product mark when there is none.
+ * `className` sets the size (height and max width); the default is the header size. The
+ * width follows the image's own proportions and is never clipped, so a wide wordmark (the
+ * shape the branding editor asks for) and a square mark both fit the box they are given.
+ */
+export function RoomMark({ branding, name, className = "h-8 max-w-40" }: { branding: RoomBranding; name: string; className?: string }) {
   const b = normalizeBranding(branding);
   if (!b.logo_url) return <Logo wordmark={false} className={className} />;
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={b.logo_url} alt={name} className={cx("h-8 w-auto max-w-40 object-contain object-left", className)} />;
+  return <img src={b.logo_url} alt={name} className={cx("w-auto object-contain object-left", className)} />;
 }
 
 /** The room's standing call to action, in the accent, opening in a new tab. Null when the host set none. */

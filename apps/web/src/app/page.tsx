@@ -17,9 +17,13 @@ export const dynamic = "force-dynamic";
  * describes something the product does today: no ratings, logos or percentages until there
  * are real ones.
  *
- * The plans read from PLAN_LIMITS so the page never drifts from the gates. Three plain
- * columns, Starter with the only primary button; what every plan shares is said once above
- * the columns, and each column lists only what sets it apart.
+ * The plans read from PLAN_LIMITS so the page never drifts from the gates, and list only the
+ * limits the app enforces and the features a host can reach from the product. Recordings are
+ * made on the paid plans but nothing shows them to the host yet, the stage and the branding
+ * are not gated by plan, and the Stripe call to action settles into Tertulia's own account,
+ * so none of those is sold here until it is true. Three plain columns, Starter with the only
+ * primary button; what every plan shares is said once above the columns, and each column
+ * lists only what sets it apart.
  *
  * Attendees also land here from a bookmark, so the typed door (email + code) stays reachable
  * from the header, the hero and the footer. Calls to action carry `data-track` so the
@@ -91,7 +95,7 @@ export default async function Home() {
         </section>
 
         {/* Happening soon: the directory, live */}
-        <Section id="events" title="Happening soon" body="Public sessions across every listed community. Register in one tap; the organiser's reminders do the rest." href="/explore" link="See all events">
+        <Section id="events" title="Happening soon" body="Public sessions across every listed community. Register in one tap; your welcome email carries your way in." href="/explore" link="See all events">
           {events.length === 0 ? (
             <EmptyState
               className="mt-10"
@@ -113,7 +117,7 @@ export default async function Home() {
         </Section>
 
         {/* Communities to join */}
-        <Section id="communities" title="Communities to join" body="Each one is a standing room with its own organisers, events, people and recordings." href="/explore?view=rooms" link="Browse all communities">
+        <Section id="communities" title="Communities to join" body="Each one is a standing room with its own organisers, events and people." href="/explore?view=rooms" link="Browse all communities">
           {rooms.length === 0 ? (
             <EmptyState
               className="mt-10"
@@ -144,7 +148,7 @@ export default async function Home() {
         <Section id="how" title="How Tertulia works" body="Three steps from curious to in the room." centered>
           <ol className="mt-14 grid gap-12 md:grid-cols-3 md:gap-8">
             <Step n={1} title="Find a community" body="Search by topic or browse what is listed. Every community has a public page with what it is about, who runs it and what is coming up." href="/explore?view=rooms" link="Browse communities" />
-            <Step n={2} title="Register for an event" body="Pick a session and register with a name and an email, nothing else. A welcome email brings your personal link and a join code, and reminders arrive before the start." href="/explore" link="See upcoming events" />
+            <Step n={2} title="Register for an event" body="Pick a session and register with a name and an email, nothing else. A welcome email brings your personal link and a join code; many communities send reminders before the start too." href="/explore" link="See upcoming events" />
             <Step n={3} title="Show up live" body="Open your link when the doors open. See and hear the organisers, answer the polls and quizzes on the slide, chat, ask questions, react, and raise a hand to come on stage." href="/join" link="Join with a code" />
           </ol>
         </Section>
@@ -152,7 +156,7 @@ export default async function Home() {
         {/* Together in the session */}
         <Section id="together" title="A session you take part in, not a stream you watch" body="Every activity opens over the slide everyone is looking at, with a timer if the organiser wants one, and the results reveal when they say so.">
           <ul className="mt-8 flex flex-wrap gap-2" aria-label="What members can do in a session">
-            {["Polls", "Quizzes with scores", "Word clouds", "Live chat", "Q&A with upvotes", "Reactions", "Raise hand", "Come on stage", "Recordings"].map((t) => (
+            {["Polls", "Quizzes with scores", "Word clouds", "Live chat", "Q&A with upvotes", "Reactions", "Raise hand", "Come on stage"].map((t) => (
               <li key={t} className="rounded-full border border-line px-3.5 py-1.5 text-sm text-ink">
                 {t}
               </li>
@@ -172,7 +176,7 @@ export default async function Home() {
               <div>
                 <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">Start a community people come back to</h2>
                 <p className="mt-4 text-lg leading-relaxed text-ink-muted">
-                  A community on Tertulia is a room you own: your colour and logo, your events, your people and your recordings in one place. List it and anyone can find it; every event you publish is a registration page too.
+                  A community on Tertulia is a room you own: your colour and logo, your events and your people in one place. List it and anyone can find it; every event you publish is a registration page too.
                 </p>
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                   <ButtonLink href="/login" size="lg" className="w-full sm:w-auto" data-track="organise_start_community">
@@ -186,10 +190,10 @@ export default async function Home() {
               </div>
               <ul className="mt-10 space-y-4 text-base text-ink lg:mt-0">
                 <Check>A public page with your description, topics, upcoming and past events</Check>
-                <Check>Members register with a name and an email; a welcome email and reminders follow</Check>
+                <Check>Members register with a name and an email and get a welcome email; reminders follow on the paid plans</Check>
                 <Check>Seats per event, and a waiting list when they are gone</Check>
                 <Check>Polls, quizzes, word clouds and calls to action over your slides</Check>
-                <Check>Who registered against who joined, and a recording of every session</Check>
+                <Check>Who registered against who actually turned up</Check>
                 <Check>Your accent colour and logo on the room and every button in it</Check>
               </ul>
             </div>
@@ -197,13 +201,13 @@ export default async function Home() {
         </section>
 
         {/* Plans */}
-        <Section id="pricing" title="Pay for the room you run, not for the people in it" body="Attendees never pay. Every plan has polls, quizzes, word clouds, chat and Q&A on the slide, seats and a waiting list per event, and a welcome email on registration. The plans differ in how often, how many and how long." centered>
+        <Section id="pricing" title="Pay for the room you run, not for the people in it" body="Attendees never pay. Every plan has polls, quizzes, word clouds, chat and Q&A on the slide, raised hands and a stage, seats and a waiting list per event, your colour and logo, and a welcome email on registration. The plans differ in how often, how many and how long." centered>
           <ul className="mx-auto mt-14 grid max-w-5xl gap-12 md:grid-cols-3 md:gap-0 md:divide-x md:divide-line">
             <PlanCard plan="free" blurb="A trial of the whole engagement layer: one real quiz with a timer and a reveal." price="$0" per="forever" note="No card. Go live today." cta="Start free" href="/login" variant="secondary" />
             <PlanCard
               plan="starter"
               featured
-              blurb="The weekly organiser: a full room, a two-hour session and a recording to send afterwards."
+              blurb="The weekly organiser: a full room, two-hour sessions and reminders that ask the no-shows to free their seat."
               price={PRICE_LABELS.starter_monthly.amount}
               per="a month"
               note={`Or ${PRICE_LABELS.starter_yearly.amount} a year, two months free.`}
@@ -213,7 +217,7 @@ export default async function Home() {
             />
             <PlanCard
               plan="pro"
-              blurb="Several sessions a week, a bigger room, longer sessions, and a checkout on the slide."
+              blurb="Several sessions a week, a bigger room and longer sessions."
               price={PRICE_LABELS.pro_monthly.amount}
               per="a month"
               note={`Or ${PRICE_LABELS.pro_yearly.amount} a year, two months free.`}
@@ -223,7 +227,7 @@ export default async function Home() {
             />
           </ul>
           <p className="mx-auto mt-12 max-w-2xl text-center text-sm leading-relaxed text-ink-muted">
-            A plan is per room: your first room is free until you upgrade it, and every further room is its own Starter or Pro subscription. Prices in USD, billed through Stripe. Move up or down whenever you like; the difference is prorated, and cancelling takes effect at the end of the period you have paid for. A session counts the moment you press <em>Go live</em>; a false start nobody joined is given back.
+            A plan is per room: your first room is free until you upgrade it, and every further room is its own Starter or Pro subscription. Prices in USD, billed through Stripe. Move up or down whenever you like; the difference is prorated, and cancelling takes effect at the end of the period you have paid for. A session counts the moment you press <em>Go live</em>; a false start nobody joined is given back. Pro is unlimited in count within a fair-use line of {PLAN_LIMITS.pro.poolParticipantHours} participant-hours a month. Tertulia runs on a single video server today, so there is no uptime guarantee on any plan yet.
           </p>
         </Section>
 
@@ -338,19 +342,17 @@ function Feature({ title, body }: { title: string; body: string }) {
 
 /**
  * What sets a plan apart, in the order an organiser weighs it: how often, how many, how long,
- * then what the paid plans add. Read from PLAN_LIMITS so the page and the gates never
- * disagree. What every plan shares is said once above the columns, so a column lists only
- * what it has; the next column's longer list does the persuading, not a row of crosses.
+ * then the reminders. Read from PLAN_LIMITS so the page and the gates never disagree, and
+ * limited to what the app enforces today (the session, participant and length caps, and the
+ * reminder gate). The recording, stage-slot, fallback-stream and Stripe flags in PLAN_LIMITS
+ * are not listed: see the note at the top of this file. What every plan shares is said once
+ * above the columns, so a column lists only what it has.
  */
 function planLines(l: PlanLimits): string[] {
   const sessions = l.sessionsPerMonth === null ? "Unlimited sessions" : l.sessionsPerMonth === 1 ? "1 session a month" : `${l.sessionsPerMonth} sessions a month`;
-  const length = l.minutes >= 60 ? `${l.minutes / 60} hours per session` : `${l.minutes} minutes per session, hard stop`;
+  const length = l.minutes >= 60 ? `${l.minutes / 60} hours per session` : `${l.minutes} minutes per session`;
   const lines = [sessions, `${l.participants} attendees per session`, length];
   if (l.reminders) lines.push("Reminder emails before every event");
-  if (l.recording) lines.push("Every session recorded");
-  if (l.promoteSlots > 0) lines.push(`${l.promoteSlots} ${l.promoteSlots === 1 ? "guest" : "guests"} on stage at a time`);
-  if (l.hlsFallback) lines.push("Fallback stream when the room is full");
-  if (l.stripeCta) lines.push("Sell with a Stripe checkout on the slide");
   return lines;
 }
 

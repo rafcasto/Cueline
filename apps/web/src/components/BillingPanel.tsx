@@ -175,7 +175,7 @@ function RoomRow({ room, owner, busy, onBuy }: { room: BillingRoom; owner: boole
             {room.stripe_mode === "test" && room.has_subscription && <Badge tone="warning">Sandbox subscription</Badge>}
           </p>
           <p className="mt-0.5 text-xs text-ink-muted">
-            /r/{room.slug} · {limits.participants} attendees · {limits.minutes >= 60 ? `${limits.minutes / 60} h` : `${limits.minutes} min`} per session · {limits.recording ? "recording" : "no recording"} · {limits.reminders ? "reminder emails" : "welcome email only"}
+            /r/{room.slug} · {limits.participants} attendees · {limits.minutes >= 60 ? `${limits.minutes / 60} h` : `${limits.minutes} min`} per session · {limits.reminders ? "reminder emails" : "welcome email only"}
           </p>
         </div>
         <div className="flex gap-6">
@@ -209,8 +209,7 @@ function RoomRow({ room, owner, busy, onBuy }: { room: BillingRoom; owner: boole
                     <span className="text-sm font-semibold text-ink">{l.label}</span> {current && <Badge tone="success">current</Badge>}
                     {next && <Badge tone="brand">next step up</Badge>}
                     <br />
-                    {l.sessionsPerMonth === null ? "Unlimited sessions" : `${l.sessionsPerMonth} sessions a month`} · {l.participants} attendees · {l.minutes / 60} h · {l.recording ? "recording" : "no recording"}
-                    {l.hlsFallback ? " · fallback stream" : ""} · {l.promoteSlots} on stage{l.stripeCta ? " · Stripe call to action" : ""} · reminder emails
+                    {l.sessionsPerMonth === null ? "Unlimited sessions" : `${l.sessionsPerMonth} sessions a month`} · {l.participants} attendees · {l.minutes / 60} h · reminder emails
                   </p>
                   <div className="flex gap-2">
                     <Button size="sm" variant={current ? "ghost" : next ? "primary" : "secondary"} onClick={() => onBuy(room.id, row.monthly)} loading={busy === `${room.id}:${row.monthly}`} disabled={!!busy}>
