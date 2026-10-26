@@ -1,12 +1,15 @@
 import type Stripe from "stripe";
+import { effectivePlan } from "@/lib/billing";
 import { planFromPrice, type Plan } from "@/lib/plans";
+import { afterPlanChange } from "@/lib/seats-server";
 import { type StripeMode, stripeFor, verifyWebhook } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
  * One endpoint for both Stripe modes and every kind of payment: CTA orders bought by attendees
- * in the room and plan subscriptions. The signature says which mode the event
- * came from; the event id makes a redelivery a no-op. Access is granted here and nowhere else.
+ * in the room, plan subscriptions, and rooms bought beyond the plan. The signature says which
+ * mode the event came from; the event id makes a redelivery a no-op. Access is granted here and
+ * nowhere else.
  */
 export async function POST(req: Request) {
   const sig = req.headers.get("stripe-signature") ?? "";
@@ -35,6 +38,10 @@ export async function POST(req: Request) {
         const orgId = cs.metadata?.org_id ?? cs.client_reference_id ?? null;
         const sub = await stripeFor(mode).subscriptions.retrieve(cs.subscription);
         await applySubscription(admin, mode, sub, orgId);
+      } else if (cs.metadata?.kind === "room") {
+        // Paid once per purchase: the function adds nothing on a redelivery.
+        const { error } = await admin.rpc("grant_extra_room", { p_session_id: cs.id, p_amount: cs.amount_total, p_currency: cs.currency });
+        if (error) throw error;
       } else {
         await completeCtaOrder(admin, cs);
       }
@@ -44,6 +51,7 @@ export async function POST(req: Request) {
     case "checkout.session.expired": {
       const id = event.data.object.id;
       await admin.from("orders").update({ status: "failed", updated_at: now }).eq("stripe_session_id", id);
+      await admin.from("room_purchases").update({ status: "failed" }).eq("stripe_session_id", id).eq("status", "pending");
       break;
     }
     case "customer.subscription.created":
@@ -73,7 +81,8 @@ type PlanStatus = "active" | "past_due" | "canceled";
 /**
  * Mirror a subscription onto its organisation: plan from the price, status from Stripe, the
  * current period for the session count, and the ids to find it again. A cancelled or expired
- * subscription puts the organisation back on free.
+ * subscription puts the organisation back on free. When the plan in force changes, seats and
+ * reminders follow it (afterPlanChange).
  */
 async function applySubscription(admin: ReturnType<typeof supabaseAdmin>, mode: StripeMode, sub: Stripe.Subscription, orgIdHint: string | null, forceStatus?: PlanStatus) {
   const orgId = orgIdHint ?? (await findOrg(admin, mode, sub));
@@ -105,6 +114,7 @@ async function applySubscription(admin: ReturnType<typeof supabaseAdmin>, mode: 
   const periodEnd = item?.current_period_end ? new Date(item.current_period_end * 1000).toISOString() : null;
   const customer = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const gone = status === "canceled";
+  const { data: before } = await admin.from("organisations").select("id, plan, plan_status").eq("id", orgId).maybeSingle();
 
   const { error } = await admin
     .from("organisations")
@@ -120,6 +130,16 @@ async function applySubscription(admin: ReturnType<typeof supabaseAdmin>, mode: 
     })
     .eq("id", orgId);
   if (error) throw error;
+
+  const was = before ? effectivePlan(before) : null;
+  const is = effectivePlan({ id: orgId, plan: gone || !plan ? "free" : plan, plan_status: status });
+  if (was !== is) {
+    try {
+      await afterPlanChange(orgId);
+    } catch (err) {
+      console.error("after plan change", orgId, err);
+    }
+  }
 }
 
 async function findOrg(admin: ReturnType<typeof supabaseAdmin>, mode: StripeMode, sub: Stripe.Subscription): Promise<string | null> {

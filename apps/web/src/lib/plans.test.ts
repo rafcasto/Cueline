@@ -7,6 +7,12 @@ describe("plans", () => {
     expect(PLAN_LIMITS.starter).toMatchObject({ sessionsPerMonth: 4, participants: 50, minutes: 120, recording: true });
     expect(PLAN_LIMITS.pro).toMatchObject({ sessionsPerMonth: null, participants: 150, minutes: 240, hlsFallback: true, stripeCta: true });
   });
+  it("includes one room on every plan and reminders only on the paid ones", () => {
+    for (const plan of Object.values(PLAN_LIMITS)) expect(plan.roomsIncluded).toBe(1);
+    expect(PLAN_LIMITS.free.reminders).toBe(false);
+    expect(PLAN_LIMITS.starter.reminders).toBe(true);
+    expect(PLAN_LIMITS.pro.reminders).toBe(true);
+  });
   it("maps every Stripe lookup key to what it grants", () => {
     expect(Object.keys(PRICE_LOOKUPS).sort()).toEqual(["pro_monthly", "pro_yearly", "starter_monthly", "starter_yearly"]);
     expect(isPriceLookup("pro_monthly")).toBe(true);

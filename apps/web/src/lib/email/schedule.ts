@@ -1,6 +1,8 @@
 import { publicEnv } from "@/lib/env";
 import { emailConfigured, resend, RESEND_SCHEDULE_HORIZON_MS } from "@/lib/email/resend";
 import { renderTemplate, sendTimeFor, templateVars, textToHtml } from "@/lib/email/template";
+import { loadOrgPlan } from "@/lib/billing";
+import { stepKindsFor } from "@/lib/seats";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Invite, InviteEmail, Registration, RegistrationEmail } from "@/lib/supabase/types";
 
@@ -27,13 +29,16 @@ function sendAtFor(step: StepRow, startsAt: string | null, now: number): string 
   return at.toISOString();
 }
 
-/** Create the queued rows for one registration (all enabled steps) and dispatch them. */
+/** Create the queued rows for one registration (the enabled steps it is due) and dispatch them. */
 export async function queueRegistrationEmails(registrationId: string, opts: { stepIds?: string[] } = {}) {
   const admin = supabaseAdmin();
-  const { data: reg } = await admin.from("registrations").select("id, org_id, invite_id, invites(starts_at)").eq("id", registrationId).maybeSingle();
+  const { data: reg } = await admin.from("registrations").select("id, org_id, invite_id, waitlisted_at, cancelled_at, invites(starts_at)").eq("id", registrationId).maybeSingle();
   if (!reg) return;
+  const planned = await loadOrgPlan(admin, reg.org_id);
+  const kinds = stepKindsFor(reg, planned?.limits ?? { reminders: false });
+  if (kinds.length === 0) return;
   const startsAt = (reg.invites as unknown as { starts_at: string | null } | null)?.starts_at ?? null;
-  let q = admin.from("invite_emails").select("id, kind, minutes_before, enabled").eq("invite_id", reg.invite_id).eq("enabled", true);
+  let q = admin.from("invite_emails").select("id, kind, minutes_before, enabled").eq("invite_id", reg.invite_id).eq("enabled", true).in("kind", kinds);
   if (opts.stepIds) q = q.in("id", opts.stepIds);
   const { data: steps } = await q;
   const now = Date.now();
@@ -49,7 +54,7 @@ export async function queueRegistrationEmails(registrationId: string, opts: { st
 }
 
 type Due = RegistrationEmail & {
-  registrations: Pick<Registration, "name" | "email" | "code" | "access_token"> | null;
+  registrations: Pick<Registration, "name" | "email" | "code" | "access_token" | "cancelled_at"> | null;
   invite_emails: (Pick<InviteEmail, "kind" | "subject" | "body"> & { invites: (Pick<Invite, "title" | "starts_at" | "timezone"> & { rooms: { name: string } | null }) | null }) | null;
 };
 
@@ -64,7 +69,7 @@ export async function dispatch(filter: { registrationId?: string; stepId?: strin
   const now = Date.now();
   let q = admin
     .from("registration_emails")
-    .select("*, registrations(name, email, code, access_token), invite_emails(kind, subject, body, invites(title, starts_at, timezone, rooms(name)))")
+    .select("*, registrations(name, email, code, access_token, cancelled_at), invite_emails(kind, subject, body, invites(title, starts_at, timezone, rooms(name)))")
     .eq("status", "queued")
     .lte("send_at", new Date(now + RESEND_SCHEDULE_HORIZON_MS - 60 * 60_000).toISOString())
     .order("send_at")
@@ -77,6 +82,12 @@ export async function dispatch(filter: { registrationId?: string; stepId?: strin
     const step = row.invite_emails;
     const invite = step?.invites;
     if (!reg || !step || !invite) {
+      summary.skipped++;
+      continue;
+    }
+    // Opted out since the row was queued: nothing goes to them.
+    if (reg.cancelled_at) {
+      await admin.from("registration_emails").update({ status: "cancelled" }).eq("id", row.id);
       summary.skipped++;
       continue;
     }
@@ -99,7 +110,7 @@ export async function dispatch(filter: { registrationId?: string; stepId?: strin
         to: reg.email,
         subject,
         text,
-        html: textToHtml(text, { buttonUrl: vars.link, buttonLabel: step.kind === "confirmation" ? "Save your link" : "Join the webinar" }),
+        html: textToHtml(text, { buttonUrl: vars.link, buttonLabel: step.kind === "confirmation" ? "Save your link" : step.kind === "waitlist" ? "See your place in line" : "Join the webinar" }),
         scheduledAt: immediate ? undefined : row.send_at,
       });
       await admin.from("registration_emails").update({ status: immediate ? "sent" : "scheduled", resend_id: id, error: null }).eq("id", row.id);
@@ -139,8 +150,8 @@ export async function resyncStep(stepId: string) {
   const admin = supabaseAdmin();
   const { data: step } = await admin.from("invite_emails").select("id, invite_id, kind, enabled").eq("id", stepId).maybeSingle();
   if (!step) return;
-  // The confirmation is sent once at registration; edits to it apply to future registrants only.
-  if (step.kind === "confirmation") return;
+  // The welcome and the waiting-list note are sent once at registration; edits apply to future registrants only.
+  if (step.kind !== "reminder") return;
   await cancelStep(stepId);
   if (!step.enabled) return;
   const { data: regs } = await admin.from("registrations").select("id").eq("invite_id", step.invite_id);
@@ -194,5 +205,58 @@ export async function cancelRoomEmails(roomId: string) {
     } catch (err) {
       console.warn("resend cancel failed", row.resend_id, (err as Error).message);
     }
+  }
+}
+
+/** The registrant opted out: pull back whatever Resend still holds for them and forget those rows (sent ones stay as history). */
+export async function cancelRegistrationEmails(registrationId: string) {
+  const admin = supabaseAdmin();
+  const { data } = await admin.from("registration_emails").select("id, status, resend_id").eq("registration_id", registrationId).in("status", ["queued", "scheduled", "failed"]);
+  for (const row of data ?? []) {
+    if (row.status === "scheduled" && row.resend_id && emailConfigured()) {
+      try {
+        await resend.cancel(row.resend_id);
+      } catch (err) {
+        console.warn("resend cancel failed", row.resend_id, (err as Error).message);
+      }
+    }
+  }
+  const ids = (data ?? []).map((r) => r.id);
+  if (ids.length > 0) await admin.from("registration_emails").delete().in("id", ids);
+}
+
+/**
+ * After the organisation's plan changes. Reminders are a paid feature: a move to free pulls
+ * back every reminder still pending for the organisation's registrants; a move up queues the
+ * reminders for everyone with a seat at an event still ahead (rows already there are kept).
+ */
+export async function applyPlanToEmails(orgId: string) {
+  const admin = supabaseAdmin();
+  const planned = await loadOrgPlan(admin, orgId);
+  if (!planned) return;
+  if (!planned.limits.reminders) {
+    const { data } = await admin
+      .from("registration_emails")
+      .select("id, status, resend_id, invite_emails!inner(kind)")
+      .eq("org_id", orgId)
+      .eq("invite_emails.kind", "reminder")
+      .in("status", ["queued", "scheduled", "failed"]);
+    for (const row of data ?? []) {
+      if (row.status === "scheduled" && row.resend_id && emailConfigured()) {
+        try {
+          await resend.cancel(row.resend_id);
+        } catch (err) {
+          console.warn("resend cancel failed", row.resend_id, (err as Error).message);
+        }
+      }
+    }
+    const ids = (data ?? []).map((r) => r.id);
+    if (ids.length > 0) await admin.from("registration_emails").delete().in("id", ids);
+    return;
+  }
+  const { data: invites } = await admin.from("invites").select("id").eq("org_id", orgId).is("revoked_at", null).gte("starts_at", new Date().toISOString());
+  for (const inv of invites ?? []) {
+    const { data: regs } = await admin.from("registrations").select("id").eq("invite_id", inv.id).is("waitlisted_at", null).is("cancelled_at", null);
+    for (const r of regs ?? []) await queueRegistrationEmails(r.id);
   }
 }

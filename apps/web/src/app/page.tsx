@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { EventCard, RoomCard, TopicChips } from "@/components/ExploreCards";
 import { Badge, Button, ButtonLink, EmptyState, Input, Logo, cx } from "@/components/ui";
 import { listPublicEvents, listPublicRooms, listTopics, type PublicEvent, type PublicRoom } from "@/lib/explore";
-import { PLAN_LIMITS, PRICE_LABELS, type Plan, type PlanLimits } from "@/lib/plans";
+import { EXTRA_ROOM, PLAN_LIMITS, PRICE_LABELS, type Plan, type PlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -219,6 +219,7 @@ export default async function Home() {
                 <Check>A public page with your description, topics, upcoming and past events</Check>
                 <Check>Events that double as invite links; members register with a name and an email</Check>
                 <Check>A welcome email and four reminders per room, edited once and inherited by every event</Check>
+                <Check>Seats per event, a waiting list when they are gone, and seats freed by people who opt out</Check>
                 <Check>Polls, quizzes, word clouds and calls to action over your slides, with timers and reveals</Check>
                 <Check>Who registered against who joined, and a recording of every session</Check>
                 <Check>Your accent colour and logo on the room, the invite page and every button in it</Check>
@@ -396,7 +397,10 @@ function planLines(l: PlanLimits): { text: string; included: boolean }[] {
     { text: `${l.participants} attendees per session`, included: true },
     { text: length, included: true },
     { text: "Polls, quizzes, word clouds, chat and Q&A", included: true },
-    { text: "Welcome email and reminders for every event", included: true },
+    { text: `${l.roomsIncluded === 1 ? "One room" : `${l.roomsIncluded} rooms`}, more at ${EXTRA_ROOM.amount} each`, included: true },
+    { text: "Seats per event, with a waiting list when they are gone", included: true },
+    { text: "Welcome email on registration", included: true },
+    { text: "Reminder emails before every event", included: l.reminders },
     { text: l.recording ? "Every session recorded" : "Sessions recorded", included: l.recording },
     { text: l.promoteSlots > 0 ? `${l.promoteSlots} ${l.promoteSlots === 1 ? "guest" : "guests"} on stage at a time` : "Guests on stage", included: l.promoteSlots > 0 },
     { text: "Fallback stream when the room is full", included: l.hlsFallback },

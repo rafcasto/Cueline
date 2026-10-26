@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Alert, Badge, Button, Card, CardHeader, Stat } from "@/components/ui";
 import { api } from "@/lib/api";
-import { PLAN_LIMITS, PRICE_LABELS, type Plan, type PriceLookup } from "@/lib/plans";
+import { EXTRA_ROOM, PLAN_LIMITS, PRICE_LABELS, type Plan, type PriceLookup } from "@/lib/plans";
 import type { PlanStatus, StripeMode } from "@/lib/supabase/types";
 
 export type BillingSummary = {
@@ -20,6 +20,8 @@ export type BillingSummary = {
   cap: number | null;
   period_end: string;
   owner: boolean;
+  /** Rooms: in use, included by the plan, and bought on top. Null allowance means no cap (platform admin). */
+  rooms: { used: number; included: number; extra: number; allowance: number | null };
 };
 
 const PLAN_ROWS: { plan: Plan; monthly: PriceLookup; yearly: PriceLookup }[] = [
@@ -30,7 +32,7 @@ const PLAN_ROWS: { plan: Plan; monthly: PriceLookup; yearly: PriceLookup }[] = [
 /** The one step up from the current plan: the row that gets the emphasis, so the choice is a nudge rather than a menu. */
 const NEXT_PLAN: Record<Plan, Plan | null> = { free: "starter", starter: "pro", pro: null };
 
-/** One organisation's plan: what it allows, what has been used, and the buttons that change it. */
+/** One organisation's plan: what it allows, what has been used, the buttons that change it, and the rooms it has and can buy. */
 export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode: StripeMode }) {
   const { org } = summary;
   const limits = PLAN_LIMITS[org.plan];
@@ -50,7 +52,9 @@ export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode:
     }
   };
   const buy = (price: PriceLookup) => go(price, "/api/billing/checkout", { org_id: org.id, price });
+  const buyRoom = () => go("room", "/api/billing/rooms", { org_id: org.id });
   const portal = () => go("portal", "/api/billing/portal", { org_id: org.id });
+  const rooms = summary.rooms;
   const otherMode = org.stripe_mode && org.stripe_mode !== mode;
 
   return (
@@ -73,10 +77,11 @@ export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode:
           ) : undefined
         }
       />
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:grid-cols-4">
         <Stat value={summary.cap === null ? `${summary.used}` : `${summary.used} / ${summary.cap}`} label={summary.cap === null ? `sessions this month (unlimited)` : `sessions used, resets ${resets}`} />
         <Stat value={limits.participants} label="attendees per session" />
         <Stat value={limits.minutes >= 60 ? `${limits.minutes / 60} h` : `${limits.minutes} min`} label="per session, hard stop" />
+        <Stat value={rooms.allowance === null ? `${rooms.used}` : `${rooms.used} / ${rooms.allowance}`} label={rooms.allowance === null ? "rooms (no cap)" : "rooms in use"} />
       </div>
       {org.plan_status === "past_due" && (
         <Alert tone="warning" className="mt-4">
@@ -93,6 +98,21 @@ export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode:
           {error}
         </Alert>
       )}
+      <div id="rooms" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-surface-inset p-4 scroll-mt-20">
+        <div>
+          <p className="text-sm font-semibold text-ink">Rooms</p>
+          <p className="text-xs text-ink-muted">
+            {limits.label} includes {rooms.included === 1 ? "one room" : `${rooms.included} rooms`}
+            {rooms.extra > 0 ? `, plus ${rooms.extra} you bought` : ""}; {rooms.used} in use.{" "}
+            {rooms.allowance === null ? "As a platform admin you are not capped." : `Another room is ${EXTRA_ROOM.amount}, ${EXTRA_ROOM.label}, and stays yours on every plan.`}
+          </p>
+        </div>
+        {summary.owner && (
+          <Button size="sm" variant="secondary" onClick={() => void buyRoom()} loading={busy === "room"} disabled={!!busy}>
+            Buy another room · {EXTRA_ROOM.amount}
+          </Button>
+        )}
+      </div>
       {summary.owner ? (
         <div className="mt-6 space-y-3">
           {PLAN_ROWS.map((row) => {
@@ -110,6 +130,7 @@ export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode:
                     {l.sessionsPerMonth === null ? "Unlimited sessions" : `${l.sessionsPerMonth} sessions a month`} · {l.participants} attendees · {l.minutes / 60} h ·{" "}
                     {l.recording ? "recording" : "no recording"}
                     {l.hlsFallback ? " · fallback stream" : ""} · {l.promoteSlots} on stage{l.stripeCta ? " · Stripe call to action" : ""}
+                    {l.reminders ? " · reminder emails" : ""}
                   </p>
                 </div>
                 <div className="flex gap-2">

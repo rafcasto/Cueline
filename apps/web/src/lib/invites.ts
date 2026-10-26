@@ -31,15 +31,21 @@ export async function activeInvite(roomId: string): Promise<Invite | null> {
   return (data as Invite | null) ?? null;
 }
 
-/** This identity's registration for a room, if any. */
-export async function registrationFor(roomId: string, userId: string): Promise<Registration | null> {
-  const { data } = await supabaseAdmin()
-    .from("registrations")
-    .select("*")
-    .eq("room_id", roomId)
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+/**
+ * This identity's registration for a room, if any. With `inviteId` it is the registration for
+ * that event in whatever state (seated, waiting or opted out), for the event page to describe;
+ * with `seatedOnly` it is one that holds a seat, which is what the room's door checks.
+ */
+export async function registrationFor(roomId: string, userId: string, opts: { inviteId?: string; seatedOnly?: boolean } = {}): Promise<Registration | null> {
+  let q = supabaseAdmin().from("registrations").select("*").eq("room_id", roomId).eq("user_id", userId);
+  if (opts.inviteId) q = q.eq("invite_id", opts.inviteId);
+  if (opts.seatedOnly) q = q.is("waitlisted_at", null).is("cancelled_at", null);
+  const { data } = await q.order("created_at", { ascending: false }).limit(1).maybeSingle();
   return (data as Registration | null) ?? null;
+}
+
+/** Every registration for an event, the rows the seat count and the queue are computed from. */
+export async function registrationsFor(inviteId: string): Promise<Registration[]> {
+  const { data } = await supabaseAdmin().from("registrations").select("*").eq("invite_id", inviteId).order("created_at");
+  return (data as Registration[] | null) ?? [];
 }

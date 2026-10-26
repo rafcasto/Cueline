@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { RoomBrandingEditor } from "@/components/RoomBrandingEditor";
+import { TopicPicker } from "@/components/TopicPicker";
 import { Alert, Button, Card, CardHeader, Field, Input, Switch, Textarea } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { Room } from "@/lib/supabase/types";
@@ -16,10 +17,10 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
   const [saved, setSaved] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
   const [description, setDescription] = useState(room.description ?? "");
-  const [topics, setTopics] = useState(room.topics.join(", "));
+  const [topics, setTopics] = useState<string[]>(room.topics);
   const [listingBusy, setListingBusy] = useState(false);
   const [listingSaved, setListingSaved] = useState(false);
-  const listingDirty = description.trim() !== (room.description ?? "") || topics !== room.topics.join(", ");
+  const listingDirty = description.trim() !== (room.description ?? "") || topics.join(",") !== room.topics.join(",");
 
   const saveListing = async (e: FormEvent) => {
     e.preventDefault();
@@ -29,7 +30,7 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
     try {
       const r = await api<{ room: Room }>("/api/rooms", { action: "update", id: room.id, description, topics });
       onSaved(r.room);
-      setTopics(r.room.topics.join(", "));
+      setTopics(r.room.topics);
       setListingSaved(true);
     } catch (err) {
       setError((err as Error).message);
@@ -137,7 +138,7 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
       </Card>
 
       <Card>
-        <CardHeader title="Public listing" description="List the room on Explore (tertulia.cloud/explore), where anyone can find it and register for the events you mark public." />
+        <CardHeader title="Public listing and topics" description="Topics say what the room is about and put it under the right filters on Explore. Listing the room on Explore (tertulia.cloud/explore) lets anyone find it and register for the events you mark public." />
         <div className="mt-4 flex items-center justify-between gap-4 rounded-lg border border-line bg-surface-inset px-4 py-3">
           <div>
             <p className="text-sm font-medium text-ink">{room.is_public ? "Listed on Explore" : "Not listed"}</p>
@@ -154,8 +155,8 @@ export function RoomSettings({ room, hasOpenSession, onSaved }: { room: Room; ha
           <Field label="About the room" htmlFor="room-description" hint="Up to 600 characters. What the sessions are about and who they are for.">
             <Textarea id="room-description" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={600} rows={3} />
           </Field>
-          <Field label="Topics" htmlFor="room-topics" hint="Up to six, separated by commas: letters, digits, spaces and hyphens. Visitors filter Explore by them.">
-            <Input id="room-topics" value={topics} onChange={(e) => setTopics(e.target.value)} placeholder="product management, startups, design" />
+          <Field label="Topics" hint="What the room is about, up to six. Visitors filter Explore by them.">
+            <TopicPicker value={topics} onChange={setTopics} />
           </Field>
           <Button type="submit" variant="secondary" loading={listingBusy} disabled={!listingDirty}>
             Save listing

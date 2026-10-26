@@ -1,19 +1,22 @@
-import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { handler, HttpError, isPlatformAdmin, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { loadOrgPlan } from "@/lib/billing";
 import { parseBranding } from "@/lib/branding";
 import { parseTopics } from "@/lib/explore";
 import { cancelRoomEmails } from "@/lib/email/schedule";
-import { SLUG_PATTERN, slugify, uniqueSlug } from "@/lib/rooms";
+import { roomAllowance, SLUG_PATTERN, slugify, uniqueSlug } from "@/lib/rooms";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Room } from "@/lib/supabase/types";
 
 type Body =
-  | { action: "create"; org_id: string; name: string }
+  | { action: "create"; org_id: string; name: string; topics?: unknown; description?: unknown }
   | { action: "update"; id: string; name?: string; slug?: string; branding?: unknown; chat_enabled?: unknown; is_public?: unknown; description?: unknown; topics?: unknown }
   | { action: "delete"; id: string };
 
 /**
- * Rooms belong to the host's organisation. Creating one seeds its email sequence (a database
- * trigger); each room then carries its own events, deck, activities, waiting room and emails.
+ * Rooms belong to the host's organisation. Every plan includes one; more are bought from the
+ * billing page, and platform admins are not capped. Creating one seeds its email sequence (a
+ * database trigger); each room then carries its own events, deck, activities, waiting room and
+ * emails, and the topics chosen at creation put it under the right filters on Explore.
  * Deleting a room cancels the reminders still scheduled for its registrants, then everything
  * under it cascades away. Branding (accent, logo, call to action) is validated here so a bad
  * colour or a non-http link never reaches attendees.
@@ -32,10 +35,27 @@ export const POST = handler(async (req) => {
   if (body.action === "create") {
     await requireOrgRole(user.id, body.org_id, ["owner", "host"]);
     const name = cleanName(String(body.name ?? ""));
+    const topics = parseTopics(body.topics ?? []);
+    if ("error" in topics) throw new HttpError(400, topics.error);
+    const description = body.description === undefined || body.description === null ? null : String(body.description).trim() || null;
+    if (description && description.length > 600) throw new HttpError(400, "Description must be 600 characters or fewer.");
+
+    const [planned, platformAdmin, { count: used }] = await Promise.all([
+      loadOrgPlan(admin, body.org_id),
+      isPlatformAdmin(user.id),
+      admin.from("rooms").select("id", { count: "exact", head: true }).eq("org_id", body.org_id),
+    ]);
+    if (!planned) throw new HttpError(404, "Organisation not found.");
+    const allowance = roomAllowance(planned.limits, planned.org.extra_rooms, platformAdmin);
+    if (allowance !== null && (used ?? 0) >= allowance) {
+      const bought = planned.org.extra_rooms > 0 ? ` plus the ${planned.org.extra_rooms} you bought` : "";
+      throw new HttpError(402, `${planned.limits.label} includes ${planned.limits.roomsIncluded} room${planned.limits.roomsIncluded === 1 ? "" : "s"}${bought}, and this organisation has ${used ?? 0}. Buy another room at /host/billing to create one.`);
+    }
+
     const base = slugify(name);
     const { data: taken } = await admin.from("rooms").select("slug").like("slug", `${base}%`);
     const slug = uniqueSlug(base, (taken ?? []).map((r) => r.slug));
-    const { data, error } = await admin.from("rooms").insert({ org_id: body.org_id, name, slug }).select("*").single();
+    const { data, error } = await admin.from("rooms").insert({ org_id: body.org_id, name, slug, topics: topics.topics, description }).select("*").single();
     if (error) throw error;
     return json({ room: data as Room });
   }

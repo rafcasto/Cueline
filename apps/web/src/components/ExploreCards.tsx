@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { RoomMark } from "@/components/RoomBrand";
 import { Badge, ButtonLink, cx } from "@/components/ui";
-import { eventStatus, formatEventTime, type PublicEvent, type PublicRoom } from "@/lib/explore";
+import { eventStatus, formatEventTime, isEventFull, type PublicEvent, type PublicRoom } from "@/lib/explore";
 
 /** One upcoming event in the directory: when, what, whose room, how many are going, and the way in. */
 export function EventCard({ event }: { event: PublicEvent }) {
   const { day, time } = formatEventTime(event.starts_at, event.timezone);
   const status = eventStatus(event);
+  const full = isEventFull(event);
   return (
     <li className="flex gap-4 rounded-xl border border-line bg-surface-raised p-5 shadow-card transition-shadow hover:shadow-float">
       <div className="w-16 shrink-0 text-center">
@@ -25,6 +26,7 @@ export function EventCard({ event }: { event: PublicEvent }) {
             </Badge>
           )}
           {status === "soon" && <Badge tone="warning">Starting soon</Badge>}
+          {full && status !== "live" && <Badge>Full · waiting list</Badge>}
         </div>
         <p className="mt-0.5 text-sm text-ink-muted">
           {time} ·{" "}
@@ -34,10 +36,14 @@ export function EventCard({ event }: { event: PublicEvent }) {
         </p>
         {event.description && <p className="mt-2 line-clamp-2 text-sm text-ink-muted">{event.description}</p>}
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <ButtonLink href={`/join/${event.token}`} size="sm" variant={status === "live" ? "success" : "primary"}>
-            {status === "live" ? "Join now" : "Register"}
+          <ButtonLink href={`/join/${event.token}`} size="sm" variant={status === "live" ? "success" : full ? "secondary" : "primary"}>
+            {status === "live" ? "Join now" : full ? "Join the waiting list" : "Register"}
           </ButtonLink>
-          <span className="text-xs text-ink-muted">{event.going === 1 ? "1 person going" : `${event.going} people going`}</span>
+          <span className="text-xs text-ink-muted">
+            {event.going === 1 ? "1 person going" : `${event.going} people going`}
+            {event.capacity !== null ? ` of ${event.capacity}` : ""}
+            {event.waiting > 0 ? ` · ${event.waiting} waiting` : ""}
+          </span>
         </div>
       </div>
     </li>

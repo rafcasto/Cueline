@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SLUG_PATTERN, slugify, uniqueSlug } from "./rooms";
+import { SLUG_PATTERN, roomAllowance, roomsLeft, slugify, uniqueSlug } from "./rooms";
 
 describe("slugify", () => {
   it("lowercases, strips accents and joins words with hyphens", () => {
@@ -29,5 +29,22 @@ describe("uniqueSlug", () => {
     expect(s.length).toBeLessThanOrEqual(40);
     expect(s).toMatch(SLUG_PATTERN);
     expect(s.endsWith("-2")).toBe(true);
+  });
+});
+
+describe("roomAllowance", () => {
+  it("adds bought rooms to the plan's and never goes below the plan", () => {
+    expect(roomAllowance({ roomsIncluded: 1 }, 0)).toBe(1);
+    expect(roomAllowance({ roomsIncluded: 1 }, 2)).toBe(3);
+    expect(roomAllowance({ roomsIncluded: 1 }, -5)).toBe(1);
+  });
+  it("is unlimited for a platform admin", () => {
+    expect(roomAllowance({ roomsIncluded: 1 }, 0, true)).toBeNull();
+    expect(roomsLeft(null, 40)).toBeNull();
+  });
+  it("counts what is left", () => {
+    expect(roomsLeft(3, 1)).toBe(2);
+    expect(roomsLeft(1, 1)).toBe(0);
+    expect(roomsLeft(1, 4)).toBe(0);
   });
 });

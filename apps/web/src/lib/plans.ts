@@ -22,6 +22,10 @@ export type PlanLimits = {
   stripeCta: boolean;
   /** Fair-use pool in participant-hours per month; null is not stated. */
   poolParticipantHours: number | null;
+  /** Rooms the plan includes. More are bought one at a time (EXTRA_ROOM); platform admins are not capped. */
+  roomsIncluded: number;
+  /** Reminder emails before each event. Every plan sends the welcome and the waiting-list note. */
+  reminders: boolean;
 };
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
@@ -35,6 +39,8 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     promoteSlots: 0,
     stripeCta: false,
     poolParticipantHours: null,
+    roomsIncluded: 1,
+    reminders: false,
   },
   starter: {
     label: "Starter",
@@ -46,6 +52,8 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     promoteSlots: 1,
     stripeCta: false,
     poolParticipantHours: 300,
+    roomsIncluded: 1,
+    reminders: true,
   },
   pro: {
     label: "Pro",
@@ -57,6 +65,8 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     promoteSlots: 3,
     stripeCta: true,
     poolParticipantHours: 1200,
+    roomsIncluded: 1,
+    reminders: true,
   },
 };
 
@@ -75,6 +85,13 @@ export const PRICE_LABELS: Record<PriceLookup, { amount: string; period: string 
   pro_monthly: { amount: "$79", period: "month" },
   pro_yearly: { amount: "$790", period: "year" },
 };
+
+/**
+ * One more room, bought outright. A one-off Stripe price (not a subscription) under this lookup
+ * key in both modes; the webhook adds the room to the organisation when it is paid.
+ */
+export const EXTRA_ROOM = { lookup: "extra_room", amount: "$19", label: "one extra room, one-off" } as const;
+export type AddonLookup = typeof EXTRA_ROOM.lookup;
 
 export function isPriceLookup(v: unknown): v is PriceLookup {
   return typeof v === "string" && v in PRICE_LOOKUPS;

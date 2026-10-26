@@ -6,11 +6,15 @@ import { api } from "@/lib/api";
 import { ensureViewerIdentity } from "@/lib/supabase/browser";
 import type { SessionState } from "@/lib/supabase/types";
 
-export type ClaimResult = { name: string; room_slug: string | null; invite_token: string | null; title: string | null; starts_at: string | null; session_state: SessionState | null };
+export type ClaimResult = { name: string; status?: "seated" | "waitlisted" | "cancelled"; room_slug: string | null; invite_token: string | null; title: string | null; starts_at: string | null; session_state: SessionState | null };
 
-/** Where a claimed registration should land: the room if it is open, otherwise the event page. */
+/**
+ * Where a claimed registration should land: the room if it is open and they hold a seat,
+ * otherwise the event page, which also tells someone on the waiting list where they stand.
+ */
 export function destinationFor(r: ClaimResult) {
-  if (r.room_slug && (r.session_state === "live" || r.session_state === "waiting")) return `/r/${r.room_slug}`;
+  const seated = r.status === undefined || r.status === "seated";
+  if (seated && r.room_slug && (r.session_state === "live" || r.session_state === "waiting")) return `/r/${r.room_slug}`;
   if (r.invite_token) return `/join/${r.invite_token}`;
   return r.room_slug ? `/r/${r.room_slug}` : "/";
 }

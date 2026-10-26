@@ -1,11 +1,18 @@
 import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { loadOrgPlan } from "@/lib/billing";
 import { resyncInvite } from "@/lib/email/schedule";
+import { parseCapacity } from "@/lib/seats";
+import { promoteWaitlist } from "@/lib/seats-server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Invite } from "@/lib/supabase/types";
 
-type Body = { id: string; title?: string; description?: string | null; starts_at?: string | null; timezone?: string; is_public?: boolean };
+type Body = { id: string; title?: string; description?: string | null; starts_at?: string | null; timezone?: string; is_public?: boolean; capacity?: unknown };
 
-/** Edit an event. A new start time moves every reminder that is already scheduled. */
+/**
+ * Edit an event. A new start time moves every reminder that is already scheduled; more seats
+ * are filled from the waiting list at once. Fewer seats unseat nobody: the event is simply
+ * full until people opt out.
+ */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
   const body = await readJson<Body>(req);
@@ -37,8 +44,16 @@ export const POST = handler(async (req) => {
     }
     patch.timezone = body.timezone;
   }
+  const planned = await loadOrgPlan(admin, invite.org_id);
+  if (!planned) throw new HttpError(404, "Organisation not found.");
+  if (body.capacity !== undefined) {
+    const seats = parseCapacity(body.capacity, planned.limits);
+    if ("error" in seats) throw new HttpError(400, seats.error);
+    patch.capacity = seats.capacity;
+  }
   const { data, error } = await admin.from("invites").update(patch).eq("id", invite.id).select("*").single();
   if (error) throw error;
   if (patch.starts_at !== undefined && patch.starts_at !== invite.starts_at) await resyncInvite(invite.id);
+  if (patch.capacity !== undefined && patch.capacity !== invite.capacity) await promoteWaitlist(admin, data as Invite, planned.limits);
   return json({ invite: data as Invite });
 });

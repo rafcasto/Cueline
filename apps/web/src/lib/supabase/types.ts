@@ -18,6 +18,21 @@ export type Organisation = {
   plan_price_lookup: string | null;
   plan_period_start: string | null;
   plan_period_end: string | null;
+  /** Rooms bought beyond the plan's included one; see lib/rooms roomAllowance(). */
+  extra_rooms: number;
+};
+
+/** One room bought outright through Stripe Checkout; paid ones are counted in organisations.extra_rooms. */
+export type RoomPurchase = {
+  id: string;
+  org_id: string;
+  stripe_mode: StripeMode;
+  stripe_session_id: string;
+  status: "pending" | "paid" | "failed" | "refunded";
+  amount_total: number | null;
+  currency: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type SessionState = "waiting" | "live" | "ended";
@@ -212,6 +227,8 @@ export type Invite = {
   revoked_at: string | null;
   /** Listed on /explore when its room is listed too. */
   is_public: boolean;
+  /** Seats, up to the plan's participants per session; null means the plan's maximum. See lib/seats. */
+  capacity: number | null;
 };
 
 export type Registration = {
@@ -226,10 +243,15 @@ export type Registration = {
   code: string;
   /** Magic-link token, /a/<token>; never shown to other attendees. */
   access_token: string;
+  /** Set while the registrant waits for a seat; cleared when one opens. */
+  waitlisted_at: string | null;
+  /** The registrant opted out; their seat went to the waiting list. */
+  cancelled_at: string | null;
   created_at: string;
 };
 
-export type InviteEmailKind = "confirmation" | "reminder";
+/** `confirmation` is the welcome, `waitlist` the note sent instead of it when the seats are gone, `reminder` counts back from the start. */
+export type InviteEmailKind = "confirmation" | "reminder" | "waitlist";
 export type RegistrationEmailStatus = "queued" | "scheduled" | "sent" | "cancelled" | "failed";
 
 /**

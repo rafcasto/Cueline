@@ -12,6 +12,7 @@ export type BillingOrg = {
   plan_status?: string | null;
   plan_period_start?: string | null;
   plan_period_end?: string | null;
+  extra_rooms?: number | null;
 };
 
 export type Period = { start: Date; end: Date };
@@ -113,4 +114,13 @@ export async function loadUsage(admin: SupabaseClient, org: BillingOrg, now = ne
     .gte("started_at", period.start.toISOString())
     .lt("started_at", period.end.toISOString());
   return { period, used: used ?? 0, limits: planLimits(plan), effectivePlan: plan };
+}
+
+/** The organisation's plan as it applies right now: the row, the effective plan and its limits. */
+export async function loadOrgPlan(admin: SupabaseClient, orgId: string): Promise<{ org: BillingOrg & { extra_rooms: number }; plan: Plan; limits: PlanLimits } | null> {
+  const { data } = await admin.from("organisations").select("id, plan, plan_status, plan_period_start, plan_period_end, extra_rooms").eq("id", orgId).maybeSingle();
+  if (!data) return null;
+  const org = { ...data, extra_rooms: data.extra_rooms ?? 0 } as BillingOrg & { extra_rooms: number };
+  const plan = effectivePlan(org);
+  return { org, plan, limits: planLimits(plan) };
 }

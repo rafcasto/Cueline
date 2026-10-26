@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/AppShell";
 import { RegisterForm } from "@/components/RegisterForm";
-import { inviteByToken, registrationFor } from "@/lib/invites";
+import { loadOrgPlan } from "@/lib/billing";
+import { inviteByToken, registrationFor, registrationsFor } from "@/lib/invites";
+import { capacityFor, registrationStatus, seatSummary, waitlistPosition } from "@/lib/seats";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +17,8 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 
 /**
  * The invite link. One page does the whole attendee side: what the webinar is, when it is,
- * a two-field registration, and the door into the room once registered.
+ * how many seats are left, a two-field registration (or the waiting list once the seats are
+ * gone), and the door into the room once registered.
  */
 export default async function JoinPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -24,8 +28,9 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
 
   // A returning attendee already has an identity cookie from the first visit; skip the form for them.
   const sb = await supabaseServer();
-  const { data: auth } = await sb.auth.getUser();
-  const registration = auth.user ? await registrationFor(room.id, auth.user.id) : null;
+  const [{ data: auth }, planned, rows] = await Promise.all([sb.auth.getUser(), loadOrgPlan(supabaseAdmin(), invite.org_id), registrationsFor(invite.id)]);
+  const registration = auth.user ? await registrationFor(room.id, auth.user.id, { inviteId: invite.id }) : null;
+  const capacity = capacityFor(invite, planned?.limits ?? { participants: 10 });
 
   return (
     <PublicShell>
@@ -40,7 +45,8 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
         waitingRoom={room.waiting_room}
         branding={room.branding}
         sessionState={session?.state ?? null}
-        registered={registration ? { name: registration.name, email: registration.email, code: registration.code } : null}
+        seats={seatSummary(rows, capacity)}
+        registered={registration ? { name: registration.name, email: registration.email, code: registration.code, status: registrationStatus(registration), position: waitlistPosition(rows, registration.id) } : null}
       />
     </PublicShell>
   );

@@ -11,8 +11,9 @@ import type { Presentation, Room, Session } from "@/lib/supabase/types";
 export const dynamic = "force-dynamic";
 
 /**
- * The room is behind registration. A visitor who has not registered is sent to the room's
- * current invite link; org members walk straight in so hosts can check their own room.
+ * The room is behind registration. A visitor who has not registered, or who is on the waiting
+ * list or opted out, is sent to the room's current invite link, which says where they stand;
+ * org members walk straight in so hosts can check their own room.
  */
 export default async function RoomPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -26,7 +27,7 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
     const { data: member } = await sb.from("org_members").select("role").eq("org_id", room.org_id).eq("user_id", auth.user.id).maybeSingle();
     if (member) attendee = { name: auth.user.email?.split("@")[0] ?? "Host" };
     else {
-      const registration = await registrationFor(room.id, auth.user.id);
+      const registration = await registrationFor(room.id, auth.user.id, { seatedOnly: true });
       if (registration) attendee = { name: registration.name };
     }
   }

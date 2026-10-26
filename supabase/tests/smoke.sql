@@ -88,7 +88,7 @@ reset role;
 select 'join code is six safe chars' as check, bool_and(code ~ '^[23456789A-HJ-NP-Z]{6}$') as pass from public.registrations;
 select 'access token per registration' as check, count(distinct access_token) = count(*) as pass from public.registrations;
 select 'invite seeds the default sequence' as check,
-  count(*) = 5 and bool_and(enabled) and count(*) filter (where kind = 'confirmation') = 1 as pass
+  count(*) = 6 and bool_and(enabled) and count(*) filter (where kind = 'confirmation') = 1 and count(*) filter (where kind = 'waitlist') = 1 as pass
   from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
 select 'reminder offsets' as check, array_agg(minutes_before order by minutes_before desc) = '{2880,1440,120,15}'::int[] as pass
   from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666' and kind = 'reminder';
@@ -109,10 +109,10 @@ reset role;
 -- Room-level sequences: a room seeds one, events inherit it, room edits reach active events,
 -- and hosts create rooms themselves (each with its own sequence).
 select 'room seeds the default sequence' as check,
-  count(*) = 5 and count(*) filter (where kind = 'confirmation') = 1 and bool_and(enabled) as pass
+  count(*) = 6 and count(*) filter (where kind = 'confirmation') = 1 and count(*) filter (where kind = 'waitlist') = 1 and bool_and(enabled) as pass
   from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002';
 select 'event inherits the room sequence' as check,
-  count(*) = 5 and bool_and(room_email_id is not null) as pass
+  count(*) = 6 and bool_and(room_email_id is not null) as pass
   from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
 set role authenticated;
 select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
@@ -133,7 +133,7 @@ do $$ begin
   raise exception 'an attendee should not be able to sync room emails';
 exception when insufficient_privilege then null; end $$;
 reset role;
-select 'host creates a room with its own sequence' as check, count(*) = 5 as pass
+select 'host creates a room with its own sequence' as check, count(*) = 6 as pass
   from public.room_emails where room_id = '00000000-0000-0000-0000-000000000003';
 set role service_role;
 select 'sync updates the inherited step' as check, count(*) = 1 as pass
@@ -143,14 +143,14 @@ select 'inherited step follows the room step' as check, subject = 'Two days to g
    and room_email_id = (select id from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 2900);
 select 'sync adds a new room step to the event' as check, count(*) = 1 as pass
   from public.sync_room_email((select id from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 60));
-select 'event carries the added step' as check, count(*) = 6 as pass
+select 'event carries the added step' as check, count(*) = 7 as pass
   from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
 update public.invites set revoked_at = now() where id = '66666666-6666-6666-6666-666666666666';
 select 'sync skips revoked events' as check, count(*) = 0 as pass
   from public.sync_room_email((select id from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 60));
 update public.invites set revoked_at = null where id = '66666666-6666-6666-6666-666666666666';
 delete from public.room_emails where room_id = '00000000-0000-0000-0000-000000000002' and minutes_before = 60;
-select 'deleting a room step removes the inherited copy' as check, count(*) = 5 as pass
+select 'deleting a room step removes the inherited copy' as check, count(*) = 6 as pass
   from public.invite_emails where invite_id = '66666666-6666-6666-6666-666666666666';
 reset role;
 
@@ -226,4 +226,58 @@ select 'anon sees the listed room with its topics' as check, count(*) = 1 and bo
 select 'anon sees only the public event, with its token' as check, count(*) = 1 and bool_and(title = 'Public talk' and token <> '') as pass from public.public_events;
 select 'anon cannot read invites directly' as check, count(*) = 0 as pass from public.invites;
 select 'anon cannot read registrations' as check, count(*) = 0 as pass from public.registrations;
+reset role;
+
+-- Seats, the waiting list and opting out. Seating happens in register_attendee() under a lock on
+-- the invite; promote_waitlist() refills seats; the directory counts seats, not rows.
+reset role;
+insert into public.invites(id, org_id, room_id, title, starts_at, capacity) values
+  ('99999999-9999-9999-9999-999999999991', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'Small workshop', now() + interval '2 days', 2);
+select 'every reminder asks people to free their seat' as check, bool_and(body like '%{{cancel_url}}%') as pass
+  from public.invite_emails where invite_id = '99999999-9999-9999-9999-999999999991' and kind in ('reminder', 'confirmation') and minutes_before is distinct from 15;
+set role service_role;
+select 'first two registrants are seated' as check, bool_and(waitlisted_at is null) and count(*) = 2 as pass from (
+  select * from public.register_attendee('99999999-9999-9999-9999-999999999991', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'Ada', 'ada@example.com', 2)
+  union all
+  select * from public.register_attendee('99999999-9999-9999-9999-999999999991', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2', 'Bob', 'bob@example.com', 2)) x;
+select 'third registrant is waitlisted' as check, waitlisted_at is not null as pass
+  from public.register_attendee('99999999-9999-9999-9999-999999999991', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3', 'Cy', 'cy@example.com', 2);
+select 'coming back re-binds the row without a second seat' as check, user_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa9' and waitlisted_at is null as pass
+  from public.register_attendee('99999999-9999-9999-9999-999999999991', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa9', 'Ada L', 'ADA@example.com', 2);
+select 'unlimited capacity never waitlists' as check, waitlisted_at is null as pass
+  from public.register_attendee('99999999-9999-9999-9999-999999999991', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4', 'Dee', 'dee@example.com', null);
+update public.registrations set cancelled_at = now() where invite_id = '99999999-9999-9999-9999-999999999991' and email = 'dee@example.com';
+update public.registrations set cancelled_at = now() where invite_id = '99999999-9999-9999-9999-999999999991' and email = 'ada@example.com';
+select 'a freed seat goes to the first in line' as check, count(*) = 1 and bool_and(registration_id = (select id from public.registrations where email = 'cy@example.com')) as pass
+  from public.promote_waitlist('99999999-9999-9999-9999-999999999991', 2);
+select 'nobody else is promoted past the capacity' as check, count(*) = 0 as pass from public.promote_waitlist('99999999-9999-9999-9999-999999999991', 2);
+select 'opting out then registering again rejoins the queue' as check, cancelled_at is null and waitlisted_at is not null as pass
+  from public.register_attendee('99999999-9999-9999-9999-999999999991', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'Ada', 'ada@example.com', 2);
+reset role;
+update public.invites set is_public = true where id = '99999999-9999-9999-9999-999999999991';
+set role anon;
+select 'the directory counts seats and the waiting list' as check, going = 2 and waiting = 1 and capacity = 2 as pass from public.public_events where id = '99999999-9999-9999-9999-999999999991';
+reset role;
+do $$ begin
+  insert into public.room_emails(org_id, room_id, kind, minutes_before, subject, body) values ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'waitlist', 5, 'x', 'y');
+  raise exception 'a waitlist step with an offset should be rejected';
+exception when check_violation then null; end $$;
+set role authenticated;
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+do $$ begin
+  perform public.register_attendee('99999999-9999-9999-9999-999999999991', '22222222-2222-2222-2222-222222222222', 'Eve', 'eve@example.com', 2);
+  raise exception 'an attendee should not call register_attendee directly';
+exception when insufficient_privilege then null; end $$;
+reset role;
+
+-- Rooms beyond the plan: a one-off purchase adds one room, once.
+insert into public.room_purchases(org_id, stripe_mode, stripe_session_id) values ('00000000-0000-0000-0000-000000000001', 'test', 'cs_test_room');
+set role service_role;
+select 'a paid purchase grants a room' as check, public.grant_extra_room('cs_test_room', 1900, 'usd') as pass;
+select 'a redelivered webhook grants nothing' as check, not public.grant_extra_room('cs_test_room', 1900, 'usd') as pass;
+reset role;
+select 'the organisation carries the extra room' as check, extra_rooms = 1 as pass from public.organisations where id = '00000000-0000-0000-0000-000000000001';
+set role authenticated;
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+select 'attendee cannot read room purchases' as check, count(*) = 0 as pass from public.room_purchases;
 reset role;

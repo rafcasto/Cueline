@@ -17,6 +17,8 @@ import { Alert, Badge, Button, Card, CardHeader, Tabs, type Tone } from "@/compo
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { currentRun, latestRun } from "@/lib/session-state";
+import type { Plan, PlanLimits } from "@/lib/plans";
+import { isSeated } from "@/lib/seats";
 import { normalizeStageLayout, sameLayout } from "@/lib/stage-layout";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Activity, ChatMessage, Invite, Presentation, Question, ReactionKind, Registration, Room, Session, StageLayout } from "@/lib/supabase/types";
@@ -30,6 +32,9 @@ type Props = {
   activities: Activity[];
   invites: Invite[];
   registrations: Registration[];
+  /** The organisation's plan in force: seats per event and whether reminders go out. */
+  plan: Plan;
+  limits: PlanLimits;
 };
 
 type Tab = "live" | "event" | "emails" | "waiting" | "settings";
@@ -41,7 +46,7 @@ type Tab = "live" | "event" | "emails" | "waiting" | "settings";
  * anywhere), activate activities with timers and reveal results, run the hand-raise queue
  * with promote-to-stage, moderate Q&A, edit the waiting room, and rename or delete the room.
  */
-export function HostPanel({ room: initialRoom, initialSession, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations }: Props) {
+export function HostPanel({ room: initialRoom, initialSession, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations, plan, limits }: Props) {
   const [room, setRoom] = useState(initialRoom);
   const [invites, setInvites] = useState(initialInvites);
   const [registrations, setRegistrations] = useState(initialRegistrations);
@@ -237,7 +242,7 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
           onChange={setTab}
           items={[
             { value: "live", label: "Live" },
-            { value: "event", label: "Event", count: registrations.length },
+            { value: "event", label: "Event", count: registrations.filter(isSeated).length },
             { value: "emails", label: "Emails" },
             { value: "waiting", label: "Waiting room" },
             { value: "settings", label: "Settings" },
@@ -284,9 +289,9 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
         ) : tab === "settings" ? (
           <RoomSettings room={room} hasOpenSession={!!live} onSaved={setRoom} />
         ) : tab === "event" ? (
-          <InviteCard room={room} userId={userId} invites={invites} registrations={registrations} participants={state.participants} onInvitesChange={setInvites} onRegistrationsChange={setRegistrations} />
+          <InviteCard room={room} limits={limits} invites={invites} registrations={registrations} participants={state.participants} onInvitesChange={setInvites} onRegistrationsChange={setRegistrations} />
         ) : tab === "emails" ? (
-          <EmailSequence room={room} invites={activeInvites} registrations={registrations} />
+          <EmailSequence room={room} plan={plan} limits={limits} invites={activeInvites} registrations={registrations} />
         ) : (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
             <section className="space-y-6">

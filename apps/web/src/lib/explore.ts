@@ -4,6 +4,7 @@
  * page can show is exactly what any visitor could fetch.
  */
 import { supabaseServer } from "@/lib/supabase/server";
+import { normalizeTopic } from "@/lib/topics";
 import type { RoomBranding, SessionState } from "@/lib/supabase/types";
 
 export type PublicEvent = {
@@ -19,8 +20,13 @@ export type PublicEvent = {
   room_name: string;
   room_branding: RoomBranding;
   room_topics: string[];
+  /** Registrants with a seat; see lib/seats. */
   going: number;
   session_state: SessionState | null;
+  /** People on the waiting list. */
+  waiting: number;
+  /** The host's seat count, or null for the plan's maximum (which the directory does not know). */
+  capacity: number | null;
 };
 
 export type PublicRoom = {
@@ -99,27 +105,7 @@ export async function listTopics(): Promise<{ topic: string; rooms: number }[]> 
 // Topics and formatting
 // ---------------------------------------------------------------------------
 
-export const TOPIC_PATTERN = /^[a-z0-9][a-z0-9 -]{0,28}[a-z0-9]$/;
-export const MAX_TOPICS = 6;
-
-export function normalizeTopic(raw: string): string {
-  return raw.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-/** "design, Product  Management, design" -> ["design", "product management"]; the error names the bad one. */
-export function parseTopics(raw: unknown): { topics: string[] } | { error: string } {
-  const list = Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(",") : [];
-  const topics: string[] = [];
-  for (const item of list) {
-    if (typeof item !== "string") return { error: "Topics must be text." };
-    const t = normalizeTopic(item);
-    if (!t) continue;
-    if (!TOPIC_PATTERN.test(t)) return { error: `"${t}" is not a valid topic: 2 to 30 letters, digits, spaces or hyphens.` };
-    if (!topics.includes(t)) topics.push(t);
-  }
-  if (topics.length > MAX_TOPICS) return { error: `Up to ${MAX_TOPICS} topics.` };
-  return { topics };
-}
+export { MAX_TOPICS, TOPIC_PATTERN, TOPIC_SUGGESTIONS, normalizeTopic, parseTopics } from "@/lib/topics";
 
 /** The event's start in the host's zone, rendered on the server so every visitor sees the same text. */
 export function formatEventTime(iso: string, timezone: string): { day: string; time: string } {
@@ -142,4 +128,9 @@ export function eventStatus(e: Pick<PublicEvent, "starts_at" | "session_state">,
   if (start < now.getTime() - 2 * 60 * 60 * 1000) return "past";
   if (start - now.getTime() < 60 * 60 * 1000) return "soon";
   return "upcoming";
+}
+
+/** Whether a listed event has given out every seat the host set; null capacity means the plan's cap, unknown here. */
+export function isEventFull(e: Pick<PublicEvent, "going" | "capacity">): boolean {
+  return e.capacity !== null && e.going >= e.capacity;
 }

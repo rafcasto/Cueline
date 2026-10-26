@@ -16,6 +16,7 @@ describe("templateVars", () => {
   it("builds links from the app url without a double slash", () => {
     expect(vars.link).toBe("https://tertulia.cloud/a/tok_123");
     expect(vars.join_url).toBe("https://tertulia.cloud/join");
+    expect(vars.cancel_url).toBe("https://tertulia.cloud/a/tok_123/cancel");
   });
   it("formats the start in the event timezone", () => {
     expect(vars.starts_at).toContain("Sunday");
@@ -51,8 +52,9 @@ describe("sendTimeFor", () => {
   it("subtracts the offset from the start", () => {
     expect(sendTimeFor({ kind: "reminder", minutes_before: 1440 }, start)?.toISOString()).toBe("2026-10-31T18:00:00.000Z");
   });
-  it("is now for the confirmation", () => {
+  it("is now for the confirmation and the waiting-list note", () => {
     expect(sendTimeFor({ kind: "confirmation", minutes_before: null }, null, 1000)?.getTime()).toBe(1000);
+    expect(sendTimeFor({ kind: "waitlist", minutes_before: null }, null, 1000)?.getTime()).toBe(1000);
   });
   it("is null for a reminder without a start time", () => {
     expect(sendTimeFor({ kind: "reminder", minutes_before: 15 }, null)).toBeNull();
@@ -62,6 +64,7 @@ describe("sendTimeFor", () => {
 describe("describeOffset", () => {
   it("reads naturally", () => {
     expect(describeOffset(null)).toBe("On registration");
+    expect(describeOffset(null, "waitlist")).toBe("On joining the waiting list");
     expect(describeOffset(2880)).toBe("2 days before");
     expect(describeOffset(1440)).toBe("1 day before");
     expect(describeOffset(120)).toBe("2 hours before");
