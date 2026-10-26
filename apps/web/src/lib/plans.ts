@@ -1,7 +1,9 @@
 /**
  * What each plan allows. The single place every gate reads from; see docs/BUSINESS-MODEL.md.
- * Nothing here is stored in Stripe: a product only carries `metadata.plan`, and prices are found
- * by lookup key, so a cap can change without touching the Dashboard.
+ * A plan belongs to a room: the organisation's single room is free until upgraded, and every
+ * further room is bought on Starter or Pro (roomAccess() in lib/billing turns a room row into
+ * its limits). Nothing here is stored in Stripe: a product only carries `metadata.plan`, and
+ * prices are found by lookup key, so a cap can change without touching the Dashboard.
  */
 export type Plan = "free" | "starter" | "pro";
 
@@ -22,6 +24,8 @@ export type PlanLimits = {
   stripeCta: boolean;
   /** Fair-use pool in participant-hours per month; null is not stated. */
   poolParticipantHours: number | null;
+  /** Reminder emails before each event. Every plan sends the welcome and the waiting-list note. */
+  reminders: boolean;
 };
 
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
@@ -35,6 +39,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     promoteSlots: 0,
     stripeCta: false,
     poolParticipantHours: null,
+    reminders: false,
   },
   starter: {
     label: "Starter",
@@ -46,6 +51,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     promoteSlots: 1,
     stripeCta: false,
     poolParticipantHours: 300,
+    reminders: true,
   },
   pro: {
     label: "Pro",
@@ -57,6 +63,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     promoteSlots: 3,
     stripeCta: true,
     poolParticipantHours: 1200,
+    reminders: true,
   },
 };
 

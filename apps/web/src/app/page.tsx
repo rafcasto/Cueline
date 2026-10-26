@@ -219,6 +219,7 @@ export default async function Home() {
                 <Check>A public page with your description, topics, upcoming and past events</Check>
                 <Check>Events that double as invite links; members register with a name and an email</Check>
                 <Check>A welcome email and four reminders per room, edited once and inherited by every event</Check>
+                <Check>Seats per event, a waiting list when they are gone, and seats freed by people who opt out</Check>
                 <Check>Polls, quizzes, word clouds and calls to action over your slides, with timers and reveals</Check>
                 <Check>Who registered against who joined, and a recording of every session</Check>
                 <Check>Your accent colour and logo on the room, the invite page and every button in it</Check>
@@ -281,7 +282,7 @@ export default async function Home() {
               />
             </ul>
             <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-ink-muted">
-              Prices in USD, billed through Stripe. Move up or down from your billing page whenever you like; the difference is prorated, and cancelling takes effect at the end of the period you have paid for. A session counts the moment you press <em>Go live</em>; a false start nobody joined is given back.
+              A plan is per room: your first room is free until you upgrade it, and every further room is its own Starter or Pro subscription. Prices in USD, billed through Stripe. Move up or down from your billing page whenever you like; the difference is prorated, and cancelling takes effect at the end of the period you have paid for. A session counts the moment you press <em>Go live</em>; a false start nobody joined is given back.
             </p>
           </div>
         </section>
@@ -396,7 +397,9 @@ function planLines(l: PlanLimits): { text: string; included: boolean }[] {
     { text: `${l.participants} attendees per session`, included: true },
     { text: length, included: true },
     { text: "Polls, quizzes, word clouds, chat and Q&A", included: true },
-    { text: "Welcome email and reminders for every event", included: true },
+    { text: "Seats per event, with a waiting list when they are gone", included: true },
+    { text: "Welcome email on registration", included: true },
+    { text: "Reminder emails before every event", included: l.reminders },
     { text: l.recording ? "Every session recorded" : "Sessions recorded", included: l.recording },
     { text: l.promoteSlots > 0 ? `${l.promoteSlots} ${l.promoteSlots === 1 ? "guest" : "guests"} on stage at a time` : "Guests on stage", included: l.promoteSlots > 0 },
     { text: "Fallback stream when the room is full", included: l.hlsFallback },

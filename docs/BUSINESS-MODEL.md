@@ -52,8 +52,10 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 | --- | --- | --- | --- |
 | Price | $0 | $29 / month | $79 / month |
 | Participants per session | 10 | 50 | 150 |
+| Seats per event | host's choice, up to 10, waiting list beyond | up to 50, waiting list beyond | up to 150, waiting list beyond |
 | Session length | 20 min, hard stop | 2 h | 4 h |
 | Sessions | 1 per month | 4 per month | unlimited, within fair use |
+| Rooms | the organisation's only room | one room per subscription | one room per subscription |
 | Polls, quizzes, word clouds, timers, reveals | yes | yes | yes |
 | Chat, Q&A, reactions, waiting room | yes | yes | yes |
 | Deck | yes | yes | yes |
@@ -61,7 +63,7 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 | Recording | no | MP4 | MP4 + HLS fallback |
 | Branding | Tertulia mark | accent + logo | accent + logo + CTA, no *Powered by* |
 | Promote to stage | no | 1 at a time | 3 at a time |
-| Email sequence | welcome only | welcome + 4 reminders | welcome + 4 reminders, editable |
+| Email sequence | welcome and waiting-list note only | welcome, waiting-list note + 4 reminders | welcome, waiting-list note + 4 reminders, editable |
 | Call to action with Stripe checkout | no | no | yes |
 | Fair-use pool | — | 300 participant-hours / month | 1,200 participant-hours / month |
 | Support | community | email | email, 1 business day |
@@ -69,6 +71,10 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 Yearly prices are ten months for twelve ($290 and $790), so the landing page can say "two months free" without a discount code.
 
 There is no per-event pass (removed 25 Oct 2026, after a day). A fourth price split the decision on the landing page three ways and gave a Starter host at the cap a $19 exit instead of the Pro upgrade; two passes also cost more than a month of Starter, which made it a worse deal the page then had to explain. A host at the cap now sees one step: the next plan. If hosts who run a webinar twice a year turn out to matter, the answer is a monthly plan they cancel, which the portal already allows, not a fourth product.
+
+**Rooms.** A room is the unit a host owns, so the plan is the room's, not the organisation's. An organisation's first room is free; upgrading it is what buying Starter or Pro means, and every further room is its own Starter or Pro subscription. A free room never sits next to a paid one: the second room needs the first upgraded, and a paid room whose subscription lapses while others remain is locked rather than dropped to free. A host who needs several standing communities therefore pays per community; one who runs several kinds of event in one community uses several events in the one room. Platform admins create complimentary rooms (Pro limits, no subscription).
+
+**Seats and the waiting list.** The participant cap bounds the session; the host chooses how many of those seats an event offers, and registrations beyond it wait in order of arrival. Someone who cannot come frees their seat from any email or the event page, and the first in line takes it with an email to say so. This is what makes the cap livable on Free: ten seats fill, the rest queue, and the reminders (on paid plans) keep asking the no-shows to step aside.
 
 **Why these numbers.** Free: 10 × 20 min ≈ 2 GB per session, no recording, no CPU beyond the SFU; it costs nothing measurable and it is enough to run one real quiz with a timer and a reveal. One a month keeps it a trial rather than a free plan. Starter: the weekly host; a fifth session in the month is the signal to move to Pro. Pro: the host running several sessions a week, or a bigger room; the 150 cap keeps one host's single session at half the node's uplink, so two Pro sessions can overlap on the node, which matches the two recordings it can run at once.
 

@@ -1,14 +1,20 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatStart } from "@/components/RegisterForm";
 import { Alert, Badge, Button, Card, CardHeader, EmptyState, Eyebrow, Field, Input, Select, Switch, Textarea, cx } from "@/components/ui";
 import { api } from "@/lib/api";
 import { describeOffset, PLACEHOLDERS, renderTemplate, templateVars } from "@/lib/email/template";
+import type { Plan, PlanLimits } from "@/lib/plans";
+import { isSeated } from "@/lib/seats";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Invite, Registration, RegistrationEmail, Room, RoomEmail } from "@/lib/supabase/types";
 
 type Props = {
   room: Room;
+  /** The plan in force: reminders go out on the paid plans only. */
+  plan: Plan;
+  limits: PlanLimits;
   /** Open (not revoked) events in the room; delivery is shown for one of them. */
   invites: Invite[];
   registrations: Registration[];
@@ -38,12 +44,14 @@ const browserZone = () => {
 };
 
 /**
- * The room's email sequence: the welcome sent on registration plus reminders at fixed times
- * before the start. Every event in the room inherits it; the host edits copy and timing here
- * and the server pushes the change to each open event and reschedules it at Resend against
- * that event's start time. Delivery counts are shown for one event at a time.
+ * The room's email sequence: the welcome sent on registration (or the waiting-list note when
+ * the seats are gone) plus reminders at fixed times before the start. Every event in the room
+ * inherits it; the host edits copy and timing here and the server pushes the change to each
+ * open event and reschedules it at Resend against that event's start time. Reminders are a
+ * paid feature: on the free plan they are shown locked. Delivery counts are shown for one
+ * event at a time.
  */
-export function EmailSequence({ room, invites, registrations }: Props) {
+export function EmailSequence({ room, plan, limits, invites, registrations }: Props) {
   const [steps, setSteps] = useState<RoomEmail[] | null>(null);
   // Delivery counts for the event they were loaded for; an event switch shows nothing until its own arrive.
   const [countsFor, setCountsFor] = useState<{ inviteId: string; counts: Counts } | null>(null);
@@ -55,7 +63,8 @@ export function EmailSequence({ room, invites, registrations }: Props) {
 
   const invite = invites.find((i) => i.id === inviteId) ?? invites[0] ?? null;
   const counts: Counts = invite && countsFor?.inviteId === invite.id ? countsFor.counts : {};
-  const registrationCount = invite ? registrations.filter((r) => r.invite_id === invite.id).length : 0;
+  const registrationCount = invite ? registrations.filter((r) => r.invite_id === invite.id && isSeated(r)).length : 0;
+  const remindersLocked = !limits.reminders;
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +102,9 @@ export function EmailSequence({ room, invites, registrations }: Props) {
     };
   }, [sb, invite]);
 
-  const sorted = useMemo(() => (steps ?? []).slice().sort((a, b) => (b.minutes_before ?? Infinity) - (a.minutes_before ?? Infinity)), [steps]);
+  // Welcome first, then the waiting-list note, then reminders from furthest out to nearest.
+  const rank = (s: RoomEmail) => (s.kind === "confirmation" ? 2 : s.kind === "waitlist" ? 1 : 0);
+  const sorted = useMemo(() => (steps ?? []).slice().sort((a, b) => rank(b) - rank(a) || (b.minutes_before ?? 0) - (a.minutes_before ?? 0)), [steps]);
 
   const call = async <T,>(fn: () => Promise<T>) => {
     setBusy(true);
@@ -152,11 +163,16 @@ export function EmailSequence({ room, invites, registrations }: Props) {
             </>
           }
           actions={
-            <Button variant="secondary" size="sm" disabled={!!editing} onClick={() => setEditing({ kind: "reminder", minutes_before: 60, subject: "", body: "Hi {{first_name}},\n\n{{title}} starts in an hour.\n\nJoin here: {{link}}" })}>
+            <Button variant="secondary" size="sm" disabled={!!editing || remindersLocked} onClick={() => setEditing({ kind: "reminder", minutes_before: 60, subject: "", body: "Hi {{first_name}},\n\n{{title}} starts in an hour.\n\nJoin here: {{link}}\n\nNot coming? Free your seat for someone on the waiting list: {{cancel_url}}" })}>
               Add reminder
             </Button>
           }
         />
+        {remindersLocked && (
+          <Alert tone="brand" className="mt-4" title={plan === "free" ? "Reminders are on Starter and Pro" : "Reminders are not included in this plan"}>
+            On {limits.label} every registrant gets the welcome email (and the waiting-list note when the seats are gone); the reminders below stay as they are and are not sent. <Link href="/host/billing" className="font-medium underline underline-offset-4">Upgrade</Link> and they start going out for everyone with a seat at an upcoming event.
+          </Alert>
+        )}
         {error && (
           <Alert tone="danger" className="mt-4">
             {error}
@@ -214,25 +230,27 @@ export function EmailSequence({ room, invites, registrations }: Props) {
             {sorted.map((step) => {
               const c = counts[step.id] ?? {};
               const scheduled = (c.scheduled ?? 0) + (c.queued ?? 0);
+              const locked = remindersLocked && step.kind === "reminder";
               return (
-                <li key={step.id} className={cx("flex flex-wrap items-start gap-4 py-4 first:pt-0 last:pb-0", !step.enabled && "opacity-60")}>
+                <li key={step.id} className={cx("flex flex-wrap items-start gap-4 py-4 first:pt-0 last:pb-0", (!step.enabled || locked) && "opacity-60")}>
                   <div className="w-36 shrink-0 pt-0.5">
-                    <Eyebrow>{describeOffset(step.minutes_before)}</Eyebrow>
-                    <p className="mt-1 text-xs text-ink-faint">{step.kind === "confirmation" ? "Welcome" : "Reminder"}</p>
+                    <Eyebrow>{describeOffset(step.minutes_before, step.kind)}</Eyebrow>
+                    <p className="mt-1 text-xs text-ink-faint">{step.kind === "confirmation" ? "Welcome" : step.kind === "waitlist" ? "Waiting list" : "Reminder"}</p>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-ink">{renderTemplate(step.subject, previewVars)}</p>
                     <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{renderTemplate(step.body, previewVars)}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {locked && <Badge tone="brand">Paid plans</Badge>}
                       {c.sent ? <Badge tone="success">{c.sent} sent</Badge> : null}
                       {scheduled ? <Badge tone="brand">{scheduled} scheduled</Badge> : null}
                       {c.failed ? <Badge tone="danger">{c.failed} failed</Badge> : null}
-                      {!c.sent && !scheduled && !c.failed && registrationCount > 0 && step.enabled && step.kind === "reminder" && <span className="text-xs text-ink-faint">Nothing scheduled yet</span>}
+                      {!c.sent && !scheduled && !c.failed && registrationCount > 0 && step.enabled && step.kind === "reminder" && !locked && <span className="text-xs text-ink-faint">Nothing scheduled yet</span>}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                    <Switch checked={step.enabled} onChange={(v) => void toggle(step, v)} label={`${step.subject} enabled`} disabled={busy} />
-                    <Button variant="ghost" size="sm" onClick={() => setEditing(step)} disabled={!!editing}>
+                    <Switch checked={step.enabled} onChange={(v) => void toggle(step, v)} label={`${step.subject} enabled`} disabled={busy || (locked && !step.enabled)} />
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(step)} disabled={!!editing || locked}>
                       Edit
                     </Button>
                     {step.kind === "reminder" && (
@@ -250,7 +268,7 @@ export function EmailSequence({ room, invites, registrations }: Props) {
 
       <Card className="bg-surface-inset">
         <Eyebrow>Placeholders</Eyebrow>
-        <p className="mt-2 text-sm text-ink-muted">Wrap any of these in double braces and they are filled in per registrant, with the title and start time of the event they registered for.</p>
+        <p className="mt-2 text-sm text-ink-muted">Wrap any of these in double braces and they are filled in per registrant, with the title and start time of the event they registered for. The cancel link lets someone who is not coming free their seat for the waiting list.</p>
         <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
           {PLACEHOLDERS.map((p) => (
             <div key={p} className="flex gap-3">
@@ -270,7 +288,7 @@ function StepEditor({ editing, onChange, onCancel, onSave, busy, preview }: { ed
   return (
     <div className="mt-6 rounded-xl border border-line bg-surface-inset p-5">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-ink">{editing.id ? (editing.kind === "confirmation" ? "Edit welcome email" : "Edit reminder") : "New reminder"}</h3>
+        <h3 className="text-sm font-semibold text-ink">{editing.id ? (editing.kind === "confirmation" ? "Edit welcome email" : editing.kind === "waitlist" ? "Edit waiting-list email" : "Edit reminder") : "New reminder"}</h3>
         <div className="flex gap-1 text-sm">
           {(["write", "preview"] as const).map((t) => (
             <button key={t} type="button" onClick={() => setTab(t)} className={cx("rounded-md px-2.5 py-1 font-medium", tab === t ? "bg-surface-raised text-ink shadow-card" : "text-ink-muted hover:text-ink")}>

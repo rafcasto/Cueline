@@ -1,4 +1,4 @@
-import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { handler, HttpError, isPlatformAdmin, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
 import { parseBranding } from "@/lib/branding";
 import { parseTopics } from "@/lib/explore";
 import { cancelRoomEmails } from "@/lib/email/schedule";
@@ -7,16 +7,20 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Room } from "@/lib/supabase/types";
 
 type Body =
-  | { action: "create"; org_id: string; name: string }
+  | { action: "create"; org_id: string; name: string; topics?: unknown; description?: unknown }
   | { action: "update"; id: string; name?: string; slug?: string; branding?: unknown; chat_enabled?: unknown; is_public?: unknown; description?: unknown; topics?: unknown }
   | { action: "delete"; id: string };
 
 /**
- * Rooms belong to the host's organisation. Creating one seeds its email sequence (a database
- * trigger); each room then carries its own events, deck, activities, waiting room and emails.
- * Deleting a room cancels the reminders still scheduled for its registrants, then everything
- * under it cascades away. Branding (accent, logo, call to action) is validated here so a bad
- * colour or a non-http link never reaches attendees.
+ * Rooms belong to the host's organisation. The plan belongs to the room: an organisation's
+ * first room is created here, free; every room after it is bought on Starter or Pro through
+ * `/api/billing/checkout`, which creates the room when the payment is through. Platform admins
+ * create rooms freely, as complimentary rooms. Creating a room seeds its email sequence (a
+ * database trigger); each room then carries its own events, deck, activities, waiting room and
+ * emails, and the topics chosen at creation put it under the right filters on Explore. Deleting
+ * a room cancels the reminders still scheduled for its registrants, then everything under it
+ * cascades away. Branding (accent, logo, call to action) is validated here so a bad colour or a
+ * non-http link never reaches attendees.
  */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
@@ -32,10 +36,30 @@ export const POST = handler(async (req) => {
   if (body.action === "create") {
     await requireOrgRole(user.id, body.org_id, ["owner", "host"]);
     const name = cleanName(String(body.name ?? ""));
+    const topics = parseTopics(body.topics ?? []);
+    if ("error" in topics) throw new HttpError(400, topics.error);
+    const description = body.description === undefined || body.description === null ? null : String(body.description).trim() || null;
+    if (description && description.length > 600) throw new HttpError(400, "Description must be 600 characters or fewer.");
+
+    const [platformAdmin, { data: existing }] = await Promise.all([isPlatformAdmin(user.id), admin.from("rooms").select("id, plan, plan_status, complimentary").eq("org_id", body.org_id)]);
+    if (!platformAdmin && (existing ?? []).length > 0) {
+      const anyPaid = (existing ?? []).some((r) => r.complimentary || (r.plan !== "free" && r.plan_status !== "canceled" && r.plan_status !== "unpaid"));
+      throw new HttpError(
+        402,
+        anyPaid
+          ? "Every room after the first is bought on Starter or Pro. Add a room from /host/billing."
+          : "Your room is on the free plan, and a free room cannot sit next to another room. Upgrade it at /host/billing, then add rooms on Starter or Pro.",
+      );
+    }
+
     const base = slugify(name);
     const { data: taken } = await admin.from("rooms").select("slug").like("slug", `${base}%`);
     const slug = uniqueSlug(base, (taken ?? []).map((r) => r.slug));
-    const { data, error } = await admin.from("rooms").insert({ org_id: body.org_id, name, slug }).select("*").single();
+    const { data, error } = await admin
+      .from("rooms")
+      .insert({ org_id: body.org_id, name, slug, topics: topics.topics, description, complimentary: platformAdmin })
+      .select("*")
+      .single();
     if (error) throw error;
     return json({ room: data as Room });
   }
@@ -47,6 +71,8 @@ export const POST = handler(async (req) => {
   if (body.action === "delete") {
     const { data: open } = await admin.from("sessions").select("id").eq("room_id", room.id).neq("state", "ended").maybeSingle();
     if (open) throw new HttpError(409, "End the session before deleting the room.");
+    const { data: sub } = await admin.from("room_subscriptions").select("stripe_subscription_id").eq("room_id", room.id).maybeSingle();
+    if (sub?.stripe_subscription_id && room.plan_status !== "canceled") throw new HttpError(409, "This room has a subscription. Cancel it under Manage billing first, then delete the room.");
     await cancelRoomEmails(room.id);
     const { error } = await admin.from("rooms").delete().eq("id", room.id);
     if (error) throw error;

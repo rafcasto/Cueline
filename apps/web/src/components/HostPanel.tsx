@@ -13,10 +13,13 @@ import { RoomSettings } from "@/components/RoomSettings";
 import { RoomStage } from "@/components/RoomStage";
 import { RunControls } from "@/components/RunControls";
 import { WaitingRoomEditor } from "@/components/WaitingRoomEditor";
+import Link from "next/link";
 import { Alert, Badge, Button, Card, CardHeader, Tabs, type Tone } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
 import { currentRun, latestRun } from "@/lib/session-state";
+import type { RoomAccess } from "@/lib/billing";
+import { isSeated } from "@/lib/seats";
 import { normalizeStageLayout, sameLayout } from "@/lib/stage-layout";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Activity, ChatMessage, Invite, Presentation, Question, ReactionKind, Registration, Room, Session, StageLayout } from "@/lib/supabase/types";
@@ -30,6 +33,8 @@ type Props = {
   activities: Activity[];
   invites: Invite[];
   registrations: Registration[];
+  /** The room's plan in force: seats per event, whether reminders go out, and whether the room is locked. */
+  access: RoomAccess;
 };
 
 type Tab = "live" | "event" | "emails" | "waiting" | "settings";
@@ -41,7 +46,8 @@ type Tab = "live" | "event" | "emails" | "waiting" | "settings";
  * anywhere), activate activities with timers and reveal results, run the hand-raise queue
  * with promote-to-stage, moderate Q&A, edit the waiting room, and rename or delete the room.
  */
-export function HostPanel({ room: initialRoom, initialSession, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations }: Props) {
+export function HostPanel({ room: initialRoom, initialSession, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations, access }: Props) {
+  const { limits } = access;
   const [room, setRoom] = useState(initialRoom);
   const [invites, setInvites] = useState(initialInvites);
   const [registrations, setRegistrations] = useState(initialRegistrations);
@@ -237,7 +243,7 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
           onChange={setTab}
           items={[
             { value: "live", label: "Live" },
-            { value: "event", label: "Event", count: registrations.length },
+            { value: "event", label: "Event", count: registrations.filter(isSeated).length },
             { value: "emails", label: "Emails" },
             { value: "waiting", label: "Waiting room" },
             { value: "settings", label: "Settings" },
@@ -251,7 +257,7 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
             </span>
           )}
           {!live && (
-            <Button onClick={() => void openRoom()} loading={busy} variant="secondary">
+            <Button onClick={() => void openRoom()} loading={busy} variant="secondary" disabled={access.locked}>
               Open waiting room
             </Button>
           )}
@@ -272,6 +278,14 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
           )}
         </div>
       </div>
+      {access.locked && (
+        <Alert tone="warning" className="mt-4" title="This room is locked">
+          {access.reason}{" "}
+          <Link href="/host/billing" className="font-medium underline underline-offset-4">
+            Open billing
+          </Link>
+        </Alert>
+      )}
       {msg && (
         <Alert tone="danger" className="mt-4">
           {msg}
@@ -284,9 +298,9 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
         ) : tab === "settings" ? (
           <RoomSettings room={room} hasOpenSession={!!live} onSaved={setRoom} />
         ) : tab === "event" ? (
-          <InviteCard room={room} userId={userId} invites={invites} registrations={registrations} participants={state.participants} onInvitesChange={setInvites} onRegistrationsChange={setRegistrations} />
+          <InviteCard room={room} limits={limits} invites={invites} registrations={registrations} participants={state.participants} onInvitesChange={setInvites} onRegistrationsChange={setRegistrations} />
         ) : tab === "emails" ? (
-          <EmailSequence room={room} invites={activeInvites} registrations={registrations} />
+          <EmailSequence room={room} plan={access.tier} limits={limits} invites={activeInvites} registrations={registrations} />
         ) : (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
             <section className="space-y-6">

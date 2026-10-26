@@ -3,21 +3,31 @@
 
 export type OrgRole = "owner" | "host" | "presenter";
 export type StripeMode = "test" | "live";
-export type PlanStatus = "active" | "past_due" | "canceled";
 
+export type PlanStatus = "active" | "past_due" | "canceled" | "unpaid";
+
+/** The tenancy unit and the Stripe customer. The plan itself belongs to each room; see Room and RoomSubscription. */
 export type Organisation = {
   id: string;
   name: string;
-  plan: "free" | "starter" | "pro";
   created_at: string;
-  /** The Stripe account (sandbox or live) the subscription was made in. */
+  /** The Stripe account (sandbox or live) the customer was made in. */
   stripe_mode: StripeMode | null;
   stripe_customer_id: string | null;
+};
+
+/** The Stripe subscription behind a paid room. Service-role writes, org members read; attendees never see it. */
+export type RoomSubscription = {
+  room_id: string;
+  org_id: string;
+  stripe_mode: StripeMode;
+  /** Null until the first payment comes through. */
   stripe_subscription_id: string | null;
-  plan_status: PlanStatus;
-  plan_price_lookup: string | null;
-  plan_period_start: string | null;
-  plan_period_end: string | null;
+  price_lookup: string | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type SessionState = "waiting" | "live" | "ended";
@@ -85,6 +95,11 @@ export type Room = {
   is_public: boolean;
   description: string | null;
   topics: string[];
+  /** The room's plan: free (only while it is the organisation's single room), starter or pro; see roomAccess() in lib/billing. */
+  plan: "free" | "starter" | "pro";
+  plan_status: PlanStatus;
+  /** Created by a platform admin: Pro limits, no subscription, never locked. */
+  complimentary: boolean;
   livekit_room: string;
   created_at: string;
 };
@@ -212,6 +227,8 @@ export type Invite = {
   revoked_at: string | null;
   /** Listed on /explore when its room is listed too. */
   is_public: boolean;
+  /** Seats, up to the plan's participants per session; null means the plan's maximum. See lib/seats. */
+  capacity: number | null;
 };
 
 export type Registration = {
@@ -226,10 +243,15 @@ export type Registration = {
   code: string;
   /** Magic-link token, /a/<token>; never shown to other attendees. */
   access_token: string;
+  /** Set while the registrant waits for a seat; cleared when one opens. */
+  waitlisted_at: string | null;
+  /** The registrant opted out; their seat went to the waiting list. */
+  cancelled_at: string | null;
   created_at: string;
 };
 
-export type InviteEmailKind = "confirmation" | "reminder";
+/** `confirmation` is the welcome, `waitlist` the note sent instead of it when the seats are gone, `reminder` counts back from the start. */
+export type InviteEmailKind = "confirmation" | "reminder" | "waitlist";
 export type RegistrationEmailStatus = "queued" | "scheduled" | "sent" | "cancelled" | "failed";
 
 /**

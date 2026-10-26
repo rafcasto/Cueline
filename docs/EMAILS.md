@@ -1,26 +1,28 @@
-# Event emails: the welcome and the anticipation sequence
+# Event emails: the welcome, the waiting list and the anticipation sequence
 
-25 Oct 2026 (first version 24 Oct 2026)
+26 Oct 2026 (first version 24 Oct 2026)
 
-Every room carries an email sequence: a welcome sent on registration and reminders sent at fixed times before an event starts. Every event created in the room inherits the sequence, and the app turns it into scheduled emails at Resend, one per registrant per step, timed against that event's start and carrying that registrant's personal link. The host edits the sequence once per room; the change reaches every open event in it.
+Every room carries an email sequence: a welcome sent on registration (or a waiting-list note when the event's seats are gone) and reminders sent at fixed times before an event starts. Every event created in the room inherits the sequence, and the app turns it into scheduled emails at Resend, one per registrant per step, timed against that event's start and carrying that registrant's personal link and opt-out link. The host edits the sequence once per room; the change reaches every open event in it. Reminders are a paid feature (Starter and Pro rooms); a free room sends the welcome and the waiting-list note only.
 
 ## What the attendee gets
 
-| When | Email | Link inside |
-| --- | --- | --- |
-| On registration | "Welcome to {{title}}" with the personal link and the join code | `/a/<access_token>` |
-| 48 h before | "{{title}} is in two days" | same |
-| 24 h before | "Tomorrow: {{title}}" | same |
-| 2 h before | "{{title}} starts in 2 hours" | same |
-| 15 min before | "Starting in 15 minutes: {{title}}" | same |
+| When | Email | Plans | Link inside |
+| --- | --- | --- | --- |
+| On registration, with a seat | "Welcome to {{title}}" with the personal link and the join code | all | `/a/<access_token>` |
+| On registration, seats gone | "You're on the waiting list for {{title}}" | all | same, plus the opt-out link |
+| When a seat opens | the welcome above, then the reminders due | all (reminders: paid) | same |
+| 48 h before | "{{title}} is in two days", asks anyone not coming to free their seat | Starter, Pro | same, plus the opt-out link |
+| 24 h before | "Tomorrow: {{title}}", same ask | Starter, Pro | same |
+| 2 h before | "{{title}} starts in 2 hours", same ask | Starter, Pro | same |
+| 15 min before | "Starting in 15 minutes: {{title}}" | Starter, Pro | same |
 
-The personal link `/a/<access_token>` binds the registration to whatever anonymous browser identity the attendee holds when they open it, then sends them into the room (or to the event page if the room is not open yet). No email, no code, works on any device. The fallback is `/join`: email plus the six-character code from the welcome, which does the same re-binding.
+The personal link `/a/<access_token>` binds the registration to whatever anonymous browser identity the attendee holds when they open it, then sends them into the room (or to the event page if the room is not open yet, or if they are on the waiting list). No email, no code, works on any device. The fallback is `/join`: email plus the six-character code from the welcome, which does the same re-binding. The opt-out link `/a/<access_token>/cancel` frees the seat (or leaves the waiting list): pending emails are pulled back and the first person in line is seated and emailed.
 
 ## Rooms, events and inheritance
 
 A host runs any number of rooms (created on `/host`). Each room is a standing space with its own deck, activities, waiting room and email sequence. An event (an invite link with a title and a start time) runs in a room, and a room can hold several events over time.
 
-- **The room owns the sequence.** `room_emails` holds the welcome and the reminders. A new room is seeded with the five defaults above by a trigger.
+- **The room owns the sequence.** `room_emails` holds the welcome, the waiting-list note and the reminders. A new room is seeded with the six defaults above by a trigger. The welcome and the waiting-list note (`kind` `confirmation` and `waitlist`) can be switched off but not deleted.
 - **Events inherit it.** Creating an event copies the room's steps into `invite_emails`, each row linked back to the room step by `room_email_id`. Send times are computed per event: `starts_at − minutes_before`.
 - **Room edits reach open events.** When the host edits, adds, toggles or deletes a room step, `sync_room_email()` inserts or updates the inherited row on every event that is not revoked, and the app reschedules those rows at Resend against each event's start. The welcome is never re-sent; edits to it apply to future registrations.
 - **Different copy for different webinars** means a different room. There is no per-event override; the room is the unit of configuration.
@@ -34,21 +36,24 @@ A host runs any number of rooms (created on `/host`). Each room is a standing sp
 | What was asked of Resend | `registration_emails` (registration × event step, send_at, status `queued → scheduled/sent`, `resend_id`, error) |
 | Codes and tokens | `registrations.code` (6 chars, unique per invite) and `registrations.access_token` (unique) |
 | Timezone for the copy | `invites.timezone`, captured from the host's browser when the event is created or edited |
-| Rendering | `apps/web/src/lib/email/template.ts`: `{{name}} {{first_name}} {{title}} {{starts_at}} {{link}} {{code}} {{join_url}} {{room}}` |
-| Scheduling | `apps/web/src/lib/email/schedule.ts`: `queueRegistrationEmails`, `dispatch`, `resyncStep`, `resyncInvite`, `cancelStep`, `syncRoomStep`, `cancelRoomStep`, `cancelRoomEmails` |
+| Rendering | `apps/web/src/lib/email/template.ts`: `{{name}} {{first_name}} {{title}} {{starts_at}} {{link}} {{code}} {{join_url}} {{room}} {{cancel_url}}` |
+| Scheduling | `apps/web/src/lib/email/schedule.ts`: `queueRegistrationEmails`, `dispatch`, `resyncStep`, `resyncInvite`, `cancelStep`, `syncRoomStep`, `cancelRoomStep`, `cancelRoomEmails`, `cancelRegistrationEmails`, `applyPlanToEmails` |
+| Who gets which steps | `stepKindsFor` in `apps/web/src/lib/seats.ts`: a seat gets the welcome (and the reminders on a paid plan), the waiting list gets the note, someone who opted out gets nothing |
 | Resend client | `apps/web/src/lib/email/resend.ts`: plain fetch against `/emails`, `/emails/:id` (reschedule) and `/emails/:id/cancel` |
 | Host UI | Emails tab in the host panel (`EmailSequence.tsx`): edit copy and timing, toggle, add, delete, preview; delivery counts (sent/scheduled/failed) for one event at a time |
 | Rooms | `/api/rooms` (create, rename, change address, delete), `NewRoomForm.tsx` on `/host`, `RoomSettings.tsx` on the Settings tab |
 
 ## Flow
 
-1. **Register** (`/api/register`). Upsert the registration, then `queueRegistrationEmails`: one `queued` row per enabled event step whose send time is still ahead (a reminder whose time has already passed is skipped, except within a ten-minute grace where it goes out at once). Then `dispatch` for that registration.
+1. **Register** (`/api/register`). `register_attendee()` seats or waitlists the registrant, then `queueRegistrationEmails`: one `queued` row per enabled event step the registrant is due (see `stepKindsFor`) whose send time is still ahead (a reminder whose time has already passed is skipped, except within a ten-minute grace where it goes out at once). Then `dispatch` for that registration.
 2. **Dispatch.** For each queued row due within Resend's scheduling horizon (30 days): send immediately if due within a minute, otherwise send with `scheduled_at`. Record the Resend id and the status. Failures are recorded on the row and shown to the host; they are not retried automatically.
 3. **Host edits a room step** (`/api/emails/steps`). The room row is updated, `sync_room_email` pushes it to every open event, and for each inherited step the scheduled copies are cancelled at Resend, the rows dropped, and the step queued and dispatched again for every registrant. Disabling a step cancels and stops; deleting a step cancels on every event before the inherited rows cascade away.
 4. **Host creates an event** (host panel, Event tab). The trigger copies the room sequence; nothing is scheduled until someone registers.
 5. **Host changes the start time** (`/api/invites/update`). Every reminder step of that event is resynced as above.
 6. **Host deletes a room** (`/api/rooms`). Every reminder still scheduled at Resend for the room's registrants is cancelled, then the room and everything under it cascades away. A room with an open session cannot be deleted.
 7. **Cron** (`vercel.json`, daily, `GET /api/emails/dispatch` with `Authorization: Bearer $CRON_SECRET`). Catches reminders that were beyond the 30-day horizon when registration happened.
+8. **Registrant opts out** (`/api/register/cancel`, from `/a/<token>/cancel` or the event page). `cancelled_at` is set, `cancelRegistrationEmails` pulls back what Resend holds for them, and `promote_waitlist()` seats the first person in line, who then goes through step 1's queueing as a seat holder (welcome, then reminders). The same promotion runs when the host raises an event's seats and when the plan grows.
+9. **Plan changes** (Stripe webhook). `applyPlanToEmails(roomId)`: a room that drops to free has every reminder still pending cancelled; a room that moves up has the reminders queued for everyone seated at an upcoming event.
 
 ## Configuration
 

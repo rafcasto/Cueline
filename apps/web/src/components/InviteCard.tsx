@@ -3,12 +3,15 @@ import { useCallback, useEffect, useState, useSyncExternalStore, type FormEvent 
 import { formatStart } from "@/components/RegisterForm";
 import { Alert, Badge, Button, ButtonLink, Card, CardHeader, EmptyState, Eyebrow, Field, Input, Stat, Textarea } from "@/components/ui";
 import { api } from "@/lib/api";
+import type { PlanLimits } from "@/lib/plans";
+import { capacityFor, isSeated, registrationStatus, seatSummary, waitlistPosition } from "@/lib/seats";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Invite, Participant, Registration, Room } from "@/lib/supabase/types";
 
 type Props = {
   room: Room;
-  userId: string;
+  /** The plan's cap on seats per event. */
+  limits: PlanLimits;
   invites: Invite[];
   registrations: Registration[];
   /** Who is in the open session, to mark which registrants have actually joined. */
@@ -33,13 +36,14 @@ function toLocalInput(iso: string | null) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-type Draft = { id?: string; title: string; startsAt: string; description: string; isPublic: boolean };
+type Draft = { id?: string; title: string; startsAt: string; description: string; isPublic: boolean; capacity: string };
 
 /**
- * Organiser side of an event: create the invite link, copy it, edit the details, watch
- * registrations arrive, revoke it. The two numbers that matter sit at the top.
+ * Organiser side of an event: create the invite link, copy it, edit the details and the seat
+ * count, watch registrations arrive (seated, waiting, opted out), revoke it. The numbers that
+ * matter sit at the top: seats taken, people waiting, people in the room.
  */
-export function InviteCard({ room, userId, invites, registrations, participants, onInvitesChange, onRegistrationsChange }: Props) {
+export function InviteCard({ room, limits, invites, registrations, participants, onInvitesChange, onRegistrationsChange }: Props) {
   const sb = supabaseBrowser();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,17 +77,14 @@ export function InviteCard({ room, userId, invites, registrations, participants,
     setError(null);
     try {
       const starts_at = draft.startsAt ? new Date(draft.startsAt).toISOString() : null;
+      const capacity = draft.capacity.trim() === "" ? null : Number(draft.capacity);
       if (draft.id) {
-        const r = await api<{ invite: Invite }>("/api/invites/update", { id: draft.id, title: draft.title, description: draft.description || null, starts_at, timezone: browserZone(), is_public: draft.isPublic });
+        const r = await api<{ invite: Invite }>("/api/invites/update", { id: draft.id, title: draft.title, description: draft.description || null, starts_at, timezone: browserZone(), is_public: draft.isPublic, capacity });
         onInvitesChange(invites.map((i) => (i.id === r.invite.id ? r.invite : i)));
+        void refresh();
       } else {
-        const { data, error } = await sb
-          .from("invites")
-          .insert({ org_id: room.org_id, room_id: room.id, title: draft.title.trim() || room.name, description: draft.description.trim() || null, starts_at, timezone: browserZone(), created_by: userId, is_public: draft.isPublic })
-          .select("*")
-          .single();
-        if (error) throw error;
-        onInvitesChange([data as Invite, ...invites]);
+        const r = await api<{ invite: Invite }>("/api/invites/create", { room_id: room.id, title: draft.title.trim() || room.name, description: draft.description.trim() || null, starts_at, timezone: browserZone(), is_public: draft.isPublic, capacity });
+        onInvitesChange([r.invite, ...invites]);
       }
       setDraft(null);
     } catch (err) {
@@ -111,18 +112,23 @@ export function InviteCard({ room, userId, invites, registrations, participants,
     }
   };
 
-  const joinedCount = registrations.filter((r) => participants[r.user_id]).length;
-  const newDraft = () => setDraft({ title: room.name, startsAt: "", description: "", isPublic: room.is_public });
+  const seated = registrations.filter(isSeated);
+  const waiting = registrations.filter((r) => registrationStatus(r) === "waitlisted");
+  const joinedCount = seated.filter((r) => participants[r.user_id]).length;
+  const newDraft = () => setDraft({ title: room.name, startsAt: "", description: "", isPublic: room.is_public, capacity: "" });
+  const seatsOf = (inv: Invite) => seatSummary(registrations.filter((r) => r.invite_id === inv.id), capacityFor(inv, limits));
+  const capped = (inv: Invite) => inv.capacity !== null && inv.capacity > limits.participants;
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader
           title="Event and invite link"
-          description="Attendees register with a name and email on the link, get a confirmation with their personal link and code, and walk in with either on the day."
+          description={`Attendees register with a name and email on the link and get a confirmation with their personal link and code. Each event has the seats you give it, up to ${limits.participants} on ${limits.label}; when they are gone, new registrants join a waiting list and move up as people opt out.`}
           actions={
             <div className="flex gap-8">
-              <Stat value={registrations.length} label="Registered" />
+              <Stat value={seated.length} label="Seated" />
+              <Stat value={waiting.length} label="Waiting" />
               <Stat value={joinedCount} label="Joined" />
             </div>
           }
@@ -145,7 +151,7 @@ export function InviteCard({ room, userId, invites, registrations, participants,
         <div className="mt-6 space-y-4">
           {active.map((inv) => {
             const url = `${origin}/join/${inv.token}`;
-            const count = registrations.filter((r) => r.invite_id === inv.id).length;
+            const seats = seatsOf(inv);
             return (
               <div key={inv.id} className="rounded-xl border border-line p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -155,14 +161,18 @@ export function InviteCard({ room, userId, invites, registrations, participants,
                       <Badge tone="success" dot>
                         Open
                       </Badge>
+                      {seats.full && <Badge tone="warning">Full</Badge>}
                       {inv.is_public && <Badge tone={room.is_public ? "brand" : "warning"}>{room.is_public ? "On Explore" : "Public, room not listed"}</Badge>}
                     </div>
                     <p className="mt-1 text-sm text-ink-muted">
-                      {inv.starts_at ? formatStart(inv.starts_at) : "No start time set"} · {count} registered
+                      {inv.starts_at ? formatStart(inv.starts_at) : "No start time set"} · {seats.going} of {seats.capacity} seats taken
+                      {seats.waiting > 0 ? ` · ${seats.waiting} waiting` : ""}
+                      {inv.capacity === null ? " (plan maximum)" : ""}
                     </p>
+                    {capped(inv) && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Set to {inv.capacity} seats, but {limits.label} allows {limits.participants}; the lower number applies until the plan changes.</p>}
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => setDraft({ id: inv.id, title: inv.title, startsAt: toLocalInput(inv.starts_at), description: inv.description ?? "", isPublic: inv.is_public })} disabled={!!draft}>
+                    <Button variant="ghost" size="sm" onClick={() => setDraft({ id: inv.id, title: inv.title, startsAt: toLocalInput(inv.starts_at), description: inv.description ?? "", isPublic: inv.is_public, capacity: inv.capacity === null ? "" : String(inv.capacity) })} disabled={!!draft}>
                       Edit
                     </Button>
                     <Button variant="ghost" size="sm" className="text-red-700 hover:text-red-800 dark:text-red-300" onClick={() => void revoke(inv)}>
@@ -195,6 +205,9 @@ export function InviteCard({ room, userId, invites, registrations, participants,
             </Field>
             <Field label="Starts" htmlFor="inv-start" hint={`Your timezone (${browserZone()}). Reminder emails count back from this.`}>
               <Input id="inv-start" type="datetime-local" value={draft.startsAt} onChange={(e) => setDraft({ ...draft, startsAt: e.target.value })} className="max-w-xs" />
+            </Field>
+            <Field label="Seats" htmlFor="inv-seats" hint={`Up to ${limits.participants} on ${limits.label}; leave blank for the maximum. Once the seats are taken, new registrants join a waiting list and move up when someone opts out or you add seats.`}>
+              <Input id="inv-seats" type="number" inputMode="numeric" min={1} max={limits.participants} step={1} value={draft.capacity} onChange={(e) => setDraft({ ...draft, capacity: e.target.value })} placeholder={String(limits.participants)} className="max-w-xs" />
             </Field>
             <Field label="What attendees will see" htmlFor="inv-desc" hint="Optional. Shown on the registration page and on Explore.">
               <Textarea id="inv-desc" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} maxLength={2000} rows={3} />
@@ -237,7 +250,7 @@ export function InviteCard({ room, userId, invites, registrations, participants,
       <Card>
         <CardHeader
           title="Registrations"
-          description="Each attendee's code lets them in from any device with their email. Their personal link does the same with no typing."
+          description="Each attendee's code lets them in from any device with their email; their personal link does the same with no typing. People who opt out free their seat for the next in line."
           actions={
             <Button variant="ghost" size="sm" onClick={() => void refresh()}>
               Refresh
@@ -253,21 +266,31 @@ export function InviteCard({ room, userId, invites, registrations, participants,
                 <tr className="text-left text-xs font-semibold uppercase tracking-wider text-ink-muted">
                   <th className="py-2 pr-4 font-semibold">Name</th>
                   <th className="py-2 pr-4 font-semibold">Email</th>
+                  {active.length > 1 && <th className="py-2 pr-4 font-semibold">Event</th>}
+                  <th className="py-2 pr-4 font-semibold">Seat</th>
                   <th className="py-2 pr-4 font-semibold">Code</th>
                   <th className="py-2 pr-4 font-semibold">Registered</th>
                   <th className="py-2 font-semibold">In room</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {registrations.map((r) => (
-                  <tr key={r.id}>
-                    <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td>
-                    <td className="py-2.5 pr-4 text-ink-muted">{r.email}</td>
-                    <td className="py-2.5 pr-4 font-mono text-xs tracking-widest text-ink">{r.code}</td>
-                    <td className="py-2.5 pr-4 text-ink-muted">{new Date(r.created_at).toLocaleString()}</td>
-                    <td className="py-2.5">{participants[r.user_id] ? <Badge tone="success">In room</Badge> : <span className="text-ink-faint">—</span>}</td>
-                  </tr>
-                ))}
+                {registrations.map((r) => {
+                  const status = registrationStatus(r);
+                  const position = status === "waitlisted" ? waitlistPosition(registrations.filter((x) => x.invite_id === r.invite_id), r.id) : null;
+                  return (
+                    <tr key={r.id} className={status === "cancelled" ? "opacity-60" : undefined}>
+                      <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td>
+                      <td className="py-2.5 pr-4 text-ink-muted">{r.email}</td>
+                      {active.length > 1 && <td className="max-w-40 truncate py-2.5 pr-4 text-ink-muted">{invites.find((i) => i.id === r.invite_id)?.title ?? "—"}</td>}
+                      <td className="py-2.5 pr-4">
+                        {status === "seated" ? <Badge tone="success">Seated</Badge> : status === "waitlisted" ? <Badge tone="warning">{position ? `Waiting #${position}` : "Waiting"}</Badge> : <Badge>Opted out</Badge>}
+                      </td>
+                      <td className="py-2.5 pr-4 font-mono text-xs tracking-widest text-ink">{r.code}</td>
+                      <td className="py-2.5 pr-4 text-ink-muted">{new Date(r.created_at).toLocaleString()}</td>
+                      <td className="py-2.5">{participants[r.user_id] && status === "seated" ? <Badge tone="success">In room</Badge> : <span className="text-ink-faint">—</span>}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -2,7 +2,7 @@
  * Email copy lives in the database as plain text with {{placeholders}}; this renders it for one
  * registrant. Pure functions, so the host panel preview and the server render identically.
  */
-export const PLACEHOLDERS = ["name", "first_name", "title", "starts_at", "link", "code", "join_url", "room"] as const;
+export const PLACEHOLDERS = ["name", "first_name", "title", "starts_at", "link", "code", "join_url", "room", "cancel_url"] as const;
 export type Placeholder = (typeof PLACEHOLDERS)[number];
 export type TemplateVars = Record<Placeholder, string>;
 
@@ -31,6 +31,8 @@ export function templateVars(input: {
     link: `${base}/a/${input.accessToken}`,
     code: input.code,
     join_url: `${base}/join`,
+    // Opting out: frees the seat for the waiting list. Same token as the personal link, so it works from any device.
+    cancel_url: `${base}/a/${input.accessToken}/cancel`,
   };
 }
 
@@ -67,14 +69,15 @@ export function textToHtml(text: string, opts: { buttonUrl?: string; buttonLabel
 }
 
 /** When a reminder step goes out for an event, or null when it cannot be computed. */
-export function sendTimeFor(step: { kind: "confirmation" | "reminder"; minutes_before: number | null }, startsAt: string | null, now = Date.now()): Date | null {
-  if (step.kind === "confirmation") return new Date(now);
+export function sendTimeFor(step: { kind: "confirmation" | "reminder" | "waitlist"; minutes_before: number | null }, startsAt: string | null, now = Date.now()): Date | null {
+  if (step.kind !== "reminder") return new Date(now);
   if (!startsAt || step.minutes_before === null) return null;
   return new Date(new Date(startsAt).getTime() - step.minutes_before * 60_000);
 }
 
 /** Minutes-before as the host reads it: "2 days before", "15 minutes before". */
-export function describeOffset(minutes: number | null): string {
+export function describeOffset(minutes: number | null, kind?: "confirmation" | "reminder" | "waitlist"): string {
+  if (kind === "waitlist") return "On joining the waiting list";
   if (minutes === null) return "On registration";
   if (minutes % 1440 === 0) return `${minutes / 1440} ${minutes === 1440 ? "day" : "days"} before`;
   if (minutes % 60 === 0) return `${minutes / 60} ${minutes === 60 ? "hour" : "hours"} before`;

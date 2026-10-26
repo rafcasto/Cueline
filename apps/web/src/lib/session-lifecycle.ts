@@ -5,6 +5,7 @@ import { stopEgress } from "@/lib/video";
 type EndableSession = {
   id: string;
   org_id: string;
+  room_id: string;
   egress_id: string | null;
   started_at: string | null;
   counted: boolean;
@@ -21,15 +22,15 @@ export async function endSession(admin: SupabaseClient, session: EndableSession,
   let counted = session.counted;
 
   if (counted && session.started_at) {
-    const [{ count: attendees }, { data: org }] = await Promise.all([
+    const [{ count: attendees }, { data: sub }] = await Promise.all([
       admin.from("participants").select("user_id", { count: "exact", head: true }).eq("session_id", session.id),
-      admin.from("organisations").select("id, plan, plan_status, plan_period_start, plan_period_end").eq("id", session.org_id).maybeSingle(),
+      admin.from("room_subscriptions").select("current_period_start, current_period_end").eq("room_id", session.room_id).maybeSingle(),
     ]);
-    const period = billingPeriod(org ?? { id: session.org_id, plan: "free" }, now);
+    const period = billingPeriod({ plan_period_start: sub?.current_period_start ?? null, plan_period_end: sub?.current_period_end ?? null }, now);
     const { count: refunded } = await admin
       .from("sessions")
       .select("id", { count: "exact", head: true })
-      .eq("org_id", session.org_id)
+      .eq("room_id", session.room_id)
       .eq("counted", false)
       .eq("state", "ended")
       .gte("started_at", period.start.toISOString())
@@ -46,7 +47,7 @@ export async function endSession(admin: SupabaseClient, session: EndableSession,
 export async function sweepOverdue(admin: SupabaseClient, orgId: string, now = new Date()) {
   const { data } = await admin
     .from("sessions")
-    .select("id, org_id, egress_id, started_at, counted")
+    .select("id, org_id, room_id, egress_id, started_at, counted")
     .eq("org_id", orgId)
     .eq("state", "live")
     .lt("ends_by", now.toISOString());
