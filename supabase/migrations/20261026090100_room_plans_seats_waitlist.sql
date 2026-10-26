@@ -53,21 +53,8 @@ create trigger room_subscriptions_touch before update on public.room_subscriptio
 -- Sessions are now counted per room per billing period.
 create index sessions_room_started_idx on public.sessions (room_id, started_at) where counted;
 
--- Carry the organisation's plan over to its rooms. Every room of a paid organisation keeps the
--- plan it had in practice; the subscription itself can only belong to one room, so it goes to
--- the oldest. Then the organisation's plan columns go.
-update public.rooms r
-   set plan = o.plan, plan_status = o.plan_status
-  from public.organisations o
- where o.id = r.org_id and o.plan <> 'free';
-
-insert into public.room_subscriptions (room_id, org_id, stripe_mode, stripe_subscription_id, price_lookup, current_period_start, current_period_end)
-select distinct on (o.id) r.id, o.id, o.stripe_mode, o.stripe_subscription_id, o.plan_price_lookup, o.plan_period_start, o.plan_period_end
-  from public.organisations o
-  join public.rooms r on r.org_id = o.id
- where o.stripe_subscription_id is not null and o.stripe_mode is not null
- order by o.id, r.created_at;
-
+-- The organisation's plan columns go. Nothing is carried over: there were no paid organisations
+-- when this landed, and the seeded room is complimentary (seed.sql).
 drop index if exists public.organisations_stripe_subscription_idx;
 alter table public.organisations
   drop column plan,
