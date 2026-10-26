@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@/components/Analytics";
 import { NavigationProgress } from "@/components/NavigationProgress";
 import "./globals.css";
 
@@ -13,6 +14,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="flex min-h-full flex-col bg-surface-sunken text-ink">
         <NavigationProgress />
         {children}
+        <Analytics />
       </body>
     </html>
   );
