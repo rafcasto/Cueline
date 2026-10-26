@@ -58,11 +58,14 @@ export type WaitingRoom = { background: WaitingRoomBackground; elements: Waiting
 
 /**
  * Where the presenter video sits against the deck page; see lib/stage-layout. `video` is the
- * custom position in percent of a 16:9 stage (a 16:9 box there is as tall as it is wide, so only `w`).
+ * custom position in percent of a 16:9 stage (a 16:9 box there is as tall as it is wide, so only `w`;
+ * a circle is as tall in pixels as it is wide, so `w` is its diameter). `shape` is the camera's
+ * outline in the corner and custom arrangements: a 16:9 rectangle (the default, left out) or a circle.
  */
 export type StageLayoutMode = "default" | "talking_head" | "split" | "custom";
+export type StageVideoShape = "rect" | "circle";
 export type StageVideoBox = { x: number; y: number; w: number };
-export type StageLayout = { mode: StageLayoutMode; video?: StageVideoBox };
+export type StageLayout = { mode: StageLayoutMode; video?: StageVideoBox; shape?: StageVideoShape };
 
 /** Accent colour, logo and standing call to action; see normalizeBranding() in lib/branding. */
 export type RoomBranding = { accent?: string; logo_url?: string; cta?: { label: string; url: string } };

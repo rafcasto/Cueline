@@ -135,7 +135,7 @@ export function PresenterDeck({ room, presentations, onPresentationsChange, sele
         <StageLayoutPicker value={layout} onChange={onLayoutChange} className="mt-3" />
         <p className="mt-3 text-sm text-ink-muted" role="status">
           {describeLayout(layout)}
-          {layout.mode === "custom" ? " Drag it on the stage; the corner resizes it. Arrow keys nudge, plus and minus resize." : " Drag the camera on the stage to place it yourself."}
+          {layout.mode === "custom" ? " Drag it on the stage; the handle resizes it. Arrow keys nudge, plus and minus resize." : " Drag the camera on the stage to place it yourself."}
         </p>
       </div>
     </Card>

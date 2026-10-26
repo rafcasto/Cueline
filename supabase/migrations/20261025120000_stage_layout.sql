@@ -4,7 +4,9 @@
 -- the corner (the default), a talking head (camera full stage, deck hidden), side by side
 -- (deck left, camera right, half each), or a custom position the host drags into place.
 -- { "mode": "default" | "talking_head" | "split" | "custom", "video": { "x", "y", "w" } }
--- with the box in percent of a 16:9 stage; see apps/web/src/lib/stage-layout.ts.
+-- with the box in percent of a 16:9 stage; see apps/web/src/lib/stage-layout.ts. An optional
+-- "shape": "rect" | "circle" (added later, no schema change: absent means rect) gives the
+-- camera's outline in the corner and custom arrangements.
 --
 -- The session carries the live value, so a change rides the session:{id} broadcast that
 -- already fires on every sessions write and attendees follow it at once. The room keeps
