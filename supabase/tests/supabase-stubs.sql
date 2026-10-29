@@ -1,6 +1,10 @@
 -- Stand-ins for what the Supabase platform provides (auth/realtime/storage schemas, API roles) so the
 -- migration can be exercised against a plain Postgres 16 in CI. Not used by `supabase db reset`.
 create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
+-- Extensions live in their own schema, as on the hosted project; it is on the connection's default
+-- search_path but not on the one security definer functions pin, which is what the smoke test checks.
+create schema extensions; create extension pgcrypto schema extensions;
+alter database cueline set search_path = "$user", public, extensions;
 create schema auth; create table auth.users(id uuid primary key default gen_random_uuid());
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 create schema realtime;
@@ -19,7 +23,7 @@ create table storage.objects(id uuid primary key default gen_random_uuid(), buck
 alter table storage.objects enable row level security;
 create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1] $$;
 -- Supabase default privileges for the API roles.
-grant usage on schema public, auth, storage to anon, authenticated, service_role;
+grant usage on schema public, auth, storage, extensions to anon, authenticated, service_role;
 alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
