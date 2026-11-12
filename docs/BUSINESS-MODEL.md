@@ -96,7 +96,7 @@ Hosts pay through Stripe Billing: a Checkout session in subscription mode for St
 - Free sessions are never recorded and are capped at 540p; no HLS fallback (the fallback is an egress).
 - A hard stop ends the session at the cap with a five-minute warning in the host panel and a countdown for attendees; the recording and room are closed server-side, not by the client.
 - `maxParticipants` is set on the LiveKit room from the plan, and the token endpoint refuses to mint past the cap, so the limit holds even if a client misbehaves.
-- Storage: recordings kept 30 days on Starter, 12 months on Pro, downloadable; a nightly job deletes expired ones.
+- Storage: recordings kept 30 days on Starter, 12 months on Pro (`recordingDays`), downloadable from the host panel's Recordings tab; the nightly sweep (`/api/recordings/sweep`) deletes expired ones and marks the session.
 
 ## What to build for this (Phase 3)
 

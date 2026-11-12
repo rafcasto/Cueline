@@ -14,10 +14,18 @@ type Props = {
   hlsUrl: string | null;
   /** Called with the transport's live-edge latency: 0 over WebRTC, the player's estimate over HLS. */
   onLatency?: (ms: number) => void;
+  /** Called when the transport changes, so the page can swap the stage for the full HLS picture. */
+  onTransport?: (t: Transport) => void;
+  /**
+   * The egress browser filming the stage: it proves itself with the session's record key, takes
+   * no seat, and never falls back to HLS (the HLS stream is its own output), so it keeps retrying
+   * the room instead.
+   */
+  recorder?: { key: string };
   className?: string;
 };
 
-type Transport = "connecting" | "webrtc" | "hls";
+export type Transport = "connecting" | "webrtc" | "hls";
 
 /** Room joins to try before giving up on WebRTC and watching the HLS fallback instead. */
 const ATTEMPTS = 2;
@@ -32,8 +40,15 @@ const RETRY_MS = 3000;
  * server-side; the client rejoins as a subscriber, which is why a disconnect retries
  * before it falls back.
  */
-export function LiveViewer({ sessionId, ready, hlsUrl, onLatency, className }: Props) {
+export function LiveViewer({ sessionId, ready, hlsUrl, onLatency, onTransport, recorder, className }: Props) {
   const [transport, setTransport] = useState<Transport>("connecting");
+  const transportRef = useRef(onTransport);
+  useEffect(() => {
+    transportRef.current = onTransport;
+  });
+  useEffect(() => {
+    transportRef.current?.(transport);
+  }, [transport]);
   const [tracks, setTracks] = useState<Map<string, RemoteTrack>>(new Map());
   // Browsers refuse audio playback until the page has user activation; LiveKit reports it, and a tap fixes it.
   const [soundBlocked, setSoundBlocked] = useState(false);
@@ -56,9 +71,9 @@ export function LiveViewer({ sessionId, ready, hlsUrl, onLatency, className }: P
     const retry = (why: string) => {
       if (!active) return;
       attempts++;
-      console.warn(`room join ${attempts}/${ATTEMPTS} failed: ${why}`);
+      console.warn(`room join ${attempts}/${recorder ? "∞" : ATTEMPTS} failed: ${why}`);
       setTracks(new Map());
-      if (attempts >= ATTEMPTS) {
+      if (attempts >= ATTEMPTS && !recorder) {
         setTransport("hls");
         return;
       }
@@ -68,7 +83,7 @@ export function LiveViewer({ sessionId, ready, hlsUrl, onLatency, className }: P
 
     const connect = async () => {
       try {
-        const t = await api<{ mode: string; url: string; token: string }>("/api/token", { session_id: sessionId, role: "viewer" });
+        const t = await api<{ mode: string; url: string; token: string }>("/api/token", recorder ? { session_id: sessionId, role: "recorder", record_key: recorder.key } : { session_id: sessionId, role: "viewer" });
         if (!active) return;
         if (t.mode !== "webrtc") {
           setTransport("hls");
@@ -86,7 +101,11 @@ export function LiveViewer({ sessionId, ready, hlsUrl, onLatency, className }: P
             return n;
           }),
         );
-        r.on(RoomEvent.AudioPlaybackStatusChanged, () => setSoundBlocked(!r.canPlaybackAudio));
+        r.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+          setSoundBlocked(!r.canPlaybackAudio);
+          // The egress browser has no one to tap; it is launched with autoplay allowed, so asking again is enough.
+          if (recorder && !r.canPlaybackAudio) void r.startAudio().catch(() => undefined);
+        });
         r.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
           if (!active || reason === DisconnectReason.CLIENT_INITIATED) return;
           if (roomRef.current === r) roomRef.current = null;
@@ -116,7 +135,7 @@ export function LiveViewer({ sessionId, ready, hlsUrl, onLatency, className }: P
       setTransport("connecting");
       setSoundBlocked(false);
     };
-  }, [sessionId, ready]);
+  }, [sessionId, ready, recorder?.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (transport === "hls") return <HlsPlayer src={hlsUrl} onLatency={onLatency} className={className} />;
 
@@ -135,7 +154,7 @@ export function LiveViewer({ sessionId, ready, hlsUrl, onLatency, className }: P
           {transport === "webrtc" ? "Waiting for the presenter's camera…" : "Connecting to the stream…"}
         </div>
       )}
-      {transport === "webrtc" && soundBlocked && (
+      {transport === "webrtc" && soundBlocked && !recorder && (
         <button
           type="button"
           onClick={() => void roomRef.current?.startAudio().catch(() => undefined)}

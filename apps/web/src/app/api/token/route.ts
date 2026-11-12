@@ -1,14 +1,15 @@
 import { handler, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { mintRoomToken } from "@/lib/video";
+import { mintRoomToken, verifyRecordKey } from "@/lib/video";
 
-type Body = { session_id: string; role: "presenter" | "viewer" };
+type Body = { session_id: string; role: "presenter" | "viewer" | "recorder"; record_key?: string };
 
 /**
  * Everyone joins the room over WebRTC. Viewers (any signed-in user, the anonymous
  * audience included) get a subscribe-only token plus the HLS playlist to fall back on
  * when the room cannot take them. Presenters, who must be org members, get a publish
- * token. Promoted viewers get theirs from /api/stage.
+ * token. Promoted viewers get theirs from /api/stage. The recorder (the egress browser on
+ * /record/[session]) proves itself with the session's record key and takes no seat.
  */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
@@ -23,6 +24,12 @@ export const POST = handler(async (req) => {
   if (!session || session.state === "ended") return json({ error: "no open session" }, { status: 404 });
   const room = (session.rooms as unknown as { livekit_room: string } | null)?.livekit_room;
   if (!room) return json({ error: "room missing" }, { status: 500 });
+
+  if (body.role === "recorder") {
+    if (!verifyRecordKey(session.id, body.record_key)) return json({ error: "bad record key" }, { status: 403 });
+    const t = await mintRoomToken({ room, identity: `recorder:${session.id}`, name: "Recorder", role: "recorder" });
+    return json({ mode: "webrtc", ...t });
+  }
 
   if (body.role === "viewer") {
     if (session.ends_by && new Date(session.ends_by) < new Date()) return json({ error: "this session has reached its time limit" }, { status: 410 });

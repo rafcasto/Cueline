@@ -9,6 +9,7 @@ import { InviteCard } from "@/components/InviteCard";
 import { PresenterDeck } from "@/components/PresenterDeck";
 import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
+import { RecordingsList } from "@/components/RecordingsList";
 import { RoomSettings } from "@/components/RoomSettings";
 import { RoomStage } from "@/components/RoomStage";
 import { RunControls } from "@/components/RunControls";
@@ -27,6 +28,8 @@ import type { Activity, ChatMessage, Invite, Presentation, Question, ReactionKin
 type Props = {
   room: Room;
   initialSession: Session | null;
+  /** Ended sessions of the room that have a recording, newest first. */
+  recordings: Session[];
   userId: string;
   userEmail: string | null;
   presentations: Presentation[];
@@ -37,7 +40,7 @@ type Props = {
   access: RoomAccess;
 };
 
-type Tab = "live" | "event" | "emails" | "waiting" | "settings";
+type Tab = "live" | "event" | "emails" | "recordings" | "waiting" | "settings";
 
 /**
  * Host panel for one room: share the invite link and watch registrations, edit the room's
@@ -46,12 +49,13 @@ type Tab = "live" | "event" | "emails" | "waiting" | "settings";
  * anywhere), activate activities with timers and reveal results, run the hand-raise queue
  * with promote-to-stage, moderate Q&A, edit the waiting room, and rename or delete the room.
  */
-export function HostPanel({ room: initialRoom, initialSession, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations, access }: Props) {
+export function HostPanel({ room: initialRoom, initialSession, recordings: initialRecordings, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations, access }: Props) {
   const { limits } = access;
   const [room, setRoom] = useState(initialRoom);
   const [invites, setInvites] = useState(initialInvites);
   const [registrations, setRegistrations] = useState(initialRegistrations);
   const [session, setSession] = useState<Session | null>(initialSession);
+  const [recordings, setRecordings] = useState(initialRecordings);
   const [presentations, setPresentations] = useState(initialPresentations);
   const [activities, setActivities] = useState(initialActivities);
   const [deck, setDeck] = useState<Presentation | null>(
@@ -105,6 +109,8 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
       if (!live) return;
       if (!confirm("End the session for everyone? The recording stops and attendees see the waiting room.")) return;
       await api("/api/session/end", { session_id: live.id });
+      // The file is in the bucket a few seconds after the egress stops; list it now so the host finds it under Recordings.
+      if (live.state === "live" && live.recording_url) setRecordings((r) => [{ ...live, state: "ended", ended_at: new Date().toISOString() }, ...r]);
       setSession(null);
       setStage(null);
     });
@@ -245,6 +251,7 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
             { value: "live", label: "Live" },
             { value: "event", label: "Event", count: registrations.filter(isSeated).length },
             { value: "emails", label: "Emails" },
+            { value: "recordings", label: "Recordings", count: recordings.filter((r) => !r.recording_deleted_at).length || undefined },
             { value: "waiting", label: "Waiting room" },
             { value: "settings", label: "Settings" },
           ]}
@@ -301,6 +308,8 @@ export function HostPanel({ room: initialRoom, initialSession, userId, userEmail
           <InviteCard room={room} limits={limits} invites={invites} registrations={registrations} participants={state.participants} onInvitesChange={setInvites} onRegistrationsChange={setRegistrations} />
         ) : tab === "emails" ? (
           <EmailSequence room={room} plan={access.tier} limits={limits} invites={activeInvites} registrations={registrations} />
+        ) : tab === "recordings" ? (
+          <RecordingsList recordings={recordings} limits={limits} live={live?.state === "live" && !!live.recording_url} />
         ) : (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
             <section className="space-y-6">

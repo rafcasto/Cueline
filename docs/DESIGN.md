@@ -39,7 +39,7 @@ Use a third-party transport with server-side participant permissions and built-i
 
 **Latency.** WebRTC participants are within a second of the presenters and cues show at once. On the HLS fallback a poll that fires the instant the presenter advances would arrive before the slide, so the player reports its live-edge latency and the client schedules each popup at `slide_event.server_ts + measured_latency`. Same rule for CTAs.
 
-**Recording.** One room-composite egress per session writes both the MP4 recording and the HLS segments to object storage (S3/R2); the URLs live on `sessions`. One composite, not two: egress is billed per transcode minute.
+**Recording.** One web egress per session films the attendee stage (`/record/[session]`: deck, presenter video, activity overlay) and writes both the MP4 recording and the HLS segments to object storage (S3/R2); the URLs live on `sessions`, with `recording_expires_at` from the plan's retention and `recording_deleted_at` once the nightly sweep has removed the files. One egress, not two: it is billed per transcode minute. A room composite was tried first; it only had the cameras, not what the audience saw.
 
 ## Component 2 — Engagement layer (Supabase)
 

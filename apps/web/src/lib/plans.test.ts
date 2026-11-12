@@ -7,6 +7,11 @@ describe("plans", () => {
     expect(PLAN_LIMITS.starter).toMatchObject({ sessionsPerMonth: 4, participants: 50, minutes: 120, recording: true });
     expect(PLAN_LIMITS.pro).toMatchObject({ sessionsPerMonth: null, participants: 150, minutes: 240, hlsFallback: true, stripeCta: true });
   });
+  it("keeps recordings for the plan's retention", () => {
+    expect(PLAN_LIMITS.free.recordingDays).toBeNull();
+    expect(PLAN_LIMITS.starter.recordingDays).toBe(30);
+    expect(PLAN_LIMITS.pro.recordingDays).toBe(365);
+  });
   it("sends reminders only on the paid plans", () => {
     expect(PLAN_LIMITS.free.reminders).toBe(false);
     expect(PLAN_LIMITS.starter.reminders).toBe(true);
