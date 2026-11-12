@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityOverlay } from "@/components/ActivityOverlay";
 import { Chat } from "@/components/Chat";
-import { LiveViewer } from "@/components/LiveViewer";
+import { HlsPlayer } from "@/components/HlsPlayer";
+import { LiveViewer, type Transport } from "@/components/LiveViewer";
 import { PdfPage } from "@/components/PdfPage";
 import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
@@ -70,6 +71,9 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   }, [openSession, userId, room.id]);
   const presentation = usePresentation(initialPresentation, session?.presentation_id ?? null, userId);
   const [stage, setStage] = useState<{ url: string; token: string } | null>(null);
+  // Once the viewer has fallen back to HLS the stream carries the whole stage (the egress films
+  // the attendee view), so the page shows it edge to edge instead of inside the camera region.
+  const [transport, setTransport] = useState<Transport>("connecting");
   const [handUp, setHandUp] = useState(false);
   const [panel, setPanel] = useState<"chat" | "qa">("chat");
 
@@ -146,6 +150,14 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   const pageIndex = state.lastSlide?.page_index ?? 0;
 
   const here = Object.keys(state.participants).length;
+  const overlay = run && activity && (
+    // On a phone the slide is a short strip that would clip the overlay, so there the layer is fixed
+    // to the viewport (overflow-hidden does not clip fixed descendants); from lg up the slide is tall
+    // enough and the layer sits over it, the card capped at its height and scrolling inside.
+    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-4 lg:absolute lg:z-10">
+      <ActivityOverlay state={state} run={run} activity={activity} userId={userId} roomSlug={room.slug} />
+    </div>
+  );
 
   if (!session || session.state === "ended") {
     return (
@@ -202,27 +214,27 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
     >
       <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)]">
         <section>
-          <StageCanvas
-            layout={normalizeStageLayout(session.layout)}
-            slide={<PdfPage url={pdfUrl} pageIndex={pageIndex} className="aspect-video" />}
-            video={
-              myRoster === "live" && stage ? (
-                <RoomStage connection={stage} publish onDisconnected={() => setStage(null)} />
-              ) : (
-                <LiveViewer sessionId={session.id} ready={!!userId} hlsUrl={session.hls_url} onLatency={(ms) => (latency.current = ms)} className="h-full w-full" />
-              )
-            }
-            className="rounded-xl border border-line shadow-float"
-          >
-            {run && activity && (
-              // On a phone the slide is a short strip that would clip the overlay, so there the layer is fixed
-              // to the viewport (overflow-hidden does not clip fixed descendants); from lg up the slide is tall
-              // enough and the layer sits over it, the card capped at its height and scrolling inside.
-              <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center p-4 lg:absolute lg:z-10">
-                <ActivityOverlay state={state} run={run} activity={activity} userId={userId} roomSlug={room.slug} />
-              </div>
-            )}
-          </StageCanvas>
+          {transport === "hls" && !(myRoster === "live" && stage) ? (
+            <div className="relative aspect-video overflow-hidden rounded-xl border border-line bg-black shadow-float">
+              <HlsPlayer src={session.hls_url} onLatency={(ms) => (latency.current = ms)} className="h-full w-full" />
+              {overlay}
+            </div>
+          ) : (
+            <StageCanvas
+              layout={normalizeStageLayout(session.layout)}
+              slide={<PdfPage url={pdfUrl} pageIndex={pageIndex} className="aspect-video" />}
+              video={
+                myRoster === "live" && stage ? (
+                  <RoomStage connection={stage} publish onDisconnected={() => setStage(null)} />
+                ) : (
+                  <LiveViewer sessionId={session.id} ready={!!userId} hlsUrl={session.hls_url} onLatency={(ms) => (latency.current = ms)} onTransport={setTransport} className="h-full w-full" />
+                )
+              }
+              className="rounded-xl border border-line shadow-float"
+            >
+              {overlay}
+            </StageCanvas>
+          )}
 
           {myRoster === "invited" && (
             <Alert tone="brand" className="mt-4" title="The host invited you on stage">

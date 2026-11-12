@@ -134,6 +134,10 @@ export type Session = {
   max_participants: number | null;
   /** Hard stop from the plan's session length. */
   ends_by: string | null;
+  /** When the nightly sweep may delete the recording; from the plan's retention at go-live. */
+  recording_expires_at: string | null;
+  /** Set once the sweep has removed the files; the URL above no longer resolves. */
+  recording_deleted_at: string | null;
 };
 
 export type ActivityOption = { id: string; label: string; correct?: boolean };

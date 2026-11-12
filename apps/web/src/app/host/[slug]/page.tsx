@@ -19,8 +19,10 @@ export default async function HostRoomPage({ params }: { params: Promise<{ slug:
   const { data: member } = await sb.from("org_members").select("role").eq("org_id", room.org_id).eq("user_id", auth.user.id).maybeSingle();
   if (!member) redirect("/host?error=not-a-member");
 
-  const [{ data: session }, { data: presentations }, { data: activities }, { data: invites }, { data: registrations }, loaded] = await Promise.all([
+  const [{ data: session }, { data: recordings }, { data: presentations }, { data: activities }, { data: invites }, { data: registrations }, loaded] = await Promise.all([
     sb.from("sessions").select("*").eq("room_id", room.id).neq("state", "ended").maybeSingle(),
+    // Past sessions that were recorded, newest first; the Recordings tab lists them with their download and expiry.
+    sb.from("sessions").select("*").eq("room_id", room.id).eq("state", "ended").not("recording_url", "is", null).order("started_at", { ascending: false }).limit(50),
     sb.from("presentations").select("*").eq("room_id", room.id).order("created_at", { ascending: false }),
     sb.from("activities").select("*").eq("room_id", room.id).order("sort_order").order("created_at"),
     sb.from("invites").select("*").eq("room_id", room.id).order("created_at", { ascending: false }),
@@ -34,6 +36,7 @@ export default async function HostRoomPage({ params }: { params: Promise<{ slug:
     <HostPanel
       room={room as Room}
       initialSession={(session as Session | null) ?? null}
+      recordings={(recordings as Session[] | null) ?? []}
       userId={auth.user.id}
       userEmail={auth.user.email ?? null}
       presentations={(presentations as Presentation[] | null) ?? []}

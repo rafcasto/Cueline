@@ -34,8 +34,10 @@ export const POST = handler(async (req) => {
 
   // Presenters and promoted attendees sit on top of the audience cap.
   await ensureRoom(room, limits.participants + 10);
-  const out = limits.recording ? await startSessionEgress(room, session.id) : null;
+  const out = limits.recording ? await startSessionEgress(session.id) : null;
   const started = new Date();
+  // The plan's retention, counted from now: the nightly sweep deletes the files once it passes.
+  const recordingExpires = out && limits.recordingDays ? new Date(started.getTime() + limits.recordingDays * 86_400_000) : null;
   const { error } = await admin
     .from("sessions")
     .update({
@@ -44,6 +46,8 @@ export const POST = handler(async (req) => {
       hls_url: out?.hlsUrl ?? null,
       egress_id: out?.egressId ?? null,
       recording_url: out?.recordingUrl ?? null,
+      recording_expires_at: recordingExpires?.toISOString() ?? null,
+      recording_deleted_at: null,
       counted: true,
       max_participants: limits.participants,
       ends_by: endsBy(started, limits).toISOString(),

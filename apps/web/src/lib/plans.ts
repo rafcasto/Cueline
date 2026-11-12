@@ -16,6 +16,8 @@ export type PlanLimits = {
   /** Session length in minutes, counted from go-live; a hard stop. */
   minutes: number;
   recording: boolean;
+  /** How long a recording is kept before the nightly sweep deletes it; null where there is no recording. */
+  recordingDays: number | null;
   /** The HLS fallback for viewers the room cannot take. It is an egress, so it follows recording. */
   hlsFallback: boolean;
   /** Attendees on stage at the same time. */
@@ -35,6 +37,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     participants: 10,
     minutes: 20,
     recording: false,
+    recordingDays: null,
     hlsFallback: false,
     promoteSlots: 0,
     stripeCta: false,
@@ -47,6 +50,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     participants: 50,
     minutes: 120,
     recording: true,
+    recordingDays: 30,
     hlsFallback: false,
     promoteSlots: 1,
     stripeCta: false,
@@ -59,6 +63,7 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     participants: 150,
     minutes: 240,
     recording: true,
+    recordingDays: 365,
     hlsFallback: true,
     promoteSlots: 3,
     stripeCta: true,
