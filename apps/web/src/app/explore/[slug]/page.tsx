@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/AppShell";
 import { EventCard, TopicChips } from "@/components/ExploreCards";
 import { BrandScope, RoomCover, RoomCtaButton, RoomMark } from "@/components/RoomBrand";
-import { Badge, ButtonLink, EmptyState, Stat } from "@/components/ui";
+import { Badge, ButtonLink, EmptyState, Stat, cx } from "@/components/ui";
+import { showsRoomName } from "@/lib/branding";
 import { formatEventTime, publicRoomBySlug } from "@/lib/explore";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ export default async function PublicRoomPage({ params }: { params: Promise<{ slu
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-3xl font-semibold tracking-tight text-ink">{room.name}</h1>
+              <h1 className={cx("text-3xl font-semibold tracking-tight text-ink", !showsRoomName(room.branding) && "sr-only")}>{room.name}</h1>
               {live && (
                 <Badge tone="live" dot>
                   Live now

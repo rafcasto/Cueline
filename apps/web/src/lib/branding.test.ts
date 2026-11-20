@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ACCENT, brandVars, contrastText, isBranded, normalizeBranding, normalizeHex, normalizeUrl, parseBranding } from "./branding";
+import { DEFAULT_ACCENT, brandVars, contrastText, isBranded, normalizeBranding, normalizeHex, normalizeUrl, parseBranding, showsRoomName } from "./branding";
 
 describe("normalizeHex", () => {
   it("accepts short, long and bare forms and lowercases", () => {
@@ -51,6 +51,11 @@ describe("parseBranding", () => {
     expect(parseBranding({ cover_url: "https://cdn/cover.jpg" })).toEqual({ branding: { cover_url: "https://cdn/cover.jpg" } });
     expect(parseBranding({ cover_url: "" })).toEqual({ branding: {} });
   });
+  it("keeps hide_name only alongside a logo", () => {
+    expect(parseBranding({ logo_url: "https://cdn/x.png", hide_name: true })).toEqual({ branding: { logo_url: "https://cdn/x.png", hide_name: true } });
+    expect(parseBranding({ logo_url: "https://cdn/x.png", hide_name: "yes" })).toEqual({ branding: { logo_url: "https://cdn/x.png" } });
+    expect(parseBranding({ hide_name: true })).toEqual({ branding: {} });
+  });
   it("keeps a complete call to action, trimmed", () => {
     expect(parseBranding({ cta: { label: "  Book a demo ", url: " https://tertulia.cloud/demo " } })).toEqual({ branding: { cta: { label: "Book a demo", url: "https://tertulia.cloud/demo" } } });
   });
@@ -63,6 +68,16 @@ describe("normalizeBranding", () => {
   it("tolerates garbage", () => {
     expect(normalizeBranding("x")).toEqual({});
     expect(normalizeBranding(undefined)).toEqual({});
+  });
+});
+
+describe("showsRoomName", () => {
+  it("hides the name only when a logo stands in for it", () => {
+    expect(showsRoomName({})).toBe(true);
+    expect(showsRoomName({ logo_url: "https://cdn/x.png" })).toBe(true);
+    expect(showsRoomName({ logo_url: "https://cdn/x.png", hide_name: true })).toBe(false);
+    expect(showsRoomName({ hide_name: true })).toBe(true);
+    expect(showsRoomName({ logo_url: "nope", hide_name: true })).toBe(true);
   });
 });
 

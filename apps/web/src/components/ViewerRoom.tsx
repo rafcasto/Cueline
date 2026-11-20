@@ -14,7 +14,7 @@ import { WaitingRoom } from "@/components/WaitingRoom";
 import { Alert, Badge, Button, Tabs, cx } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
-import { normalizeBranding } from "@/lib/branding";
+import { normalizeBranding, showsRoomName } from "@/lib/branding";
 import { chatMessages, currentRun } from "@/lib/session-state";
 import { normalizeStageLayout } from "@/lib/stage-layout";
 import { publicUrl } from "@/lib/storage";
@@ -302,7 +302,7 @@ function RoomFrame({ room, status, wide, children }: { room: Room; status: React
         <div className={cx("mx-auto flex h-14 items-center justify-between gap-4 px-4 sm:px-6", width)}>
           <div className="flex min-w-0 items-center gap-3">
             <RoomMark branding={room.branding} name={room.name} />
-            <h1 className="truncate text-base font-semibold text-ink">{room.name}</h1>
+            <h1 className={cx("truncate text-base font-semibold text-ink", !showsRoomName(room.branding) && "sr-only")}>{room.name}</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <RoomCtaButton branding={room.branding} className="hidden sm:inline-flex" />

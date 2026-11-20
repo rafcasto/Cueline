@@ -15,6 +15,8 @@ export type RoomBranding = {
   accent?: string;
   /** Public URL of the logo (media bucket) shown in place of the product mark. */
   logo_url?: string;
+  /** Leave the room's name out of headers where the logo already says it. Only kept while there is a logo. */
+  hide_name?: boolean;
   /** Public URL of the cover picture (media bucket): the band across the room's card and the top of its page. */
   cover_url?: string;
   /** A button in the room header and under the stage; opens the URL in a new tab. */
@@ -71,6 +73,7 @@ export function parseBranding(raw: unknown): { branding: RoomBranding } | { erro
     const url = normalizeUrl(r.logo_url);
     if (!url) return { error: "The logo must be an uploaded picture." };
     out.logo_url = url;
+    if (r.hide_name === true) out.hide_name = true;
   }
 
   if (r.cover_url !== undefined && r.cover_url !== null && r.cover_url !== "") {
@@ -105,7 +108,10 @@ export function normalizeBranding(raw: unknown): RoomBranding {
   const accent = typeof r.accent === "string" ? normalizeHex(r.accent) : null;
   if (accent && accent !== DEFAULT_ACCENT) out.accent = accent;
   const logo = typeof r.logo_url === "string" ? normalizeUrl(r.logo_url) : null;
-  if (logo) out.logo_url = logo;
+  if (logo) {
+    out.logo_url = logo;
+    if (r.hide_name === true) out.hide_name = true;
+  }
   const cover = typeof r.cover_url === "string" ? normalizeUrl(r.cover_url) : null;
   if (cover) out.cover_url = cover;
   const c = (r.cta && typeof r.cta === "object" ? r.cta : {}) as Record<string, unknown>;
@@ -113,6 +119,12 @@ export function normalizeBranding(raw: unknown): RoomBranding {
   const url = typeof c.url === "string" ? normalizeUrl(c.url) : null;
   if (label && url) out.cta = { label, url };
   return out;
+}
+
+/** False when the host chose to let the logo stand alone: the name then stays in the markup for assistive tech only. */
+export function showsRoomName(raw: unknown): boolean {
+  const b = normalizeBranding(raw);
+  return !(b.logo_url && b.hide_name);
 }
 
 /** True when the host changed anything from the product default. */

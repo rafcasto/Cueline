@@ -3,19 +3,19 @@ import { useState } from "react";
 import { BrandScope, RoomCover, RoomCtaButton, RoomMark } from "@/components/RoomBrand";
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, buttonClass, cx } from "@/components/ui";
 import { api } from "@/lib/api";
-import { CTA_LABEL_MAX, DEFAULT_ACCENT, normalizeBranding, normalizeHex, parseBranding } from "@/lib/branding";
+import { CTA_LABEL_MAX, DEFAULT_ACCENT, normalizeBranding, normalizeHex, parseBranding, showsRoomName } from "@/lib/branding";
 import { uploadToBucket } from "@/lib/storage";
 import type { Room, RoomBranding } from "@/lib/supabase/types";
 import { MEDIA_PICKER_ACCEPT, checkMediaFile, fileLabel, formatBytes } from "@/lib/waiting-room";
 
-type Draft = { accent: string; logo_url: string; cover_url: string; ctaLabel: string; ctaUrl: string };
+type Draft = { accent: string; logo_url: string; hideName: boolean; cover_url: string; ctaLabel: string; ctaUrl: string };
 
 function toDraft(b: RoomBranding): Draft {
   const n = normalizeBranding(b);
-  return { accent: n.accent ?? DEFAULT_ACCENT, logo_url: n.logo_url ?? "", cover_url: n.cover_url ?? "", ctaLabel: n.cta?.label ?? "", ctaUrl: n.cta?.url ?? "" };
+  return { accent: n.accent ?? DEFAULT_ACCENT, logo_url: n.logo_url ?? "", hideName: !!n.hide_name, cover_url: n.cover_url ?? "", ctaLabel: n.cta?.label ?? "", ctaUrl: n.cta?.url ?? "" };
 }
 function toBranding(d: Draft): RoomBranding {
-  return { accent: d.accent, logo_url: d.logo_url, cover_url: d.cover_url, cta: { label: d.ctaLabel, url: d.ctaUrl } };
+  return { accent: d.accent, logo_url: d.logo_url, hide_name: d.hideName, cover_url: d.cover_url, cta: { label: d.ctaLabel, url: d.ctaUrl } };
 }
 
 /**
@@ -96,7 +96,7 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
         <div className="flex h-14 items-center justify-between gap-4 border-b border-line bg-surface-raised px-4">
           <div className="flex min-w-0 items-center gap-3">
             <RoomMark branding={preview} name={room.name} />
-            <span className="truncate text-base font-semibold text-ink">{room.name}</span>
+            <span className={cx("truncate text-base font-semibold text-ink", !showsRoomName(preview) && "sr-only")}>{room.name}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <RoomCtaButton branding={previewRoom} />
@@ -151,6 +151,14 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
                 </Button>
               )}
             </div>
+            {draft.logo_url && (
+              <label className="mt-2 flex items-start gap-2 text-sm text-ink-muted">
+                <input type="checkbox" checked={draft.hideName} onChange={(e) => setDraft((d) => ({ ...d, hideName: e.target.checked }))} className="mt-0.5 size-4 shrink-0 rounded border-line-strong accent-brand" />
+                <span>
+                  <span className="font-medium text-ink">Show the logo on its own</span> — leave the room&apos;s name out of the room header and the invite page when the logo already says it.
+                </span>
+              </label>
+            )}
           </div>
 
           <div>
