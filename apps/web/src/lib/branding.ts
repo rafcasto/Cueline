@@ -1,5 +1,5 @@
 /**
- * Room branding: the accent colour, the logo, the cover picture and the standing call to action a host gives
+ * Room branding: the accent colour, the logo, the cover picture and the standing calls to action a host gives
  * a room, stored in `rooms.branding` (jsonb). Pure functions shared by the host editor, the
  * API that validates a save, and the attendee pages that apply it, so they are unit-tested
  * without a browser.
@@ -19,8 +19,12 @@ export type RoomBranding = {
   hide_name?: boolean;
   /** Public URL of the cover picture (media bucket): the band across the room's card and the top of its page. */
   cover_url?: string;
-  /** A button in the room header and under the stage; opens the URL in a new tab. */
-  cta?: RoomCta;
+  /**
+   * Up to CTA_MAX buttons, as a group, in the room header and under the stage; each opens its URL in a
+   * new tab. The first is in the accent, the rest are secondary. Rows from before the group carried one
+   * `cta` object; the parsers read it as the first of the group, so nothing is migrated.
+   */
+  ctas?: RoomCta[];
 };
 
 /** Tertulia teal, the product's action colour; the editor's "Reset" and the colour picker's initial value. */
@@ -28,7 +32,14 @@ export const DEFAULT_ACCENT = "#17706f";
 /** Espresso, the product's near-black: the text on a light accent. */
 export const INK = "#2b1d19";
 export const CTA_LABEL_MAX = 40;
+/** How many calls to action a room can have. */
+export const CTA_MAX = 3;
 export const URL_MAX = 2000;
+/** "The call to action", "The second call to action", … for error messages. */
+const CTA_ORDINAL = ["", "second ", "third "];
+export function ctaName(index: number) {
+  return `The ${CTA_ORDINAL[index] ?? `${index + 1}th `}call to action`;
+}
 
 const HEX = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i;
 
@@ -83,20 +94,30 @@ export function parseBranding(raw: unknown): { branding: RoomBranding } | { erro
     out.cover_url = url;
   }
 
-  if (r.cta !== undefined && r.cta !== null) {
-    const c = (typeof r.cta === "object" ? r.cta : {}) as Record<string, unknown>;
+  const entries = ctaEntries(r);
+  if (entries.length > CTA_MAX) return { error: `A room can have up to ${CTA_MAX} calls to action.` };
+  const ctas: RoomCta[] = [];
+  for (const [i, c] of entries.entries()) {
     const label = typeof c.label === "string" ? c.label.trim() : "";
     const urlText = typeof c.url === "string" ? c.url.trim() : "";
-    if (label || urlText) {
-      if (!label) return { error: "The call to action needs a label." };
-      if (label.length > CTA_LABEL_MAX) return { error: `The call to action label must be ${CTA_LABEL_MAX} characters or fewer.` };
-      const url = normalizeUrl(urlText);
-      if (!url) return { error: "The call to action needs a web address starting with https://." };
-      out.cta = { label, url };
-    }
+    // A pair the host left blank is simply not a call to action.
+    if (!label && !urlText) continue;
+    if (!label) return { error: `${ctaName(i)} needs a label.` };
+    if (label.length > CTA_LABEL_MAX) return { error: `${ctaName(i)} label must be ${CTA_LABEL_MAX} characters or fewer.` };
+    const url = normalizeUrl(urlText);
+    if (!url) return { error: `${ctaName(i)} needs a web address starting with https://.` };
+    ctas.push({ label, url });
   }
+  if (ctas.length) out.ctas = ctas;
 
   return { branding: out };
+}
+
+/** The raw call-to-action objects on a row: the `ctas` group, or the single `cta` of rows from before it. */
+function ctaEntries(r: Record<string, unknown>): Record<string, unknown>[] {
+  const raw = r.ctas !== undefined && r.ctas !== null ? r.ctas : r.cta !== undefined && r.cta !== null ? [r.cta] : [];
+  if (!Array.isArray(raw)) return [];
+  return raw.map((c) => (c && typeof c === "object" ? (c as Record<string, unknown>) : {}));
 }
 
 /** Lenient read for display: anything invalid is dropped, so a bad row never breaks the room. */
@@ -114,10 +135,13 @@ export function normalizeBranding(raw: unknown): RoomBranding {
   }
   const cover = typeof r.cover_url === "string" ? normalizeUrl(r.cover_url) : null;
   if (cover) out.cover_url = cover;
-  const c = (r.cta && typeof r.cta === "object" ? r.cta : {}) as Record<string, unknown>;
-  const label = typeof c.label === "string" ? c.label.trim().slice(0, CTA_LABEL_MAX) : "";
-  const url = typeof c.url === "string" ? normalizeUrl(c.url) : null;
-  if (label && url) out.cta = { label, url };
+  const ctas: RoomCta[] = [];
+  for (const c of ctaEntries(r).slice(0, CTA_MAX)) {
+    const label = typeof c.label === "string" ? c.label.trim().slice(0, CTA_LABEL_MAX) : "";
+    const url = typeof c.url === "string" ? normalizeUrl(c.url) : null;
+    if (label && url) ctas.push({ label, url });
+  }
+  if (ctas.length) out.ctas = ctas;
   return out;
 }
 
@@ -129,7 +153,7 @@ export function showsRoomName(raw: unknown): boolean {
 
 /** True when the host changed anything from the product default. */
 export function isBranded(b: RoomBranding): boolean {
-  return !!(b.accent || b.logo_url || b.cover_url || b.cta);
+  return !!(b.accent || b.logo_url || b.cover_url || b.ctas?.length);
 }
 
 function channel(c: number) {

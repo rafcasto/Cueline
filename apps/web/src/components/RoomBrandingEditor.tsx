@@ -1,28 +1,37 @@
 "use client";
 import { useState } from "react";
-import { BrandScope, RoomCover, RoomCtaButton, RoomMark } from "@/components/RoomBrand";
+import { BrandScope, RoomCover, RoomCtaButtons, RoomMark } from "@/components/RoomBrand";
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, buttonClass, cx } from "@/components/ui";
 import { api } from "@/lib/api";
-import { CTA_LABEL_MAX, DEFAULT_ACCENT, normalizeBranding, normalizeHex, parseBranding, showsRoomName } from "@/lib/branding";
+import { CTA_LABEL_MAX, CTA_MAX, DEFAULT_ACCENT, normalizeBranding, normalizeHex, parseBranding, showsRoomName } from "@/lib/branding";
 import { uploadToBucket } from "@/lib/storage";
 import type { Room, RoomBranding } from "@/lib/supabase/types";
 import { MEDIA_PICKER_ACCEPT, checkMediaFile, fileLabel, formatBytes } from "@/lib/waiting-room";
 
-type Draft = { accent: string; logo_url: string; hideName: boolean; cover_url: string; ctaLabel: string; ctaUrl: string };
+type DraftCta = { label: string; url: string };
+/** Always CTA_MAX call-to-action pairs; blank pairs are dropped on save. */
+type Draft = { accent: string; logo_url: string; hideName: boolean; cover_url: string; ctas: DraftCta[] };
+
+const CTA_SLOT = [
+  { label: "Call to action", placeholder: "Book a demo" },
+  { label: "Second call to action", placeholder: "See the pricing" },
+  { label: "Third call to action", placeholder: "Join the newsletter" },
+];
 
 function toDraft(b: RoomBranding): Draft {
   const n = normalizeBranding(b);
-  return { accent: n.accent ?? DEFAULT_ACCENT, logo_url: n.logo_url ?? "", hideName: !!n.hide_name, cover_url: n.cover_url ?? "", ctaLabel: n.cta?.label ?? "", ctaUrl: n.cta?.url ?? "" };
+  const ctas = Array.from({ length: CTA_MAX }, (_, i) => ({ label: n.ctas?.[i]?.label ?? "", url: n.ctas?.[i]?.url ?? "" }));
+  return { accent: n.accent ?? DEFAULT_ACCENT, logo_url: n.logo_url ?? "", hideName: !!n.hide_name, cover_url: n.cover_url ?? "", ctas };
 }
 function toBranding(d: Draft): RoomBranding {
-  return { accent: d.accent, logo_url: d.logo_url, hide_name: d.hideName, cover_url: d.cover_url, cta: { label: d.ctaLabel, url: d.ctaUrl } };
+  return { accent: d.accent, logo_url: d.logo_url, hide_name: d.hideName, cover_url: d.cover_url, ctas: d.ctas };
 }
 
 /**
  * The room's look for attendees: an accent colour that recolours every button, badge and
  * selected answer in the room and on the invite page, a logo in place of the product mark,
  * a cover picture across the room's card on Explore and the top of its public page, and a
- * standing call to action (a button in the room header and under the stage). The
+ * up to three standing calls to action (a group of buttons in the room header and under the stage). The
  * preview is the real components under the same variables, so what the host sees is what
  * attendees get.
  */
@@ -35,7 +44,8 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
   const savedDraft = toDraft(room.branding);
   const dirty = JSON.stringify(draft) !== JSON.stringify(savedDraft);
   const preview = normalizeBranding(toBranding(draft));
-  const previewRoom = { ...preview, cta: draft.ctaLabel.trim() ? { label: draft.ctaLabel.trim(), url: preview.cta?.url ?? "https://tertulia.cloud" } : undefined };
+  // The preview shows a button as soon as its label is typed, before the address is valid.
+  const previewRoom = { ...preview, ctas: draft.ctas.filter((c) => c.label.trim()).map((c) => ({ label: c.label.trim(), url: normalizeBranding({ ctas: [c] }).ctas?.[0]?.url ?? "https://tertulia.cloud" })) };
 
   const setAccent = (value: string) => {
     setHexText(value);
@@ -89,7 +99,7 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
 
   return (
     <Card>
-      <CardHeader title="Branding" description="Your colour, your logo, a cover picture and a call to action, on Explore, the invite page and in the room." />
+      <CardHeader title="Branding" description="Your colour, your logo, a cover picture and up to three calls to action, on Explore, the invite page and in the room." />
 
       <BrandScope branding={preview} className="mt-6 overflow-hidden rounded-xl border border-line">
         <RoomCover branding={preview} name={room.name} className="h-28" />
@@ -99,7 +109,7 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
             <span className={cx("truncate text-base font-semibold text-ink", !showsRoomName(preview) && "sr-only")}>{room.name}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <RoomCtaButton branding={previewRoom} />
+            <RoomCtaButtons branding={previewRoom} />
             <Badge tone="brand" dot>
               12 here
             </Badge>
@@ -180,13 +190,26 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
           </div>
         </div>
 
-        <div className="space-y-4">
-          <Field label="Call to action" htmlFor="brand-cta-label" hint="A button in the room header and under the stage, for the whole session. Leave both empty for none.">
-            <Input id="brand-cta-label" value={draft.ctaLabel} onChange={(e) => setDraft((d) => ({ ...d, ctaLabel: e.target.value }))} maxLength={CTA_LABEL_MAX} placeholder="Book a demo" />
-          </Field>
-          <Field label="Opens" htmlFor="brand-cta-url">
-            <Input id="brand-cta-url" type="url" inputMode="url" value={draft.ctaUrl} onChange={(e) => setDraft((d) => ({ ...d, ctaUrl: e.target.value }))} placeholder="https://" spellCheck={false} />
-          </Field>
+        <div className="space-y-5">
+          {draft.ctas.map((cta, i) => {
+            // Show the next pair once the one before it has a label, so a host with one ask sees one pair.
+            if (i > 0 && !draft.ctas[i - 1].label.trim() && !cta.label.trim() && !cta.url.trim()) return null;
+            const set = (patch: Partial<DraftCta>) => setDraft((d) => ({ ...d, ctas: d.ctas.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
+            return (
+              <div key={i} className="space-y-4">
+                <Field
+                  label={CTA_SLOT[i].label}
+                  htmlFor={`brand-cta-label-${i}`}
+                  hint={i === 0 ? `Up to ${CTA_MAX} buttons as a group in the room header and under the stage, for the whole session. The first is in your accent. Leave a pair empty for none.` : undefined}
+                >
+                  <Input id={`brand-cta-label-${i}`} value={cta.label} onChange={(e) => set({ label: e.target.value })} maxLength={CTA_LABEL_MAX} placeholder={CTA_SLOT[i].placeholder} />
+                </Field>
+                <Field label="Opens" htmlFor={`brand-cta-url-${i}`}>
+                  <Input id={`brand-cta-url-${i}`} type="url" inputMode="url" value={cta.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://" spellCheck={false} />
+                </Field>
+              </div>
+            );
+          })}
         </div>
       </div>
 
