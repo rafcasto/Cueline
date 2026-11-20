@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { PublicFooter, PublicHeader } from "@/components/AppShell";
 import { ButtonLink, cx } from "@/components/ui";
+import hostPanel from "@/images/host-panel.webp";
+import pollOverlay from "@/images/poll-overlay.webp";
 import { PLAN_LIMITS, PRICE_LABELS, type Plan, type PlanLimits } from "@/lib/plans";
 
 export const metadata: Metadata = {
@@ -49,7 +52,10 @@ export default function ForHostsPage() {
             </div>
             <p className="mt-4 text-sm text-ink-muted">Free to start, no card. Attendees never pay and never need an account.</p>
           </div>
-          <InsightsArt className="mx-auto w-full max-w-md lg:max-w-none" />
+          <figure className="mx-auto w-full max-w-xl lg:max-w-none">
+            <Image src={hostPanel} alt="The host panel's Event tab: every registration with its seat, join code, registration time and whether the person is in the room, beside each person's poll answers and call-to-action taps" priority sizes="(min-width: 1024px) 560px, 100vw" className="rounded-xl shadow-float" />
+            <figcaption className="mt-3 text-center text-sm text-ink-muted">Who registered, who turned up, and what each of them did.</figcaption>
+          </figure>
         </section>
 
         {/* Problem */}
@@ -72,6 +78,10 @@ export default function ForHostsPage() {
 
         {/* Features */}
         <Section id="features" title="What's in the room">
+          <figure className="mx-auto mt-8 max-w-3xl">
+            <Image src={pollOverlay} alt="A poll open over the slide: the question, four answers with their percentages, a timer running down, and the host on camera in the corner" sizes="(min-width: 768px) 768px, 100vw" className="rounded-xl shadow-float" />
+            <figcaption className="mt-3 text-center text-sm text-ink-muted">A poll over the slide everyone is watching, with the timer running and the host still on camera.</figcaption>
+          </figure>
           <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Feature icon={<ReactionsIcon />} title="Live reactions">Six reactions float across every screen while you talk, so you feel the room and the room feels each other.</Feature>
             <Feature icon={<PollIcon />} title="Polls, quizzes and Q&A">Launch an activity over the slide, set a timer, reveal the result when you say so. Questions queue up with upvotes.</Feature>
@@ -344,67 +354,6 @@ function BrowserIcon() {
     <svg {...iconProps}>
       <rect x="3" y="5" width="18" height="14" rx="2.5" />
       <path d="M3 9h18M7 7h.01M10 7h.01" />
-    </svg>
-  );
-}
-
-/**
- * The insights dashboard in a few flat shapes: a session's attendance against registrations,
- * the engagement of a few people in the room, and a buyer signal lit up. Drawn in the brand
- * colours and inline; a screenshot of the real dashboard takes its place once it exists.
- */
-function InsightsArt({ className }: { className?: string }) {
-  const people = [
-    { name: "Ana", w: 92, hot: true },
-    { name: "Marcus", w: 74, hot: true },
-    { name: "Priya", w: 56, hot: false },
-    { name: "Tom", w: 38, hot: false },
-    { name: "Lea", w: 22, hot: false },
-  ];
-  return (
-    <svg viewBox="0 0 480 400" className={className} role="img" aria-label="An audience insights panel: attendance against registrations, engagement per person, and who is ready to buy">
-      <path d="M72 30C160 -10 330 4 404 56c70 50 92 160 54 236-38 76-130 118-224 106C130 386 40 334 24 252 10 186 14 56 72 30z" fill="var(--accent)" />
-      <rect x="56" y="48" width="368" height="312" rx="16" fill="var(--surface-raised)" />
-      <rect x="80" y="72" width="140" height="12" rx="6" fill="var(--espresso)" opacity="0.85" />
-      <rect x="80" y="92" width="92" height="8" rx="4" fill="var(--espresso)" opacity="0.3" />
-      {/* attendance */}
-      <rect x="276" y="68" width="124" height="48" rx="10" fill="var(--surface-inset)" />
-      <text x="290" y="88" fontSize="11" fontWeight="600" fill="var(--ink-muted)">
-        Showed up
-      </text>
-      <text x="290" y="108" fontSize="16" fontWeight="700" fill="var(--espresso)">
-        23 of 31
-      </text>
-      {/* people and engagement bars */}
-      {people.map((p, i) => {
-        const y = 134 + i * 40;
-        return (
-          <g key={p.name}>
-            <circle cx="92" cy={y + 10} r="10" fill={i % 2 ? "var(--espresso)" : "var(--accent)"} opacity="0.9" />
-            <text x="110" y={y + 14} fontSize="12" fontWeight="600" fill="var(--espresso)">
-              {p.name}
-            </text>
-            <rect x="180" y={y + 4} width="180" height="12" rx="6" fill="var(--surface-inset)" />
-            <rect x="180" y={y + 4} width={p.w * 1.8} height="12" rx="6" fill={p.hot ? "var(--brand)" : "var(--line-strong)"} />
-            {p.hot && (
-              <g>
-                <rect x="372" y={y} width="28" height="20" rx="10" fill="var(--live)" />
-                <path d={`M386 ${y + 14}c-3-4-8-3-8 2 0 3 4 5 8 8 4-3 8-5 8-8 0-5-5-6-8-2z`} fill="#ffffff" transform={`translate(0 -6)`} />
-              </g>
-            )}
-          </g>
-        );
-      })}
-      {/* ready to buy */}
-      <rect x="80" y="338" width="2" height="0" />
-      <rect x="276" y="326" width="124" height="22" rx="11" fill="var(--success-soft)" />
-      <circle cx="290" cy="337" r="4" fill="var(--success)" />
-      <text x="300" y="341" fontSize="11" fontWeight="600" fill="var(--success-ink)">
-        2 ready to buy
-      </text>
-      {/* floating reactions */}
-      <circle cx="440" cy="300" r="9" fill="#f2b233" />
-      <path d="M444 356c-4-6-13-4-13 3 0 6 7 10 13 15 6-5 13-9 13-15 0-7-9-9-13-3z" fill="var(--live)" />
     </svg>
   );
 }

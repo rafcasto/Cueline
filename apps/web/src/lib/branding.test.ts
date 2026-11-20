@@ -42,9 +42,14 @@ describe("parseBranding", () => {
   it("names the field that is wrong", () => {
     expect(parseBranding({ accent: "blue" })).toEqual({ error: expect.stringContaining("accent colour") });
     expect(parseBranding({ logo_url: "ftp://x" })).toEqual({ error: expect.stringContaining("logo") });
+    expect(parseBranding({ cover_url: "javascript:x" })).toEqual({ error: expect.stringContaining("cover picture") });
     expect(parseBranding({ cta: { label: "", url: "https://x.io" } })).toEqual({ error: expect.stringContaining("label") });
     expect(parseBranding({ cta: { label: "Buy", url: "nope" } })).toEqual({ error: expect.stringContaining("web address") });
     expect(parseBranding({ cta: { label: "x".repeat(41), url: "https://x.io" } })).toEqual({ error: expect.stringContaining("40 characters") });
+  });
+  it("keeps an uploaded cover picture", () => {
+    expect(parseBranding({ cover_url: "https://cdn/cover.jpg" })).toEqual({ branding: { cover_url: "https://cdn/cover.jpg" } });
+    expect(parseBranding({ cover_url: "" })).toEqual({ branding: {} });
   });
   it("keeps a complete call to action, trimmed", () => {
     expect(parseBranding({ cta: { label: "  Book a demo ", url: " https://tertulia.cloud/demo " } })).toEqual({ branding: { cta: { label: "Book a demo", url: "https://tertulia.cloud/demo" } } });
@@ -53,7 +58,7 @@ describe("parseBranding", () => {
 
 describe("normalizeBranding", () => {
   it("salvages the valid parts of a bad row", () => {
-    expect(normalizeBranding({ accent: "nope", logo_url: "https://cdn/x.png", cta: { label: "Go", url: "bad" } })).toEqual({ logo_url: "https://cdn/x.png" });
+    expect(normalizeBranding({ accent: "nope", logo_url: "https://cdn/x.png", cover_url: "nope", cta: { label: "Go", url: "bad" } })).toEqual({ logo_url: "https://cdn/x.png" });
   });
   it("tolerates garbage", () => {
     expect(normalizeBranding("x")).toEqual({});

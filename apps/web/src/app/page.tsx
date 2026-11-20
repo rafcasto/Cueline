@@ -1,8 +1,11 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PublicFooter, PublicHeader } from "@/components/AppShell";
 import { EventCard, RoomCard, TopicTiles } from "@/components/ExploreCards";
 import { Button, ButtonLink, EmptyState, Input, cx } from "@/components/ui";
+import liveRoom from "@/images/live-room.webp";
+import waitingRoom from "@/images/waiting-room.webp";
 import { listPublicEvents, listPublicRooms, listTopics, type PublicEvent, type PublicRoom } from "@/lib/explore";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +50,10 @@ export default async function Home() {
               , or open the personal link from your welcome email.
             </p>
           </div>
-          <HeroArt className="mx-auto w-full max-w-sm lg:max-w-none" />
+          <figure className="mx-auto w-full max-w-xl lg:max-w-none">
+            <Image src={liveRoom} alt="A live session on Tertulia: a slide with the host on camera in the corner, reactions floating up, a Raise hand button, and the Chat and Q&A panel" priority sizes="(min-width: 1024px) 560px, 100vw" className="rounded-xl shadow-float" />
+            <figcaption className="mt-3 text-center text-sm text-ink-muted">What a session looks like from the room.</figcaption>
+          </figure>
         </section>
 
         {/* Happening soon: the directory, live */}
@@ -101,16 +107,20 @@ export default async function Home() {
           </ol>
         </Section>
 
-        {/* Host band */}
+        {/* Host band: the invitation, with a host's waiting room beside it */}
         <section className="bg-espresso text-cream">
-          <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-4 py-14 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:py-20">
+          <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1fr_minmax(0,26rem)] lg:gap-16 lg:py-20">
             <div>
               <h2 className="text-3xl tracking-tight text-cream sm:text-4xl">Run live sessions? Open your own room.</h2>
-              <p className="mt-3 max-w-xl text-lg text-cream/75">Your events, your people and your audience insights in one place. Free to start.</p>
+              <p className="mt-3 max-w-xl text-lg text-cream/75">Your events, your people and your audience insights in one place. Your look, down to the waiting room and the music. Free to start.</p>
+              <ButtonLink href="/for-hosts" size="lg" className="mt-8 w-full sm:w-auto" data-track="band_host_event">
+                Host an event
+              </ButtonLink>
             </div>
-            <ButtonLink href="/for-hosts" size="lg" className="w-full shrink-0 sm:w-auto" data-track="band_host_event">
-              Host an event
-            </ButtonLink>
+            <figure>
+              <Image src={waitingRoom} alt="A room's waiting room: the host's café photo behind a card that reads Starting soon, hosted by Elena Vance, with music playing" sizes="(min-width: 1024px) 416px, 100vw" className="rounded-xl shadow-overlay" />
+              <figcaption className="mt-3 text-sm text-cream/60">A host&apos;s waiting room, the way attendees see it before the doors open.</figcaption>
+            </figure>
           </div>
         </section>
       </main>
@@ -168,65 +178,5 @@ function Step({ n, title, body }: { n: number; title: string; body: string }) {
         <p className="mt-2 text-base leading-relaxed text-ink-muted">{body}</p>
       </div>
     </li>
-  );
-}
-
-/**
- * The hero illustration: a terracotta organic shape with a table of people in conversation,
- * their speech bubbles, and a few reactions floating up. Drawn in the brand colours and inline,
- * so there is no image to load; a warm photograph of people talking can take its place later.
- */
-function HeroArt({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 480 420" className={className} role="img" aria-label="People around a table in conversation, with speech bubbles and reactions floating up">
-      {/* the organic shape */}
-      <path d="M86 44C168 -8 322 10 398 66c70 52 94 160 56 236-38 76-130 118-224 106C136 396 44 344 26 262 12 196 24 84 86 44z" fill="var(--accent)" />
-      {/* the table */}
-      <ellipse cx="240" cy="318" rx="150" ry="26" fill="var(--espresso)" opacity="0.28" />
-      <ellipse cx="240" cy="306" rx="150" ry="26" fill="var(--cream)" />
-      {/* cups on the table */}
-      <g fill="var(--espresso)">
-        <rect x="178" y="286" width="22" height="18" rx="4" />
-        <path d="M200 290h5a5 5 0 0 1 0 10h-5z" fill="none" stroke="var(--espresso)" strokeWidth="2.5" />
-        <rect x="286" y="288" width="22" height="18" rx="4" />
-        <path d="M308 292h5a5 5 0 0 1 0 10h-5z" fill="none" stroke="var(--espresso)" strokeWidth="2.5" />
-      </g>
-      {/* three people */}
-      <g fill="var(--cream)">
-        <circle cx="140" cy="222" r="28" />
-        <path d="M86 300c0-36 24-56 54-56s54 20 54 56z" />
-      </g>
-      <g fill="var(--espresso)">
-        <circle cx="240" cy="200" r="30" />
-        <path d="M182 290c0-40 26-62 58-62s58 22 58 62z" />
-      </g>
-      <g fill="var(--cream)">
-        <circle cx="342" cy="226" r="28" />
-        <path d="M288 302c0-36 24-56 54-56s54 20 54 56z" />
-      </g>
-      {/* speech bubbles */}
-      <g>
-        <path d="M58 132a16 16 0 0 1 16-16h92a16 16 0 0 1 16 16v30a16 16 0 0 1-16 16h-56l-22 18v-18H74a16 16 0 0 1-16-16z" fill="var(--cream)" />
-        <rect x="76" y="134" width="68" height="8" rx="4" fill="var(--espresso)" opacity="0.8" />
-        <rect x="76" y="150" width="44" height="8" rx="4" fill="var(--espresso)" opacity="0.35" />
-      </g>
-      <g>
-        <path d="M296 92a16 16 0 0 1 16-16h98a16 16 0 0 1 16 16v30a16 16 0 0 1-16 16h-16v18l-22-18h-60a16 16 0 0 1-16-16z" fill="var(--espresso)" />
-        <rect x="314" y="94" width="72" height="8" rx="4" fill="var(--cream)" opacity="0.9" />
-        <rect x="314" y="110" width="48" height="8" rx="4" fill="var(--cream)" opacity="0.45" />
-      </g>
-      {/* reactions floating up */}
-      <g fill="var(--live)">
-        <path d="M232 70c-6-10-22-8-22 6 0 10 12 18 22 26 10-8 22-16 22-26 0-14-16-16-22-6z" />
-      </g>
-      <circle cx="268" cy="54" r="7" fill="#f2b233" />
-      <circle cx="210" cy="46" r="5" fill="var(--cream)" opacity="0.8" />
-      {/* LIVE */}
-      <rect x="28" y="356" width="68" height="26" rx="13" fill="var(--live)" />
-      <circle cx="44" cy="369" r="3.5" fill="#ffffff" />
-      <text x="54" y="373.5" fontSize="12" fontWeight="700" fill="#ffffff" letterSpacing="0.6">
-        LIVE
-      </text>
-    </svg>
   );
 }
