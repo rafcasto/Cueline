@@ -1,51 +1,94 @@
 @import "tailwindcss";
 
 /*
- * Design tokens. Semantic names (surface, ink, line, brand) are what components use, so a
+ * Design tokens, from docs/BRAND.md ("a lively café conversation at night: warm, human and
+ * sharp"). Semantic names (surface, ink, line, brand, accent) are what components use, so a
  * component carries no dark: variants: the variables flip with the colour scheme instead.
- * Greys are slate (cool tint), the brand is indigo, and the scales are Tailwind's own.
- * A room with its own accent overrides the --brand* variables on a wrapper (lib/branding).
+ *
+ * Two colours carry the brand, and they never swap roles:
+ *   --accent  terracotta  logo, large headings, illustrations, highlights. Never small text.
+ *   --brand   teal        buttons and links only. Teal always means "click".
+ * The `brand*` utilities (bg-brand, text-brand-ink, bg-brand-soft…) drive every control, so a
+ * room with its own accent overrides the --brand* variables on a wrapper (lib/branding) and
+ * the whole subtree follows. The soft tint and its ink default to the terracotta family, so
+ * an unbranded badge or logo band reads as Tertulia rather than as a second teal.
  */
 :root {
-  --surface: #ffffff;
-  --surface-sunken: #f8fafc; /* slate-50: page background behind cards */
-  --surface-raised: #ffffff;
-  --surface-inset: #f1f5f9; /* slate-100: inputs on cards, muted panels */
-  --ink: #0f172a; /* slate-900 */
-  --ink-muted: #475569; /* slate-600: 7:1 on white */
-  --ink-faint: #94a3b8; /* slate-400: placeholders, decorative only */
-  --line: #e2e8f0; /* slate-200 */
-  --line-strong: #cbd5e1; /* slate-300 */
-  --brand: #4f46e5; /* indigo-600 */
-  --brand-hover: #4338ca; /* indigo-700 */
-  --brand-soft: #eef2ff; /* indigo-50 */
-  --brand-ink: #3730a3; /* indigo-800 on brand-soft */
+  --cream: #fff8ee;
+  --espresso: #2b1d19;
+  --terracotta: #d9643a;
+
+  --surface: #fff8ee; /* cream: page background */
+  --surface-sunken: #fff8ee; /* cream: the body behind cards */
+  --surface-raised: #ffffff; /* warm white: cards, modals, room tiles */
+  --surface-inset: #f2ece5; /* mist: inputs on cards, subtle fills */
+  --ink: #2b1d19; /* espresso: 14:1 on cream */
+  --ink-muted: #5c5350; /* warm grey 700: 6.4:1 on cream */
+  --ink-faint: #9b918b; /* placeholders, decorative only */
+  --ink-inverse: #fff8ee; /* cream text on espresso bands */
+  --line: #d9d2cc; /* light grey 300 */
+  --line-strong: #c3b9b1;
+  --accent: #d9643a; /* terracotta */
+  --accent-soft: #f9e6dc; /* terracotta at ~20% on white */
+  --accent-ink: #7a3418; /* terracotta darkened for small text on the soft tint: 8:1 */
+  --brand: #17706f; /* teal: the only colour that means "click" */
+  --brand-hover: #0f5655; /* deep teal */
+  --brand-soft: #f9e6dc; /* unbranded soft fill: the terracotta tint; a room's accent replaces it */
+  --brand-ink: #7a3418;
   --brand-contrast: #ffffff; /* text on --brand; a room's custom accent may flip it to ink */
-  --focus: #6366f1; /* indigo-500 */
-  --shadow-color: 15 23 42;
+  --focus: #17706f;
+  --success: #2e7d4f;
+  --success-soft: #e3f1e8;
+  --success-ink: #1f5c39;
+  --warning: #c98a12;
+  --warning-soft: #faefd6;
+  --warning-ink: #7a5306; /* amber darkened for small text: 5.6:1 on white */
+  --error: #b3261e;
+  --error-soft: #f9e2e0;
+  --error-ink: #8f1d17;
+  --live: #e8473b; /* coral: "LIVE now" badges only */
+  --shadow-color: 43 29 25;
 }
 
 :root:not([data-theme="light"]) {
   @media (prefers-color-scheme: dark) {
-    --surface: #0f172a;
-    --surface-sunken: #020617;
-    --surface-raised: #1e293b;
-    --surface-inset: #1e293b;
-    --ink: #f1f5f9;
-    --ink-muted: #94a3b8;
-    --ink-faint: #64748b;
-    --line: #1e293b;
-    --line-strong: #334155;
-    --brand: #6366f1;
-    --brand-hover: #818cf8;
-    --brand-soft: #1e1b4b;
-    --brand-ink: #c7d2fe;
-    --focus: #818cf8;
+    --surface: #2b1d19;
+    --surface-sunken: #221613;
+    --surface-raised: #382824;
+    --surface-inset: #43322d;
+    --ink: #fff8ee;
+    --ink-muted: #c9bdb5;
+    --ink-faint: #8a7d76;
+    --ink-inverse: #2b1d19;
+    --line: #4a3833;
+    --line-strong: #5e4a44;
+    --accent: #e8825c;
+    --accent-soft: #4a2e24;
+    --accent-ink: #f4c1a8;
+    --brand: #2a9a98;
+    --brand-hover: #3fb3b1;
+    --brand-soft: #4a2e24;
+    --brand-ink: #f4c1a8;
+    --brand-contrast: #ffffff;
+    --focus: #3fb3b1;
+    --success: #4caf79;
+    --success-soft: #1f3a2b;
+    --success-ink: #b9e4c9;
+    --warning: #e0a531;
+    --warning-soft: #40301a;
+    --warning-ink: #f3d79b;
+    --error: #e05a52;
+    --error-soft: #4a221f;
+    --error-ink: #f6b8b3;
+    --live: #ff6a5e;
     --shadow-color: 0 0 0;
   }
 }
 
 @theme inline {
+  --color-cream: var(--cream);
+  --color-espresso: var(--espresso);
+  --color-terracotta: var(--terracotta);
   --color-surface: var(--surface);
   --color-surface-sunken: var(--surface-sunken);
   --color-surface-raised: var(--surface-raised);
@@ -53,16 +96,36 @@
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-ink-faint: var(--ink-faint);
+  --color-ink-inverse: var(--ink-inverse);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
   --color-brand: var(--brand);
   --color-brand-hover: var(--brand-hover);
   --color-brand-soft: var(--brand-soft);
   --color-brand-ink: var(--brand-ink);
   --color-brand-contrast: var(--brand-contrast);
   --color-focus: var(--focus);
-  --shadow-card: 0 1px 2px rgb(var(--shadow-color) / 0.06), 0 1px 3px rgb(var(--shadow-color) / 0.04);
-  --shadow-float: 0 4px 6px -1px rgb(var(--shadow-color) / 0.08), 0 10px 15px -3px rgb(var(--shadow-color) / 0.08);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-ink: var(--success-ink);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-ink: var(--warning-ink);
+  --color-error: var(--error);
+  --color-error-soft: var(--error-soft);
+  --color-error-ink: var(--error-ink);
+  --color-live: var(--live);
+  /* Fraunces for headings, Inter for everything else; the families are loaded in app/layout. */
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-heading), Georgia, "Times New Roman", serif;
+  /* 12 px cards, 8 px buttons. */
+  --radius-card: 12px;
+  --radius-button: 8px;
+  --shadow-card: 0 1px 2px rgb(var(--shadow-color) / 0.05), 0 4px 16px rgb(var(--shadow-color) / 0.08);
+  --shadow-float: 0 4px 6px -1px rgb(var(--shadow-color) / 0.08), 0 12px 24px -4px rgb(var(--shadow-color) / 0.14);
   --shadow-overlay: 0 10px 15px -3px rgb(var(--shadow-color) / 0.2), 0 25px 50px -12px rgb(var(--shadow-color) / 0.35);
 }
 
@@ -73,10 +136,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Headings are Fraunces 600 in sentence case; the scale (48/32/24) is set per heading in the markup. */
+h1, h2, h3, .font-heading {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+}
+
 /* Container queries for the waiting-room canvas (font sizes in cqh). */
 .cq { container-type: size; }
 
-/* One focus style everywhere: a 2px ring offset from the control. */
+/* One focus style everywhere: a 2px teal ring offset from the control. */
 :where(button, a, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

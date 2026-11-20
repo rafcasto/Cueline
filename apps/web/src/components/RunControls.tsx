@@ -41,7 +41,7 @@ export function RunControls({ state, run, activity, userId }: Props) {
   const statusLabel = isCta ? (hidden ? "Hidden" : "On screen") : PHASE_LABEL[phase];
 
   return (
-    <Card className={cx(hidden ? "border-line" : "border-indigo-300 dark:border-indigo-800")}>
+    <Card className={cx(hidden ? "border-line" : "border-brand")}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <Eyebrow>
@@ -59,9 +59,9 @@ export function RunControls({ state, run, activity, userId }: Props) {
       {phase === "open" && left !== null && (
         <div className="mt-4">
           <div className="h-2 overflow-hidden rounded-full bg-surface-inset">
-            <div className={cx("h-2 rounded-full transition-all", urgent ? "bg-red-500" : "bg-brand")} style={{ width: `${(left / ((activity.timer_seconds ?? 1) * 1000)) * 100}%` }} />
+            <div className={cx("h-2 rounded-full transition-all", urgent ? "bg-error" : "bg-brand")} style={{ width: `${(left / ((activity.timer_seconds ?? 1) * 1000)) * 100}%` }} />
           </div>
-          <p className={cx("mt-1.5 text-xs tabular-nums", urgent ? "font-medium text-red-600 dark:text-red-400" : "text-ink-muted")}>{Math.ceil(left / 1000)}s left</p>
+          <p className={cx("mt-1.5 text-xs tabular-nums", urgent ? "font-medium text-error" : "text-ink-muted")}>{Math.ceil(left / 1000)}s left</p>
         </div>
       )}
       <div className="mt-4 flex flex-wrap gap-2">

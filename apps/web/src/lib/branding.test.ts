@@ -63,10 +63,10 @@ describe("normalizeBranding", () => {
 
 describe("contrastText", () => {
   it("puts white on dark accents and dark ink on light ones", () => {
-    expect(contrastText("#4f46e5")).toBe("#ffffff");
+    expect(contrastText("#17706f")).toBe("#ffffff");
     expect(contrastText("#000000")).toBe("#ffffff");
-    expect(contrastText("#facc15")).toBe("#0f172a");
-    expect(contrastText("#ffffff")).toBe("#0f172a");
+    expect(contrastText("#facc15")).toBe("#2b1d19");
+    expect(contrastText("#ffffff")).toBe("#2b1d19");
   });
 });
 
@@ -78,7 +78,7 @@ describe("brandVars", () => {
   it("derives every brand token from the one colour", () => {
     const v = brandVars({ accent: "#facc15" })!;
     expect(v["--brand"]).toBe("#facc15");
-    expect(v["--brand-contrast"]).toBe("#0f172a");
+    expect(v["--brand-contrast"]).toBe("#2b1d19");
     expect(v["--focus"]).toBe("#facc15");
     expect(v["--brand-hover"]).toContain("#facc15");
     expect(v["--brand-soft"]).toContain("transparent");

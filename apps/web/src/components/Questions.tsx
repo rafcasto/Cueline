@@ -72,7 +72,7 @@ export function Questions({ state, userId, onAsk, onUpvote, onApprove, onAnswere
             {host && (
               <div className="flex shrink-0 items-center gap-1">
                 {onApprove && !q.approved && (
-                  <Button variant="ghost" size="sm" className="text-emerald-700 hover:text-emerald-800 dark:text-emerald-400" onClick={() => void onApprove(q, true)}>
+                  <Button variant="ghost" size="sm" className="text-success hover:text-success-ink" onClick={() => void onApprove(q, true)}>
                     Approve
                   </Button>
                 )}

@@ -19,8 +19,10 @@ export type RoomBranding = {
   cta?: RoomCta;
 };
 
-/** indigo-600, the product accent; the editor's "Reset" and the colour picker's initial value. */
-export const DEFAULT_ACCENT = "#4f46e5";
+/** Tertulia teal, the product's action colour; the editor's "Reset" and the colour picker's initial value. */
+export const DEFAULT_ACCENT = "#17706f";
+/** Espresso, the product's near-black: the text on a light accent. */
+export const INK = "#2b1d19";
 export const CTA_LABEL_MAX = 40;
 export const URL_MAX = 2000;
 
@@ -56,9 +58,9 @@ export function parseBranding(raw: unknown): { branding: RoomBranding } | { erro
   const out: RoomBranding = {};
 
   if (r.accent !== undefined && r.accent !== null && r.accent !== "") {
-    if (typeof r.accent !== "string") return { error: "The accent colour must be a hex colour such as #4f46e5." };
+    if (typeof r.accent !== "string") return { error: "The accent colour must be a hex colour such as #17706f." };
     const hex = normalizeHex(r.accent);
-    if (!hex) return { error: "The accent colour must be a hex colour such as #4f46e5." };
+    if (!hex) return { error: "The accent colour must be a hex colour such as #17706f." };
     if (hex !== DEFAULT_ACCENT) out.accent = hex;
   }
 
@@ -122,11 +124,11 @@ export function luminance(hex: string): number {
 }
 
 /** White or near-black, whichever reads better on the accent (contrast ratio against each). */
-export function contrastText(hex: string): "#ffffff" | "#0f172a" {
+export function contrastText(hex: string): "#ffffff" | typeof INK {
   const l = luminance(hex);
   const onWhite = 1.05 / (l + 0.05);
   const onDark = (l + 0.05) / 0.05;
-  return onWhite >= onDark ? "#ffffff" : "#0f172a";
+  return onWhite >= onDark ? "#ffffff" : INK;
 }
 
 export type BrandVars = Record<`--${string}`, string>;

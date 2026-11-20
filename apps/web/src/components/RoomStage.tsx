@@ -93,12 +93,12 @@ export function RoomStage({ connection, publish, onDisconnected, onError, classN
         ))}
       </div>
       {!room && connection && !error && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center text-xs text-slate-300">
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center text-xs text-cream/80">
           <Spinner className="size-5" />
           Connecting…
         </div>
       )}
-      {error && <p className="absolute inset-x-0 bottom-0 bg-red-700/90 px-3 py-1.5 text-center text-xs leading-snug text-white">{error}</p>}
+      {error && <p className="absolute inset-x-0 bottom-0 bg-error/90 px-3 py-1.5 text-center text-xs leading-snug text-white">{error}</p>}
     </div>
   );
 }

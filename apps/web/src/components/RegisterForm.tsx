@@ -106,7 +106,7 @@ export function RegisterForm(props: Props) {
   const when = props.startsAt ? formatStart(props.startsAt) : null;
   const door =
     sessionState === "live"
-      ? { text: "The webinar is live right now.", cta: "Join now", variant: "success" as const }
+      ? { text: "The session is live right now.", cta: "Join now", variant: "success" as const }
       : sessionState === "waiting"
         ? { text: "Doors are open. The host is about to start.", cta: "Enter the waiting room", variant: "primary" as const }
         : { text: when ? `Starts ${when}. Come back to this link, or use the one in your email, when it is time.` : "The host has not opened the room yet. Come back to this link when it is time.", cta: "Open the room", variant: "secondary" as const };

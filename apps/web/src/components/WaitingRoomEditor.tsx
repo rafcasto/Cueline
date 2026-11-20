@@ -138,7 +138,7 @@ export function WaitingRoomEditor({ room, onSaved }: { room: Room; onSaved: (cfg
           <div
             key={el.id}
             onPointerDown={(e) => onPointerDown(e, el)}
-            className={cx("absolute flex cursor-move items-center whitespace-pre-wrap break-words rounded", selected === el.id ? "ring-2 ring-indigo-400" : "ring-1 ring-white/30")}
+            className={cx("absolute flex cursor-move items-center whitespace-pre-wrap break-words rounded", selected === el.id ? "ring-2 ring-brand" : "ring-1 ring-white/30")}
             style={elementStyle(el)}
           >
             <span className="w-full">{el.text}</span>
@@ -224,7 +224,7 @@ export function WaitingRoomEditor({ room, onSaved }: { room: Room; onSaved: (cfg
                 <Button
                   variant="ghost"
                   size="md"
-                  className="ml-auto text-red-600 hover:text-red-700 dark:text-red-400"
+                  className="ml-auto text-error hover:text-error-ink"
                   onClick={() => {
                     setCfg((c) => ({ ...c, elements: c.elements.filter((e) => e.id !== sel.id) }));
                     setSelected(null);
@@ -245,11 +245,11 @@ export function WaitingRoomEditor({ room, onSaved }: { room: Room; onSaved: (cfg
           Save waiting room
         </Button>
         {msg ? (
-          <span className={cx("text-sm", msg.tone === "error" ? "text-red-600 dark:text-red-400" : "text-ink-muted")} role={msg.tone === "error" ? "alert" : "status"}>
+          <span className={cx("text-sm", msg.tone === "error" ? "text-error" : "text-ink-muted")} role={msg.tone === "error" ? "alert" : "status"}>
             {msg.text}
           </span>
         ) : dirty ? (
-          <span className="text-sm text-amber-600 dark:text-amber-400">Unsaved changes.</span>
+          <span className="text-sm text-warning-ink">Unsaved changes.</span>
         ) : null}
       </div>
     </div>

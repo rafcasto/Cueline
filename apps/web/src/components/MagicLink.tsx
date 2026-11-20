@@ -44,7 +44,7 @@ export function MagicLink({ token }: { token: string }) {
       ) : (
         <>
           <Spinner className="mx-auto size-6 text-brand" />
-          <h1 className="mt-4 text-xl font-semibold tracking-tight text-ink">{name ? `Welcome back, ${name}` : "Opening your webinar"}</h1>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight text-ink">{name ? `Welcome back, ${name}` : "Opening your room"}</h1>
           <p className="mt-1 text-sm text-ink-muted">One moment. No email or code needed on this device from now on.</p>
         </>
       )}

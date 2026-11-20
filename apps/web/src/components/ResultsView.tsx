@@ -9,7 +9,7 @@ type Props = { state: SessionData; run: ActivityRun; activity: Activity; userId:
 
 /** Results for one run: bars for polls, bars + correct marks + leaderboard for quizzes, a cloud for word clouds. */
 export function ResultsView({ state, run, activity, userId, dark }: Props) {
-  const muted = dark ? "text-slate-400" : "text-ink-muted";
+  const muted = dark ? "text-cream/60" : "text-ink-muted";
   if (activity.kind === "wordcloud") {
     const words = wordCloud(state.textAnswers[run.id] ?? []);
     return (
@@ -41,7 +41,7 @@ export function ResultsView({ state, run, activity, userId, dark }: Props) {
             <li key={o.id}>
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className={cx("min-w-0 truncate", correct && "font-medium")}>
-                  {correct && <span className="mr-1 text-emerald-500">✓</span>}
+                  {correct && <span className="mr-1 text-success">✓</span>}
                   {o.label}
                   {picked && <span className={cx("ml-1.5 text-xs", muted)}>(you)</span>}
                 </span>
@@ -50,7 +50,7 @@ export function ResultsView({ state, run, activity, userId, dark }: Props) {
                 </span>
               </div>
               <div className={cx("mt-1.5 h-2 overflow-hidden rounded-full", dark ? "bg-white/15" : "bg-surface-inset")}>
-                <div className={cx("h-2 rounded-full transition-all", correct ? "bg-emerald-500" : "bg-brand")} style={{ width: `${o.pct}%` }} />
+                <div className={cx("h-2 rounded-full transition-all", correct ? "bg-success" : "bg-brand")} style={{ width: `${o.pct}%` }} />
               </div>
             </li>
           );
@@ -82,7 +82,7 @@ function Leaderboard({ sessionId, runId, userId, dark }: { sessionId: string; ru
     };
   }, [sessionId, runId]);
   if (rows.length === 0) return null;
-  const muted = dark ? "text-slate-400" : "text-ink-muted";
+  const muted = dark ? "text-cream/60" : "text-ink-muted";
   return (
     <div className={cx("mt-4 border-t pt-4", dark ? "border-white/15" : "border-line")}>
       <p className={cx("text-xs font-semibold uppercase tracking-wider", muted)}>Leaderboard</p>

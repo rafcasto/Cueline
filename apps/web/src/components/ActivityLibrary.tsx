@@ -175,7 +175,7 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
                 <Button variant="ghost" size="sm" onClick={() => setEditing(a)}>
                   Edit
                 </Button>
-                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => void remove(a)}>
+                <Button variant="ghost" size="sm" className="text-error hover:text-error-ink" onClick={() => void remove(a)}>
                   Delete
                 </Button>
               </li>

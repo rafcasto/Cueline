@@ -1,10 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Tertulia mark: the slide-with-a-cue glyph from the wordmark, on the brand indigo. -->
-  <rect width="64" height="64" rx="14" fill="#4f46e5"/>
-  <g transform="translate(8 8) scale(2)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round">
-    <rect x="2" y="4" width="20" height="14" rx="3" fill="#ffffff" fill-opacity="0.18"/>
-    <path d="M7 11h4M7 14h7"/>
-    <circle cx="16.5" cy="9.5" r="1.75" fill="#ffffff" stroke="none"/>
-    <path d="M9 21h6"/>
+  <!-- Tertulia mark: a speech bubble that is also a coffee cup, single colour on terracotta. -->
+  <rect width="64" height="64" rx="14" fill="#d9643a"/>
+  <g transform="translate(8 8) scale(2)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 7.5A3.5 3.5 0 0 1 7.5 4h8A3.5 3.5 0 0 1 19 7.5V12a5.5 5.5 0 0 1-5.5 5.5H11L6.5 21v-3.6A3.5 3.5 0 0 1 4 14z" fill="#ffffff" fill-opacity="0.18"/>
+    <path d="M19 9h1a2.5 2.5 0 0 1 0 5h-1.2"/>
+    <path d="M8 9.5h7M8 12.5h4"/>
   </g>
 </svg>

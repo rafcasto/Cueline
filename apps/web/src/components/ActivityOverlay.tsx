@@ -34,7 +34,7 @@ export function ActivityOverlay({ state, run, activity, userId, roomSlug, readOn
   const mine = state.myResponses[run.id];
   const status =
     left !== null && phase === "open" ? (
-      <span className={cx("tabular-nums", left < 5000 && "text-red-400")}>{Math.ceil(left / 1000)}s</span>
+      <span className={cx("tabular-nums", left < 5000 && "text-live")}>{Math.ceil(left / 1000)}s</span>
     ) : phase === "closed" ? (
       <span>Time&apos;s up</span>
     ) : phase === "results" ? (
@@ -45,11 +45,11 @@ export function ActivityOverlay({ state, run, activity, userId, roomSlug, readOn
     <div
       role="dialog"
       aria-label={activity.title}
-      className="pointer-events-auto max-h-full w-full max-w-lg animate-rise overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-slate-950/90 p-5 text-white shadow-overlay backdrop-blur sm:p-6"
+      className="pointer-events-auto max-h-full w-full max-w-lg animate-rise overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-espresso/95 p-5 text-white shadow-overlay backdrop-blur sm:p-6"
     >
       <div className="flex items-start justify-between gap-3">
         <h3 className="min-w-0 text-base font-semibold leading-snug sm:text-lg">{activity.title}</h3>
-        {status && <div className="shrink-0 pt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-400">{status}</div>}
+        {status && <div className="shrink-0 pt-0.5 text-xs font-semibold uppercase tracking-wider text-cream/60">{status}</div>}
       </div>
 
       {phase === "results" ? (
@@ -57,11 +57,11 @@ export function ActivityOverlay({ state, run, activity, userId, roomSlug, readOn
       ) : activity.kind === "cta" ? (
         <CtaBody run={run} activity={activity} roomSlug={roomSlug} pageIndex={state.lastSlide?.page_index ?? null} readOnly={readOnly} />
       ) : phase === "closed" ? (
-        <p className="mt-4 text-sm leading-relaxed text-slate-300">
+        <p className="mt-4 text-sm leading-relaxed text-cream/80">
           {mine ? "Answer received. Waiting for the presenter to reveal the results." : "Answers are closed. Waiting for the results."}
         </p>
       ) : mine || readOnly ? (
-        <p className="mt-4 text-sm leading-relaxed text-slate-300">
+        <p className="mt-4 text-sm leading-relaxed text-cream/80">
           {readOnly ? `${(state.responded[run.id] ?? []).length} answered so far.` : "Answer received."}
         </p>
       ) : (
@@ -72,7 +72,7 @@ export function ActivityOverlay({ state, run, activity, userId, roomSlug, readOn
 }
 
 const overlayPrimary =
-  "inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-lg bg-white px-4 font-semibold text-slate-900 transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-lg bg-white px-4 font-semibold text-espresso transition-colors hover:bg-cream disabled:pointer-events-none disabled:opacity-50";
 
 function AnswerForm({ run, activity, userId }: { run: ActivityRun; activity: Activity; userId: string | null }) {
   const [picked, setPicked] = useState<string[]>([]);
@@ -114,13 +114,13 @@ function AnswerForm({ run, activity, userId }: { run: ActivityRun; activity: Act
             onChange={(e) => setText(e.target.value)}
             maxLength={80}
             placeholder="One or two words"
-            className="h-11 flex-1 rounded-lg border border-white/10 bg-white/10 px-3 text-white placeholder:text-slate-400 focus:border-white/30 focus-visible:outline-none focus:ring-2 focus:ring-white/20"
+            className="h-11 flex-1 rounded-lg border border-white/10 bg-white/10 px-3 text-white placeholder:text-cream/50 focus:border-white/30 focus-visible:outline-none focus:ring-2 focus:ring-white/20"
           />
           <button type="submit" disabled={busy || !text.trim()} className={cx(overlayPrimary, "w-auto px-5")}>
             Send
           </button>
         </div>
-        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+        {error && <p className="mt-2 text-xs text-live">{error}</p>}
       </form>
     );
   }
@@ -147,7 +147,7 @@ function AnswerForm({ run, activity, userId }: { run: ActivityRun; activity: Act
       <button type="button" onClick={() => void submit()} disabled={busy || picked.length === 0} className={cx(overlayPrimary, "mt-4")}>
         {activity.kind === "quiz" ? "Lock in" : "Vote"}
       </button>
-      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      {error && <p className="mt-2 text-xs text-live">{error}</p>}
     </div>
   );
 }
@@ -183,7 +183,7 @@ function CtaBody({ run, activity, roomSlug, pageIndex, readOnly }: { run: Activi
     }
   };
 
-  if (readOnly) return <p className="mt-2 text-xs text-slate-400">{dest} · {target}</p>;
+  if (readOnly) return <p className="mt-2 text-xs text-cream/60">{dest} · {target}</p>;
   if (clientSecret) return <div className="mt-4 overflow-hidden rounded-lg bg-white"><StripeCheckout clientSecret={clientSecret} publishableKey={publishableKey} /></div>;
   if (embed) return <EmbedFrame url={target} onBlocked={() => { setEmbed(false); window.open(target, "_blank", "noopener"); }} />;
   return (

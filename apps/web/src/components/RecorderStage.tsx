@@ -78,7 +78,7 @@ export function RecorderStage({ room, session: initialSession, presentation: ini
   return (
     <BrandScope branding={room.branding} className="flex h-screen w-screen items-center justify-center overflow-hidden bg-black">
       {error ? (
-        <p className="p-6 text-center text-sm text-slate-300">{error}</p>
+        <p className="p-6 text-center text-sm text-cream/80">{error}</p>
       ) : (
         <StageCanvas
           layout={normalizeStageLayout(session.layout)}

@@ -254,7 +254,7 @@ export function EmailSequence({ room, plan, limits, invites, registrations }: Pr
                       Edit
                     </Button>
                     {step.kind === "reminder" && (
-                      <Button variant="ghost" size="sm" className="text-red-700 hover:text-red-800 dark:text-red-300" onClick={() => void remove(step)} disabled={busy}>
+                      <Button variant="ghost" size="sm" className="text-error hover:text-error-ink" onClick={() => void remove(step)} disabled={busy}>
                         Delete
                       </Button>
                     )}
