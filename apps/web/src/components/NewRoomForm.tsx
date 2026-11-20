@@ -64,7 +64,7 @@ export function NewRoomForm({ orgs, autoOpen }: { orgs: RoomOrg[]; autoOpen?: bo
       <h2 className="text-sm font-semibold text-ink">New room</h2>
       {error && <Alert tone="danger">{error}</Alert>}
       <Field label="Room name" htmlFor="room-name" hint="Shown to attendees. The address under /r/ comes from it; you can change both later in the room's settings.">
-        <Input id="room-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required autoFocus placeholder="Product webinars" />
+        <Input id="room-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required autoFocus placeholder="Tuesday product sessions" />
       </Field>
       <Field label="What is it about?" hint="Pick the topics that fit, or add your own. People browsing Explore filter by them; you can change them later in Settings.">
         <TopicPicker value={topics} onChange={setTopics} compact />

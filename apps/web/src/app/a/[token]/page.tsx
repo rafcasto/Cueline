@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PublicShell } from "@/components/AppShell";
 import { MagicLink } from "@/components/MagicLink";
 
-export const metadata: Metadata = { title: "Opening your webinar" };
+export const metadata: Metadata = { title: "Opening your room" };
 
 /** The personal link from every email. Binds the registration to this browser and walks in. */
 export default async function MagicLinkPage({ params }: { params: Promise<{ token: string }> }) {

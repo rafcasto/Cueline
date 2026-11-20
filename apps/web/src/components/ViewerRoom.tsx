@@ -163,7 +163,7 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
     return (
       <RoomFrame room={room} status={<Badge>Not live</Badge>}>
         <WaitingRoom config={room.waiting_room} />
-        <p className="mt-4 text-center text-sm text-ink-muted">This webinar is not live right now. Keep this page open, or come back with the link from your email.</p>
+        <p className="mt-4 text-center text-sm text-ink-muted">This session is not live right now. Keep this page open, or come back with the link from your email.</p>
         <MobileCta room={room} />
       </RoomFrame>
     );

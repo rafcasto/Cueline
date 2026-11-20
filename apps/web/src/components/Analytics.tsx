@@ -8,7 +8,7 @@ import { publicEnv } from "@/lib/env";
  * Page views: GA4's enhanced measurement listens for history changes, so client-side
  * navigations through the App Router count without any code here. Calls to action: any
  * element with a `data-track` attribute reports a `cta_click` event carrying that value when
- * it is clicked, so the landing page can mark its doors (search, start a community, join
+ * it is clicked, so the landing page can mark its doors (search, host an event, join
  * with a code) without a client component per button.
  */
 export function Analytics() {

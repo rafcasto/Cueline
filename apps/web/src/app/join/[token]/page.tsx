@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
 }
 
 /**
- * The invite link. One page does the whole attendee side: what the webinar is, when it is,
+ * The invite link. One page does the whole attendee side: what the event is, when it is,
  * how many seats are left, a two-field registration (or the waiting list once the seats are
  * gone), and the door into the room once registered.
  */

@@ -58,14 +58,14 @@ export function textToHtml(text: string, opts: { buttonUrl?: string; buttonLabel
     .trim()
     .split(/\n{2,}/)
     .map((p) => {
-      const escaped = escapeHtml(p).replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" style="color:#4f46e5">${u}</a>`);
-      return `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#1f2937">${escaped.replace(/\n/g, "<br>")}</p>`;
+      const escaped = escapeHtml(p).replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" style="color:#17706f">${u}</a>`);
+      return `<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:#2b1d19">${escaped.replace(/\n/g, "<br>")}</p>`;
     })
     .join("");
   const button = opts.buttonUrl
-    ? `<p style="margin:24px 0"><a href="${escapeHtml(opts.buttonUrl)}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;font-weight:600;font-size:16px;padding:12px 20px;border-radius:8px">${escapeHtml(opts.buttonLabel ?? "Open your link")}</a></p>`
+    ? `<p style="margin:24px 0"><a href="${escapeHtml(opts.buttonUrl)}" style="display:inline-block;background:#17706f;color:#fff;text-decoration:none;font-weight:600;font-size:16px;padding:12px 20px;border-radius:8px">${escapeHtml(opts.buttonLabel ?? "Open your link")}</a></p>`
     : "";
-  return `<!doctype html><html><body style="margin:0;padding:24px;background:#f8fafc;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px">${paragraphs}${button}</div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;padding:24px;background:#fff8ee;font-family:Inter,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #d9d2cc;border-radius:12px;padding:32px">${paragraphs}${button}</div></body></html>`;
 }
 
 /** When a reminder step goes out for an event, or null when it cannot be computed. */

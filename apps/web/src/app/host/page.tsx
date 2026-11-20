@@ -96,7 +96,7 @@ export default async function HostIndex({ searchParams }: { searchParams: Promis
                     <Badge>Closed</Badge>
                   )}
                 </div>
-                {access.locked && <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{access.reason}</p>}
+                {access.locked && <p className="mt-3 text-xs text-warning-ink">{access.reason}</p>}
                 <div className="mt-5 flex flex-wrap gap-2">
                   <Link href={`/host/${r.slug}`} className={buttonClass("primary", "sm")}>
                     Open host panel

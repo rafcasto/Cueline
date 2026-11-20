@@ -47,7 +47,7 @@ export function PdfPage({ url, pageIndex, className }: Props) {
   return (
     <div className={`relative bg-black ${className ?? ""}`}>
       <canvas ref={canvasRef} className="block w-full" />
-      {error && <p className="absolute inset-x-0 bottom-0 bg-red-700/80 p-1 text-center text-xs text-white">{error}</p>}
+      {error && <p className="absolute inset-x-0 bottom-0 bg-error/85 p-1 text-center text-xs text-white">{error}</p>}
     </div>
   );
 }

@@ -417,13 +417,13 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
 /** Stands in for the host's camera on the stage until they join with it, so the layout can be set up in advance. */
 function CameraPlaceholder({ live }: { live: boolean }) {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-slate-800 px-3 text-center text-slate-300 @container">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 bg-espresso px-3 text-center text-cream/80 @container">
       <svg viewBox="0 0 24 24" className="size-6 shrink-0 opacity-70" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <rect x="3" y="6" width="13" height="12" rx="2" />
         <path d="m16 10 5-3v10l-5-3" />
       </svg>
       <p className="text-xs font-medium leading-tight">Your camera</p>
-      <p className="hidden text-xs leading-tight text-slate-400 @[12rem]:block">{live ? "Join with camera to put it here." : "Open the room, then join with camera."}</p>
+      <p className="hidden text-xs leading-tight text-cream/60 @[12rem]:block">{live ? "Join with camera to put it here." : "Open the room, then join with camera."}</p>
     </div>
   );
 }

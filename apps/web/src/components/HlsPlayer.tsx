@@ -155,12 +155,12 @@ export function HlsPlayer({ src, onLatency, className }: Props) {
     <div className={cx("relative overflow-hidden bg-black", className)}>
       <video ref={videoRef} className="h-full w-full" controls playsInline onPlaying={sync} onVolumeChange={sync} />
       {src && !ready && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center text-xs text-slate-300">
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center text-xs text-cream/80">
           <Spinner className="size-5" />
           Connecting to the stream…
         </div>
       )}
-      {!src && <p className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-slate-400">Waiting for the stream to start…</p>}
+      {!src && <p className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs text-cream/60">Waiting for the stream to start…</p>}
       {ready && sound === "blocked" && (
         <button type="button" onClick={() => void play(true)} className="absolute inset-0 flex items-center justify-center bg-black/60 text-sm font-medium text-white">
           ▶ Tap to play

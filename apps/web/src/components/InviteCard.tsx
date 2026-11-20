@@ -169,13 +169,13 @@ export function InviteCard({ room, limits, invites, registrations, participants,
                       {seats.waiting > 0 ? ` · ${seats.waiting} waiting` : ""}
                       {inv.capacity === null ? " (plan maximum)" : ""}
                     </p>
-                    {capped(inv) && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Set to {inv.capacity} seats, but {limits.label} allows {limits.participants}; the lower number applies until the plan changes.</p>}
+                    {capped(inv) && <p className="mt-1 text-xs text-warning-ink">Set to {inv.capacity} seats, but {limits.label} allows {limits.participants}; the lower number applies until the plan changes.</p>}
                   </div>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="sm" onClick={() => setDraft({ id: inv.id, title: inv.title, startsAt: toLocalInput(inv.starts_at), description: inv.description ?? "", isPublic: inv.is_public, capacity: inv.capacity === null ? "" : String(inv.capacity) })} disabled={!!draft}>
                       Edit
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-red-700 hover:text-red-800 dark:text-red-300" onClick={() => void revoke(inv)}>
+                    <Button variant="ghost" size="sm" className="text-error hover:text-error-ink" onClick={() => void revoke(inv)}>
                       Revoke
                     </Button>
                   </div>
@@ -200,7 +200,7 @@ export function InviteCard({ room, limits, invites, registrations, participants,
         {draft ? (
           <form onSubmit={(e) => void submit(e)} className="mt-6 space-y-4 rounded-xl border border-line bg-surface-inset p-5">
             <h3 className="text-sm font-semibold text-ink">{draft.id ? "Edit event" : "New event"}</h3>
-            <Field label="Webinar title" htmlFor="inv-title">
+            <Field label="Event title" htmlFor="inv-title">
               <Input id="inv-title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} maxLength={200} required />
             </Field>
             <Field label="Starts" htmlFor="inv-start" hint={`Your timezone (${browserZone()}). Reminder emails count back from this.`}>

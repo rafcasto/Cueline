@@ -87,7 +87,7 @@ export function TopicPicker({ value, onChange, compact, disabled }: Props) {
           Add
         </Button>
       </div>
-      <p className={cx("text-xs", error ? "text-red-600 dark:text-red-400" : "text-ink-muted")}>{error ?? `${value.length} of ${MAX_TOPICS} chosen. Visitors filter Explore by topic.`}</p>
+      <p className={cx("text-xs", error ? "text-error" : "text-ink-muted")}>{error ?? `${value.length} of ${MAX_TOPICS} chosen. Visitors filter Explore by topic.`}</p>
     </div>
   );
 }

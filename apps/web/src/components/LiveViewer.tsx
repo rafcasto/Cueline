@@ -149,7 +149,7 @@ export function LiveViewer({ sessionId, ready, hlsUrl, onLatency, onTransport, r
         ))}
       </div>
       {videos === 0 && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center text-xs text-slate-300">
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center text-xs text-cream/80">
           <Spinner className="size-5" />
           {transport === "webrtc" ? "Waiting for the presenter's camera…" : "Connecting to the stream…"}
         </div>

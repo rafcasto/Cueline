@@ -45,7 +45,7 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
             </div>
             <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">Registration is by invite only</h1>
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">
-              This webinar has no open invite link right now. Already registered? Use the link from your email, or your email and code.
+              This room has no open invite link right now. Already registered? Use the link from your email, or your email and code.
             </p>
             <ButtonLink href="/join" variant="secondary" className="mt-6">
               Join with email and code

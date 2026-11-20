@@ -144,7 +144,7 @@ export function BillingPanel({ summary, mode }: { summary: BillingSummary; mode:
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-ink">Add a room</p>
-              <p className="text-xs text-ink-muted">Another standing community with its own events, people and emails, on Starter or Pro.</p>
+              <p className="text-xs text-ink-muted">Another standing room with its own events, people and emails, on Starter or Pro.</p>
             </div>
             <Button size="sm" variant="secondary" onClick={() => setAdding(true)} disabled={!!busy}>
               Add a room
@@ -163,7 +163,7 @@ function RoomRow({ room, owner, busy, onBuy }: { room: BillingRoom; owner: boole
   const pending = room.plan_status === "unpaid";
   const pendingPrice = (room.price_lookup && room.price_lookup in PRICE_LABELS ? room.price_lookup : "starter_monthly") as PriceLookup;
   return (
-    <li className={cx("rounded-xl border p-4", access.locked ? "border-amber-300 dark:border-amber-800" : "border-line")}>
+    <li className={cx("rounded-xl border p-4", access.locked ? "border-warning" : "border-line")}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">

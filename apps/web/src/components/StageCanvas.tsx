@@ -158,7 +158,7 @@ export function StageCanvas({ layout, slide, video, editable, onChange, children
             )}
           >
             <span className="sr-only">Resize</span>
-            <svg viewBox="0 0 20 20" className="size-5 text-slate-700" aria-hidden>
+            <svg viewBox="0 0 20 20" className="size-5 text-espresso" aria-hidden>
               <path d="M17 7v10H7M17 12v5h-5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
             </svg>
           </button>

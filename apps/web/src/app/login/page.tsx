@@ -34,7 +34,7 @@ function LoginInner() {
         <Logo />
       </Link>
       <Card className="p-8">
-        <h1 className="text-xl font-semibold tracking-tight text-ink">Host sign in</h1>
+        <h1 className="text-2xl tracking-tight text-ink">Log in to host</h1>
         <p className="mt-1 text-sm text-ink-muted">Email and password. Attendees don&apos;t need an account.</p>
         <form onSubmit={(e) => void signIn(e)} className="mt-6 space-y-4">
           <Field label="Email" htmlFor="email">
@@ -50,7 +50,7 @@ function LoginInner() {
         </form>
       </Card>
       <p className="mt-6 text-center text-sm text-ink-muted">
-        Attending a webinar? <TextLink href="/join">Join a room</TextLink>
+        Attending an event? <TextLink href="/join">Join a room</TextLink>
       </p>
     </main>
   );

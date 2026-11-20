@@ -171,7 +171,7 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
         <Button onClick={() => void save()} loading={busy === "save"} disabled={busy === "logo" || !dirty}>
           Save branding
         </Button>
-        {dirty && !msg && <span className={cx("text-sm text-amber-600 dark:text-amber-400")}>Unsaved changes.</span>}
+        {dirty && !msg && <span className={cx("text-sm text-warning-ink")}>Unsaved changes.</span>}
       </div>
     </Card>
   );

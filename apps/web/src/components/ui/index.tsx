@@ -17,14 +17,18 @@ export { cx, Spinner };
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "success";
 export type ButtonSize = "sm" | "md" | "lg";
 
+/*
+ * Teal is the one colour that means "click": the primary button is a teal fill, the secondary
+ * a teal outline. Both read as actions; nothing decorative is ever teal (docs/BRAND.md).
+ */
 const buttonBase =
-  "inline-flex shrink-0 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,box-shadow,transform] duration-150 active:translate-y-px disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex shrink-0 cursor-pointer select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:translate-y-px disabled:pointer-events-none disabled:opacity-50";
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "bg-brand text-brand-contrast shadow-card hover:bg-brand-hover",
-  secondary: "border border-line-strong bg-surface-raised text-ink shadow-card hover:bg-surface-inset",
+  primary: "bg-brand text-brand-contrast hover:bg-brand-hover",
+  secondary: "border-2 border-brand bg-transparent text-brand hover:border-brand-hover hover:bg-brand/10 hover:text-brand-hover",
   ghost: "text-ink-muted hover:bg-surface-inset hover:text-ink",
-  danger: "border border-red-200 bg-surface-raised text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950",
-  success: "bg-emerald-600 text-white shadow-card hover:bg-emerald-700",
+  danger: "border border-error/30 bg-surface-raised text-error hover:bg-error-soft",
+  success: "bg-success text-white hover:bg-success-ink",
 };
 const buttonSizes: Record<ButtonSize, string> = {
   sm: "h-8 px-3 text-sm",
@@ -67,7 +71,7 @@ export function ButtonLink({ href, variant = "primary", size = "md", className, 
 // Form controls
 // ---------------------------------------------------------------------------
 const controlBase =
-  "w-full rounded-lg border border-line-strong bg-surface-raised text-ink placeholder:text-ink-faint shadow-card transition-colors focus:border-focus focus-visible:outline-none focus:ring-2 focus:ring-focus/30 disabled:opacity-60 read-only:bg-surface-inset";
+  "w-full rounded-lg border border-line bg-surface-inset text-ink placeholder:text-ink-faint transition-colors focus:border-focus focus:bg-surface-raised focus-visible:outline-none focus:ring-2 focus:ring-focus/30 disabled:opacity-60 read-only:bg-surface-inset";
 
 export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cx(controlBase, "h-10 px-3 text-sm", className)} {...rest} />;
@@ -77,7 +81,7 @@ export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLText
 }
 export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cx(controlBase, "h-10 appearance-none bg-[length:16px] bg-[position:right_10px_center] bg-no-repeat px-3 pr-9 text-sm", className)} style={{ backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2394a3b8' stroke-width='1.5'><path d='M6 8l4 4 4-4'/></svg>\")" }} {...rest}>
+    <select className={cx(controlBase, "h-10 appearance-none bg-[length:16px] bg-[position:right_10px_center] bg-no-repeat px-3 pr-9 text-sm", className)} style={{ backgroundImage: "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%235c5350' stroke-width='1.5'><path d='M6 8l4 4 4-4'/></svg>\")" }} {...rest}>
       {children}
     </select>
   );
@@ -91,7 +95,7 @@ export function Field({ label, hint, error, htmlFor, children, className }: { la
         {label}
       </label>
       {children}
-      {error ? <p className="text-sm text-red-600 dark:text-red-400">{error}</p> : hint ? <p className="text-sm text-ink-muted">{hint}</p> : null}
+      {error ? <p className="text-sm text-error">{error}</p> : hint ? <p className="text-sm text-ink-muted">{hint}</p> : null}
     </div>
   );
 }
@@ -105,14 +109,14 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
 // Surfaces
 // ---------------------------------------------------------------------------
 export function Card({ children, className, padded = true }: { children: ReactNode; className?: string; padded?: boolean }) {
-  return <section className={cx("rounded-xl border border-line bg-surface-raised shadow-card", padded && "p-6", className)}>{children}</section>;
+  return <section className={cx("rounded-xl bg-surface-raised shadow-card", padded && "p-6", className)}>{children}</section>;
 }
 
 export function CardHeader({ title, description, actions, className }: { title: ReactNode; description?: ReactNode; actions?: ReactNode; className?: string }) {
   return (
     <div className={cx("flex flex-wrap items-start justify-between gap-4", className)}>
       <div className="min-w-0">
-        <h2 className="text-base font-semibold text-ink">{title}</h2>
+        <h2 className="font-sans text-base font-semibold text-ink">{title}</h2>
         {description && <p className="mt-1 max-w-prose text-sm text-ink-muted">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
@@ -133,10 +137,10 @@ export type Tone = "neutral" | "brand" | "success" | "warning" | "danger" | "liv
 const badgeTones: Record<Tone, string> = {
   neutral: "bg-surface-inset text-ink-muted",
   brand: "bg-brand-soft text-brand-ink",
-  success: "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
-  warning: "bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-100",
-  danger: "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200",
-  live: "bg-red-600 text-white",
+  success: "bg-success-soft text-success-ink",
+  warning: "bg-warning-soft text-warning-ink",
+  danger: "bg-error-soft text-error-ink",
+  live: "bg-live text-white",
 };
 export function Badge({ tone = "neutral", children, className, dot }: { tone?: Tone; children: ReactNode; className?: string; dot?: boolean }) {
   return (
@@ -149,10 +153,10 @@ export function Badge({ tone = "neutral", children, className, dot }: { tone?: T
 
 const alertTones: Record<Exclude<Tone, "live">, string> = {
   neutral: "border-line bg-surface-inset text-ink",
-  brand: "border-indigo-200 bg-brand-soft text-brand-ink dark:border-indigo-900",
-  success: "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100",
-  warning: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100",
-  danger: "border-red-200 bg-red-50 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100",
+  brand: "border-brand-ink/20 bg-brand-soft text-brand-ink",
+  success: "border-success/30 bg-success-soft text-success-ink",
+  warning: "border-warning/40 bg-warning-soft text-warning-ink",
+  danger: "border-error/30 bg-error-soft text-error-ink",
 };
 export function Alert({ tone = "neutral", title, children, className }: { tone?: Exclude<Tone, "live">; title?: ReactNode; children?: ReactNode; className?: string }) {
   return (
@@ -165,7 +169,7 @@ export function Alert({ tone = "neutral", title, children, className }: { tone?:
 
 export function EmptyState({ icon, title, description, action, className }: { icon?: ReactNode; title: ReactNode; description?: ReactNode; action?: ReactNode; className?: string }) {
   return (
-    <div className={cx("flex flex-col items-center rounded-xl border border-dashed border-line-strong px-6 py-10 text-center", className)}>
+    <div className={cx("flex flex-col items-center rounded-xl border border-dashed border-line-strong bg-surface-raised/60 px-6 py-10 text-center", className)}>
       {icon && <div className="mb-3 flex size-10 items-center justify-center rounded-full bg-brand-soft text-brand-ink">{icon}</div>}
       <p className="text-sm font-semibold text-ink">{title}</p>
       {description && <p className="mt-1 max-w-sm text-sm text-ink-muted">{description}</p>}
@@ -210,7 +214,7 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
       onClick={() => onChange(!checked)}
       className={cx("relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full transition-colors disabled:opacity-50", checked ? "bg-brand" : "bg-line-strong")}
     >
-      <span className={cx("inline-block size-5 rounded-full bg-white shadow-card transition-transform", checked ? "translate-x-[18px]" : "translate-x-0.5")} />
+      <span className={cx("inline-block size-5 rounded-full bg-surface-raised shadow-card transition-transform", checked ? "translate-x-[18px]" : "translate-x-0.5")} />
     </button>
   );
 }
@@ -218,18 +222,28 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
 // ---------------------------------------------------------------------------
 // Brand
 // ---------------------------------------------------------------------------
-export function Logo({ className, wordmark = true }: { className?: string; wordmark?: boolean }) {
+/**
+ * The wordmark "Tertulia" in Fraunces, terracotta by default (espresso on a terracotta
+ * ground, cream on espresso: pass a text colour in `className`), with the mark beside it: a
+ * speech bubble that is also a coffee cup, drawn in the current colour so it follows.
+ */
+export function Logo({ className, wordmark = true, mark = true }: { className?: string; wordmark?: boolean; mark?: boolean }) {
   return (
-    <span className={cx("inline-flex items-center gap-2 font-semibold tracking-tight text-ink", className)}>
-      <svg viewBox="0 0 24 24" className="size-6 text-brand" aria-hidden>
-        <rect x="2" y="4" width="20" height="14" rx="3" fill="currentColor" opacity="0.15" />
-        <rect x="2" y="4" width="20" height="14" rx="3" stroke="currentColor" strokeWidth="1.75" fill="none" />
-        <path d="M7 11h4M7 14h7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-        <circle cx="16.5" cy="9.5" r="1.75" fill="currentColor" />
-        <path d="M9 21h6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-      </svg>
-      {wordmark && <span>Tertulia</span>}
+    <span className={cx("inline-flex items-center gap-2 text-accent", className)}>
+      {mark && <LogoMark className="size-7" />}
+      {wordmark && <span className="font-heading text-[1.375rem] leading-none tracking-tight">Tertulia</span>}
     </span>
+  );
+}
+
+/** The mark alone: a speech bubble with a cup's handle. Single colour, so it works at favicon size. */
+export function LogoMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 7.5A3.5 3.5 0 0 1 7.5 4h8A3.5 3.5 0 0 1 19 7.5V12a5.5 5.5 0 0 1-5.5 5.5H11L6.5 21v-3.6A3.5 3.5 0 0 1 4 14z" fill="currentColor" fillOpacity="0.14" />
+      <path d="M19 9h1a2.5 2.5 0 0 1 0 5h-1.2" />
+      <path d="M8 9.5h7M8 12.5h4" />
+    </svg>
   );
 }
 
@@ -239,7 +253,7 @@ export function PageHeader({ eyebrow, title, description, actions, className }: 
     <div className={cx("flex flex-wrap items-end justify-between gap-4", className)}>
       <div className="min-w-0">
         {eyebrow && <Eyebrow className="mb-1">{eyebrow}</Eyebrow>}
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+        <h1 className="text-2xl tracking-tight text-ink sm:text-3xl">{title}</h1>
         {description && <p className="mt-1 max-w-prose text-sm text-ink-muted">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

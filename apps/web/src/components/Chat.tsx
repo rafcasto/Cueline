@@ -134,7 +134,7 @@ export function Chat({ state, userId, enabled, onSend, host, onHide, bare, fill,
             </Button>
           </div>
           {error && (
-            <p className="mt-2 text-xs text-red-600 dark:text-red-400" role="alert">
+            <p className="mt-2 text-xs text-error" role="alert">
               {error}
             </p>
           )}

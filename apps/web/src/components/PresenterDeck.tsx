@@ -116,7 +116,7 @@ export function PresenterDeck({ room, presentations, onPresentationsChange, sele
             </Button>
             <span className="text-sm tabular-nums text-ink-muted">
               Page <span className="font-medium text-ink">{page + 1}</span> of {selected.page_count}
-              {participantsPage !== null && participantsPage !== page && <span className="ml-2 text-amber-600 dark:text-amber-400">(participants on {participantsPage + 1})</span>}
+              {participantsPage !== null && participantsPage !== page && <span className="ml-2 text-warning-ink">(participants on {participantsPage + 1})</span>}
             </span>
             <Button variant="secondary" size="sm" onClick={() => void go(page + 1)} disabled={page >= selected.page_count - 1}>
               Next →
