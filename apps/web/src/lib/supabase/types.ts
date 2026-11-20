@@ -78,7 +78,7 @@ export type StageVideoBox = { x: number; y: number; w: number };
 export type StageLayout = { mode: StageLayoutMode; video?: StageVideoBox; shape?: StageVideoShape };
 
 /** Accent colour, logo, cover picture and standing call to action; see normalizeBranding() in lib/branding. */
-export type RoomBranding = { accent?: string; logo_url?: string; cover_url?: string; cta?: { label: string; url: string } };
+export type RoomBranding = { accent?: string; logo_url?: string; hide_name?: boolean; cover_url?: string; cta?: { label: string; url: string } };
 
 export type Room = {
   id: string;

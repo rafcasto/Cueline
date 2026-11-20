@@ -3,7 +3,8 @@ import { PublicShell } from "@/components/AppShell";
 import { BrandScope, RoomMark } from "@/components/RoomBrand";
 import { ViewerRoom } from "@/components/ViewerRoom";
 import { WaitingRoom } from "@/components/WaitingRoom";
-import { ButtonLink, Card } from "@/components/ui";
+import { ButtonLink, Card, cx } from "@/components/ui";
+import { showsRoomName } from "@/lib/branding";
 import { activeInvite, registrationFor } from "@/lib/invites";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { Presentation, Room, Session } from "@/lib/supabase/types";
@@ -41,7 +42,7 @@ export default async function RoomPage({ params }: { params: Promise<{ slug: str
           <Card className="mx-auto -mt-8 max-w-xl p-8 text-center">
             <div className="flex items-center justify-center gap-3">
               <RoomMark branding={(room as Room).branding} name={(room as Room).name} />
-              <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{(room as Room).name}</p>
+              <p className={cx("text-xs font-semibold uppercase tracking-wider text-ink-muted", !showsRoomName((room as Room).branding) && "sr-only")}>{(room as Room).name}</p>
             </div>
             <h1 className="mt-2 text-xl font-semibold tracking-tight text-ink">Registration is by invite only</h1>
             <p className="mt-2 text-sm leading-relaxed text-ink-muted">

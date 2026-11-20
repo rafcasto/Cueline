@@ -2,7 +2,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandScope, RoomMark } from "@/components/RoomBrand";
 import { WaitingRoom } from "@/components/WaitingRoom";
-import { Alert, Badge, Button, ButtonLink, Field, Input } from "@/components/ui";
+import { Alert, Badge, Button, ButtonLink, Field, Input, cx } from "@/components/ui";
+import { showsRoomName } from "@/lib/branding";
 import { api } from "@/lib/api";
 import type { RegistrationStatus, SeatSummary } from "@/lib/seats";
 import { ensureViewerIdentity } from "@/lib/supabase/browser";
@@ -123,7 +124,7 @@ export function RegisterForm(props: Props) {
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             {branding.logo_url && <RoomMark branding={branding} name={props.roomName} />}
-            <p className="truncate text-xs font-semibold uppercase tracking-wider text-ink-muted">{props.roomName}</p>
+            <p className={cx("truncate text-xs font-semibold uppercase tracking-wider text-ink-muted", !showsRoomName(branding) && "sr-only")}>{props.roomName}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {seats.full && sessionState !== "live" && <Badge tone="warning">Full</Badge>}
