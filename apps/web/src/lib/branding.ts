@@ -1,5 +1,5 @@
 /**
- * Room branding: the accent colour, the logo and the standing call to action a host gives
+ * Room branding: the accent colour, the logo, the cover picture and the standing call to action a host gives
  * a room, stored in `rooms.branding` (jsonb). Pure functions shared by the host editor, the
  * API that validates a save, and the attendee pages that apply it, so they are unit-tested
  * without a browser.
@@ -15,6 +15,8 @@ export type RoomBranding = {
   accent?: string;
   /** Public URL of the logo (media bucket) shown in place of the product mark. */
   logo_url?: string;
+  /** Public URL of the cover picture (media bucket): the band across the room's card and the top of its page. */
+  cover_url?: string;
   /** A button in the room header and under the stage; opens the URL in a new tab. */
   cta?: RoomCta;
 };
@@ -71,6 +73,13 @@ export function parseBranding(raw: unknown): { branding: RoomBranding } | { erro
     out.logo_url = url;
   }
 
+  if (r.cover_url !== undefined && r.cover_url !== null && r.cover_url !== "") {
+    if (typeof r.cover_url !== "string") return { error: "The cover picture must be an uploaded picture." };
+    const url = normalizeUrl(r.cover_url);
+    if (!url) return { error: "The cover picture must be an uploaded picture." };
+    out.cover_url = url;
+  }
+
   if (r.cta !== undefined && r.cta !== null) {
     const c = (typeof r.cta === "object" ? r.cta : {}) as Record<string, unknown>;
     const label = typeof c.label === "string" ? c.label.trim() : "";
@@ -97,6 +106,8 @@ export function normalizeBranding(raw: unknown): RoomBranding {
   if (accent && accent !== DEFAULT_ACCENT) out.accent = accent;
   const logo = typeof r.logo_url === "string" ? normalizeUrl(r.logo_url) : null;
   if (logo) out.logo_url = logo;
+  const cover = typeof r.cover_url === "string" ? normalizeUrl(r.cover_url) : null;
+  if (cover) out.cover_url = cover;
   const c = (r.cta && typeof r.cta === "object" ? r.cta : {}) as Record<string, unknown>;
   const label = typeof c.label === "string" ? c.label.trim().slice(0, CTA_LABEL_MAX) : "";
   const url = typeof c.url === "string" ? normalizeUrl(c.url) : null;
@@ -106,7 +117,7 @@ export function normalizeBranding(raw: unknown): RoomBranding {
 
 /** True when the host changed anything from the product default. */
 export function isBranded(b: RoomBranding): boolean {
-  return !!(b.accent || b.logo_url || b.cta);
+  return !!(b.accent || b.logo_url || b.cover_url || b.cta);
 }
 
 function channel(c: number) {

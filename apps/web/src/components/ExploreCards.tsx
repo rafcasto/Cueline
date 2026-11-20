@@ -1,5 +1,9 @@
+import Image, { type StaticImageData } from "next/image";
 import Link from "next/link";
-import { BrandScope, RoomMark } from "@/components/RoomBrand";
+import { BrandScope, RoomCover, RoomMark } from "@/components/RoomBrand";
+import topicCareers from "@/images/topic-careers.webp";
+import topicCreativity from "@/images/topic-creativity.webp";
+import topicWellbeing from "@/images/topic-wellbeing.webp";
 import { Badge, ButtonLink, cx } from "@/components/ui";
 import { eventStatus, formatEventTime, isEventFull, type PublicEvent, type PublicRoom } from "@/lib/explore";
 
@@ -63,7 +67,7 @@ export function EventCard({ event, className }: { event: PublicEvent; className?
 }
 
 /**
- * A listed room: a cover band in the room's accent with its mark, the name, one line about it,
+ * A listed room: its cover picture (or a band in its accent with its mark), the name, one line about it,
  * how many people are in it, and the way in. Every room in the directory is public (a host
  * lists it from Settings); the label says so, and will carry "Private" when invite-only rooms
  * get a teaser page. A room with no logo shows the product mark in the band, so the grid stays even.
@@ -71,8 +75,8 @@ export function EventCard({ event, className }: { event: PublicEvent; className?
 export function RoomCard({ room }: { room: PublicRoom }) {
   return (
     <li className="flex flex-col overflow-hidden rounded-xl bg-surface-raised shadow-card transition-shadow hover:shadow-float">
-      <BrandScope branding={room.branding} className="flex h-24 items-center bg-brand-soft px-5">
-        <RoomMark branding={room.branding} name={room.name} className="h-9 max-w-full" />
+      <BrandScope branding={room.branding}>
+        <RoomCover branding={room.branding} name={room.name} className="h-36" />
       </BrandScope>
       <div className="flex flex-1 flex-col p-5">
         <div className="flex flex-wrap items-center gap-2">
@@ -153,9 +157,7 @@ export function TopicTiles({ topics, className }: { topics: { topic: string; roo
             href={`/explore?view=rooms&topic=${encodeURIComponent(t.topic)}`}
             className="group flex h-full flex-col gap-4 rounded-xl bg-surface-raised p-5 shadow-card transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-float"
           >
-            <span className="flex size-10 items-center justify-center rounded-full bg-accent-soft text-accent-ink">
-              <TopicIcon topic={t.topic} className="size-5" />
-            </span>
+            <TopicBadge topic={t.topic} />
             <span>
               <span className="block text-base font-semibold capitalize text-ink">{t.topic}</span>
               <span className="block text-sm text-ink-muted">{t.rooms === 1 ? "1 room" : `${t.rooms} rooms`}</span>
@@ -164,6 +166,29 @@ export function TopicTiles({ topics, className }: { topics: { topic: string; roo
         </li>
       ))}
     </ul>
+  );
+}
+
+/** The illustrated marks drawn for three topic families; the picture is a centred icon on cream with wide margins, so it is scaled up inside the circle. */
+const TOPIC_PICTURES: { test: RegExp; src: StaticImageData }[] = [
+  { test: /career|job|leadership|business|startup|product|marketing|sales|finance|invest/, src: topicCareers },
+  { test: /creativ|design|art|music|photo|film|writing|games/, src: topicCreativity },
+  { test: /health|fitness|well|parent|food|travel|outdoor|sport|pet|faith/, src: topicWellbeing },
+];
+
+function TopicBadge({ topic }: { topic: string }) {
+  const picture = TOPIC_PICTURES.find((p) => p.test.test(topic));
+  if (picture) {
+    return (
+      <span className="flex size-12 items-center justify-center overflow-hidden rounded-full bg-cream">
+        <Image src={picture.src} alt="" sizes="64px" className="size-full scale-[1.9] object-cover" />
+      </span>
+    );
+  }
+  return (
+    <span className="flex size-12 items-center justify-center rounded-full bg-accent-soft text-accent-ink">
+      <TopicIcon topic={topic} className="size-5" />
+    </span>
   );
 }
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/AppShell";
 import { EventCard, TopicChips } from "@/components/ExploreCards";
-import { BrandScope, RoomCtaButton, RoomMark } from "@/components/RoomBrand";
+import { BrandScope, RoomCover, RoomCtaButton, RoomMark } from "@/components/RoomBrand";
 import { Badge, ButtonLink, EmptyState, Stat } from "@/components/ui";
 import { formatEventTime, publicRoomBySlug } from "@/lib/explore";
 
@@ -34,6 +34,7 @@ export default async function PublicRoomPage({ params }: { params: Promise<{ slu
           </Link>{" "}
           <span aria-hidden>/</span> <span className="text-ink">{room.name}</span>
         </nav>
+        {room.branding.cover_url && <RoomCover branding={room.branding} name={room.name} className="mt-6 h-48 rounded-2xl sm:h-64" />}
         <header className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start">
           <div className="flex h-20 shrink-0 items-center rounded-2xl bg-brand-soft px-5">
             <RoomMark branding={room.branding} name={room.name} className="h-10 max-w-56" />

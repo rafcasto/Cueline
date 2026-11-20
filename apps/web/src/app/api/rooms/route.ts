@@ -19,7 +19,7 @@ type Body =
  * database trigger); each room then carries its own events, deck, activities, waiting room and
  * emails, and the topics chosen at creation put it under the right filters on Explore. Deleting
  * a room cancels the reminders still scheduled for its registrants, then everything under it
- * cascades away. Branding (accent, logo, call to action) is validated here so a bad colour or a
+ * cascades away. Branding (accent, logo, cover picture, call to action) is validated here so a bad colour or a
  * non-http link never reaches attendees.
  */
 export const POST = handler(async (req) => {
