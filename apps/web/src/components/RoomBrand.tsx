@@ -55,16 +55,24 @@ export function RoomCover({ branding, name, className = "h-24", children }: { br
   );
 }
 
-/** The room's standing call to action, in the accent, opening in a new tab. Null when the host set none. */
-export function RoomCtaButton({ branding, size = "sm", className }: { branding: RoomBranding; size?: "sm" | "md" | "lg"; className?: string }) {
-  const cta = normalizeBranding(branding).cta;
-  if (!cta) return null;
+/**
+ * The room's standing calls to action (up to three) as one group, each opening in a new tab: the
+ * first in the accent, the rest secondary, so a room with several still has one obvious ask.
+ * `className` styles the group's wrapper, `buttonClassName` every button. Null when the host set none.
+ */
+export function RoomCtaButtons({ branding, size = "sm", className, buttonClassName }: { branding: RoomBranding; size?: "sm" | "md" | "lg"; className?: string; buttonClassName?: string }) {
+  const ctas = normalizeBranding(branding).ctas;
+  if (!ctas?.length) return null;
   return (
-    <ButtonLink href={cta.url} external size={size} className={className}>
-      {cta.label}
-      <span aria-hidden className="-mr-0.5 opacity-70">
-        ↗
-      </span>
-    </ButtonLink>
+    <div className={cx("flex flex-wrap items-center gap-2", className)}>
+      {ctas.map((cta, i) => (
+        <ButtonLink key={`${i}:${cta.url}`} href={cta.url} external size={size} variant={i === 0 ? "primary" : "secondary"} className={buttonClassName}>
+          {cta.label}
+          <span aria-hidden className="-mr-0.5 opacity-70">
+            ↗
+          </span>
+        </ButtonLink>
+      ))}
+    </div>
   );
 }
