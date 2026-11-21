@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { ButtonLink, Logo, cx } from "@/components/ui";
+import { Logo, cx } from "@/components/ui";
 import { brandVars, normalizeBranding } from "@/lib/branding";
 import type { RoomBranding } from "@/lib/supabase/types";
 
@@ -51,28 +51,6 @@ export function RoomCover({ branding, name, className = "h-24", children }: { br
     <div className={cx("relative flex items-center bg-brand-soft px-5", className)}>
       <RoomMark branding={branding} name={name} className="h-9 max-w-full" />
       {children}
-    </div>
-  );
-}
-
-/**
- * The room's standing calls to action (up to three) as one group, each opening in a new tab: the
- * first in the accent, the rest secondary, so a room with several still has one obvious ask.
- * `className` styles the group's wrapper, `buttonClassName` every button. Null when the host set none.
- */
-export function RoomCtaButtons({ branding, size = "sm", className, buttonClassName }: { branding: RoomBranding; size?: "sm" | "md" | "lg"; className?: string; buttonClassName?: string }) {
-  const ctas = normalizeBranding(branding).ctas;
-  if (!ctas?.length) return null;
-  return (
-    <div className={cx("flex flex-wrap items-center gap-2", className)}>
-      {ctas.map((cta, i) => (
-        <ButtonLink key={`${i}:${cta.url}`} href={cta.url} external size={size} variant={i === 0 ? "primary" : "secondary"} className={buttonClassName}>
-          {cta.label}
-          <span aria-hidden className="-mr-0.5 opacity-70">
-            ↗
-          </span>
-        </ButtonLink>
-      ))}
     </div>
   );
 }

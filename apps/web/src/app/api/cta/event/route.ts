@@ -2,11 +2,12 @@ import { handler, json, readJson, requireUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { CtaAction } from "@/lib/supabase/types";
 
-type Body = { run_id: string; session_id: string; page_index?: number | null; action: CtaAction };
+type Body = { run_id: string; session_id: string; page_index?: number | null; action: CtaAction; button_index?: number };
 
 /**
  * Own the conversion data: log a row on view and on tap, before any checkout
- * loads, so abandonment is captured. offset_seconds is computed server-side.
+ * loads, so abandonment is captured. offset_seconds is computed server-side. A tap carries the
+ * index of the button in the group (0 for a view, which is of the whole group).
  */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
@@ -27,6 +28,7 @@ export const POST = handler(async (req) => {
       page_index: body.page_index ?? null,
       offset_seconds: offset,
       action: body.action,
+      button_index: body.action === "tap" && Number.isInteger(body.button_index) ? Math.min(2, Math.max(0, body.button_index as number)) : 0,
     })
     .select("id")
     .single();

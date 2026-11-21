@@ -37,49 +37,29 @@ describe("parseBranding", () => {
     expect(parseBranding({ accent: "#0EA5E9" })).toEqual({ branding: { accent: "#0ea5e9" } });
   });
   it("treats empty strings as unset", () => {
-    expect(parseBranding({ accent: "", logo_url: "", cta: { label: "", url: "" } })).toEqual({ branding: {} });
-    expect(parseBranding({ ctas: [{ label: "", url: "" }, { label: " ", url: "" }] })).toEqual({ branding: {} });
+    expect(parseBranding({ accent: "", logo_url: "" })).toEqual({ branding: {} });
   });
   it("names the field that is wrong", () => {
     expect(parseBranding({ accent: "blue" })).toEqual({ error: expect.stringContaining("accent colour") });
     expect(parseBranding({ logo_url: "ftp://x" })).toEqual({ error: expect.stringContaining("logo") });
     expect(parseBranding({ cover_url: "javascript:x" })).toEqual({ error: expect.stringContaining("cover picture") });
-    expect(parseBranding({ cta: { label: "", url: "https://x.io" } })).toEqual({ error: expect.stringContaining("label") });
-    expect(parseBranding({ cta: { label: "Buy", url: "nope" } })).toEqual({ error: expect.stringContaining("web address") });
-    expect(parseBranding({ cta: { label: "x".repeat(41), url: "https://x.io" } })).toEqual({ error: expect.stringContaining("40 characters") });
-    expect(parseBranding({ ctas: [{ label: "Go", url: "https://x.io" }, { label: "", url: "https://y.io" }] })).toEqual({ error: expect.stringContaining("second call to action needs a label") });
-    expect(parseBranding({ ctas: [{ label: "Go", url: "https://x.io" }, { label: "Two", url: "https://y.io" }, { label: "Three", url: "nope" }] })).toEqual({ error: expect.stringContaining("third call to action needs a web address") });
-  });
-  it("allows up to three calls to action and no more", () => {
-    const cta = { label: "Go", url: "https://x.io/" };
-    expect(parseBranding({ ctas: [cta, cta, cta] })).toEqual({ branding: { ctas: [cta, cta, cta] } });
-    expect(parseBranding({ ctas: [cta, cta, cta, cta] })).toEqual({ error: expect.stringContaining("up to 3") });
-  });
-  it("closes the gaps a host leaves between calls to action", () => {
-    expect(parseBranding({ ctas: [{ label: "", url: "" }, { label: "Two", url: "https://y.io" }] })).toEqual({ branding: { ctas: [{ label: "Two", url: "https://y.io/" }] } });
   });
   it("keeps an uploaded cover picture", () => {
     expect(parseBranding({ cover_url: "https://cdn/cover.jpg" })).toEqual({ branding: { cover_url: "https://cdn/cover.jpg" } });
     expect(parseBranding({ cover_url: "" })).toEqual({ branding: {} });
+  });
+  it("ignores the call to action older rows carry", () => {
+    expect(parseBranding({ cta: { label: "Go", url: "https://x.io" }, ctas: [{ label: "Go", url: "https://x.io" }] })).toEqual({ branding: {} });
   });
   it("keeps hide_name only alongside a logo", () => {
     expect(parseBranding({ logo_url: "https://cdn/x.png", hide_name: true })).toEqual({ branding: { logo_url: "https://cdn/x.png", hide_name: true } });
     expect(parseBranding({ logo_url: "https://cdn/x.png", hide_name: "yes" })).toEqual({ branding: { logo_url: "https://cdn/x.png" } });
     expect(parseBranding({ hide_name: true })).toEqual({ branding: {} });
   });
-  it("keeps a complete call to action, trimmed", () => {
-    expect(parseBranding({ ctas: [{ label: "  Book a demo ", url: " https://tertulia.cloud/demo " }] })).toEqual({ branding: { ctas: [{ label: "Book a demo", url: "https://tertulia.cloud/demo" }] } });
-  });
-  it("reads the single cta of rows from before the group as the first of it", () => {
-    expect(parseBranding({ cta: { label: "Book a demo", url: "https://tertulia.cloud/demo" } })).toEqual({ branding: { ctas: [{ label: "Book a demo", url: "https://tertulia.cloud/demo" }] } });
-    expect(normalizeBranding({ cta: { label: "Book a demo", url: "https://tertulia.cloud/demo" } }).ctas).toEqual([{ label: "Book a demo", url: "https://tertulia.cloud/demo" }]);
-  });
 });
 
 describe("normalizeBranding", () => {
   it("salvages the valid parts of a bad row", () => {
-    expect(normalizeBranding({ accent: "nope", logo_url: "https://cdn/x.png", cover_url: "nope", cta: { label: "Go", url: "bad" } })).toEqual({ logo_url: "https://cdn/x.png" });
-    expect(normalizeBranding({ ctas: [{ label: "Go", url: "bad" }, { label: "Two", url: "https://y.io" }, "x", { label: "Four", url: "https://z.io" }] })).toEqual({ ctas: [{ label: "Two", url: "https://y.io/" }] });
   });
   it("tolerates garbage", () => {
     expect(normalizeBranding("x")).toEqual({});
@@ -125,7 +105,5 @@ describe("brandVars", () => {
 describe("isBranded", () => {
   it("is false for the default and true once anything is set", () => {
     expect(isBranded({})).toBe(false);
-    expect(isBranded({ ctas: [{ label: "Go", url: "https://x.io" }] })).toBe(true);
-    expect(isBranded({ ctas: [] })).toBe(false);
   });
 });

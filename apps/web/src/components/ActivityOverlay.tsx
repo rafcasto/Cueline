@@ -4,6 +4,7 @@ import { ResultsView } from "@/components/ResultsView";
 import { cx } from "@/components/ui";
 import { useNow } from "@/hooks/useSession";
 import { api } from "@/lib/api";
+import { ctaButtonText, ctaButtons } from "@/lib/cta";
 import { runPhase, timeLeftMs, type SessionData } from "@/lib/session-state";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Activity, ActivityRun } from "@/lib/supabase/types";
@@ -152,15 +153,19 @@ function AnswerForm({ run, activity, userId }: { run: ActivityRun; activity: Act
   );
 }
 
-/** Logs a view when shown and a tap before any checkout loads, so abandonment is captured. */
+/**
+ * The group of up to three buttons under the title, the first in the accent and the rest quiet so
+ * one ask leads. Logs a view when shown and, on each button, a tap (with the button's index)
+ * before any checkout loads, so abandonment is captured. A Stripe button swaps the group for the
+ * checkout; an embed button swaps it for the page; a tab button opens the tab and leaves the group.
+ */
 function CtaBody({ run, activity, roomSlug, pageIndex, readOnly }: { run: ActivityRun; activity: Activity; roomSlug: string; pageIndex: number | null; readOnly?: boolean }) {
+  const buttons = ctaButtons(activity);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
-  const [embed, setEmbed] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [embed, setEmbed] = useState<number | null>(null);
+  const [busy, setBusy] = useState<number | null>(null);
   const viewed = useRef<string | null>(null);
-  const dest = activity.config.destination ?? "tab";
-  const target = activity.config.target ?? "";
 
   useEffect(() => {
     if (readOnly || viewed.current === run.id) return;
@@ -168,33 +173,55 @@ function CtaBody({ run, activity, roomSlug, pageIndex, readOnly }: { run: Activi
     void api("/api/cta/event", { run_id: run.id, session_id: run.session_id, page_index: pageIndex, action: "view" }).catch(() => undefined);
   }, [run.id, run.session_id, pageIndex, readOnly]);
 
-  const tap = async () => {
-    setBusy(true);
+  const tap = async (i: number) => {
+    const b = buttons[i];
+    setBusy(i);
     try {
-      const { cta_event_id } = await api<{ cta_event_id: string }>("/api/cta/event", { run_id: run.id, session_id: run.session_id, page_index: pageIndex, action: "tap" });
-      if (dest === "stripe") {
-        const r = await api<{ client_secret: string; publishable_key: string | null }>("/api/cta/checkout", { run_id: run.id, cta_event_id, room_slug: roomSlug });
+      const { cta_event_id } = await api<{ cta_event_id: string }>("/api/cta/event", { run_id: run.id, session_id: run.session_id, page_index: pageIndex, action: "tap", button_index: i });
+      if (b.destination === "stripe") {
+        const r = await api<{ client_secret: string; publishable_key: string | null }>("/api/cta/checkout", { run_id: run.id, cta_event_id, room_slug: roomSlug, button_index: i });
         setPublishableKey(r.publishable_key);
         setClientSecret(r.client_secret);
-      } else if (dest === "embed") setEmbed(true);
-      else window.open(target, "_blank", "noopener");
+      } else if (b.destination === "embed") setEmbed(i);
+      else window.open(b.target, "_blank", "noopener");
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
-  if (readOnly) return <p className="mt-2 text-xs text-cream/60">{dest} · {target}</p>;
+  if (readOnly) {
+    return (
+      <ul className="mt-2 space-y-0.5 text-xs text-cream/60">
+        {buttons.map((b, i) => (
+          <li key={i} className="truncate">
+            {ctaButtonText(b)} · {b.destination} · {b.target}
+          </li>
+        ))}
+      </ul>
+    );
+  }
   if (clientSecret) return <div className="mt-4 overflow-hidden rounded-lg bg-white"><StripeCheckout clientSecret={clientSecret} publishableKey={publishableKey} /></div>;
-  if (embed) return <EmbedFrame url={target} onBlocked={() => { setEmbed(false); window.open(target, "_blank", "noopener"); }} />;
+  if (embed !== null) {
+    const url = buttons[embed].target;
+    return <EmbedFrame url={url} onBlocked={() => { setEmbed(null); window.open(url, "_blank", "noopener"); }} />;
+  }
   return (
-    <button
-      type="button"
-      onClick={() => void tap()}
-      disabled={busy}
-      className="mt-4 inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-lg bg-brand px-4 font-semibold text-brand-contrast transition-colors hover:bg-brand-hover disabled:pointer-events-none disabled:opacity-50"
-    >
-      {dest === "stripe" ? "Buy now" : "Open"}
-    </button>
+    <div className="mt-4 flex flex-col gap-2">
+      {buttons.map((b, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => void tap(i)}
+          disabled={busy !== null}
+          className={cx(
+            "inline-flex h-11 w-full cursor-pointer items-center justify-center rounded-lg px-4 font-semibold transition-colors disabled:pointer-events-none disabled:opacity-50",
+            i === 0 ? "bg-brand text-brand-contrast hover:bg-brand-hover" : "border border-white/20 bg-white/10 text-white hover:bg-white/15",
+          )}
+        >
+          {ctaButtonText(b)}
+        </button>
+      ))}
+    </div>
   );
 }
 

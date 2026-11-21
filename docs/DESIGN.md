@@ -95,7 +95,7 @@ Authored in the host panel and stored per room, so they are reusable across sess
 | Poll | 2–10 options, single choice | optional | bars with percentages |
 | Quiz | 2–10 options, one or more marked correct; points | optional | bars with correct answers marked, plus a leaderboard |
 | Word cloud | free text, up to 80 characters | optional | word cloud sized by frequency |
-| Call to action | destination (Stripe / embed / tab) and target | none | interactions count |
+| Call to action | a title and up to three buttons, each with a destination (Stripe / embed / tab) and target | none | interactions count |
 
 **Run lifecycle.** Activate inserts an `activity_runs` row. A trigger sets `closes_at = opened_at + timer`. The overlay counts down; the database rejects answers after `closes_at` (2 s grace) or after the presenter closes the run, so the timer is enforced server-side. When time is up the presenter sees "Show results to participants", which sets `results_shown_at` and flips every overlay to the results view. "Hide results" and "Dismiss overlay" follow. Activating a new activity dismisses the previous one.
 
@@ -123,7 +123,9 @@ A CTA is an activity like any other. Prefer the embedded overlay: a new tab mid-
 | Embedded external | Target URL in an iframe inside the panel | Only works if the site allows framing; most SaaS signup pages send `X-Frame-Options: DENY`. Test at authoring time and fall back automatically |
 | New tab | `window.open` | Last resort |
 
-**Own the conversion data.** Log a `cta_events` row on view and on tap, before the checkout loads, so abandonment is captured. Every row carries user, run, page index and `offset_seconds` from session start, which answers "who tapped, at what minute, on which slide".
+**Own the conversion data.** Log a `cta_events` row on view and on tap, before the checkout loads, so abandonment is captured. Every row carries user, run, page index, `offset_seconds` from session start and, for a tap, `button_index` in the group, which answers "who tapped what, at what minute, on which slide".
+
+**Groups.** A call to action is one overlay: a title and up to three buttons (`config.buttons`, helpers in `lib/cta.ts`), the first in the room's accent and the rest quiet, so a session can offer *Register your interest*, *Free 7-day course* and *Learn more* at once without three activations. Rows from before groups carry a single destination and target at the top of `config`; they read as one unlabelled button that says "Open" or "Buy now".
 
 ## Pricing, free tier and economics
 

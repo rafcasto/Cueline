@@ -1,0 +1,11 @@
+-- A call to action is a group of up to three buttons.
+--
+-- activities.config for a call to action now carries `buttons`: up to three
+-- { "label", "destination": "stripe"|"embed"|"tab", "target" }, with the first button's
+-- destination and target still at the top of the config, so rows written before this (one
+-- destination and target, no buttons) read as a single button and need no rewrite.
+--
+-- A tap says which button it was, so the conversion data keeps answering "who tapped what":
+-- `button_index` is the button's position in the group, 0 for the only button of an older row
+-- and for every view (a view is of the group).
+alter table public.cta_events add column button_index int not null default 0 check (button_index between 0 and 2);

@@ -77,11 +77,8 @@ export type StageVideoShape = "rect" | "circle";
 export type StageVideoBox = { x: number; y: number; w: number };
 export type StageLayout = { mode: StageLayoutMode; video?: StageVideoBox; shape?: StageVideoShape };
 
-/**
- * Accent colour, logo, cover picture and up to three standing calls to action; see normalizeBranding() in
- * lib/branding. Rows from before the group carry one `cta` object, which the normaliser reads as the first.
- */
-export type RoomBranding = { accent?: string; logo_url?: string; hide_name?: boolean; cover_url?: string; ctas?: { label: string; url: string }[]; cta?: { label: string; url: string } };
+/** Accent colour, logo and cover picture; see normalizeBranding() in lib/branding. Older rows may carry a `cta`, which is ignored. */
+export type RoomBranding = { accent?: string; logo_url?: string; hide_name?: boolean; cover_url?: string };
 
 export type Room = {
   id: string;
@@ -144,7 +141,11 @@ export type Session = {
 };
 
 export type ActivityOption = { id: string; label: string; correct?: boolean };
-export type CtaConfig = { destination: CtaDestination; target: string };
+/**
+ * A call to action: up to three buttons (`buttons`, see lib/cta). `destination` and `target` are the
+ * first button's, kept at the top so rows from before groups, which have only those, read the same.
+ */
+export type CtaConfig = { destination: CtaDestination; target: string; buttons?: { label: string; destination: CtaDestination; target: string }[] };
 
 export type Activity = {
   id: string;

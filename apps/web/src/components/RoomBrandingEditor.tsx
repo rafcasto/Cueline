@@ -1,30 +1,21 @@
 "use client";
 import { useState } from "react";
-import { BrandScope, RoomCover, RoomCtaButtons, RoomMark } from "@/components/RoomBrand";
+import { BrandScope, RoomCover, RoomMark } from "@/components/RoomBrand";
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, buttonClass, cx } from "@/components/ui";
 import { api } from "@/lib/api";
-import { CTA_LABEL_MAX, CTA_MAX, DEFAULT_ACCENT, normalizeBranding, normalizeHex, parseBranding, showsRoomName } from "@/lib/branding";
+import { DEFAULT_ACCENT, normalizeBranding, normalizeHex, parseBranding, showsRoomName } from "@/lib/branding";
 import { uploadToBucket } from "@/lib/storage";
 import type { Room, RoomBranding } from "@/lib/supabase/types";
 import { MEDIA_PICKER_ACCEPT, checkMediaFile, fileLabel, formatBytes } from "@/lib/waiting-room";
 
-type DraftCta = { label: string; url: string };
-/** Always CTA_MAX call-to-action pairs; blank pairs are dropped on save. */
-type Draft = { accent: string; logo_url: string; hideName: boolean; cover_url: string; ctas: DraftCta[] };
-
-const CTA_SLOT = [
-  { label: "Call to action", placeholder: "Book a demo" },
-  { label: "Second call to action", placeholder: "See the pricing" },
-  { label: "Third call to action", placeholder: "Join the newsletter" },
-];
+type Draft = { accent: string; logo_url: string; hideName: boolean; cover_url: string };
 
 function toDraft(b: RoomBranding): Draft {
   const n = normalizeBranding(b);
-  const ctas = Array.from({ length: CTA_MAX }, (_, i) => ({ label: n.ctas?.[i]?.label ?? "", url: n.ctas?.[i]?.url ?? "" }));
-  return { accent: n.accent ?? DEFAULT_ACCENT, logo_url: n.logo_url ?? "", hideName: !!n.hide_name, cover_url: n.cover_url ?? "", ctas };
+  return { accent: n.accent ?? DEFAULT_ACCENT, logo_url: n.logo_url ?? "", hideName: !!n.hide_name, cover_url: n.cover_url ?? "" };
 }
 function toBranding(d: Draft): RoomBranding {
-  return { accent: d.accent, logo_url: d.logo_url, hide_name: d.hideName, cover_url: d.cover_url, ctas: d.ctas };
+  return { accent: d.accent, logo_url: d.logo_url, hide_name: d.hideName, cover_url: d.cover_url };
 }
 
 /**
@@ -44,9 +35,6 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
   const savedDraft = toDraft(room.branding);
   const dirty = JSON.stringify(draft) !== JSON.stringify(savedDraft);
   const preview = normalizeBranding(toBranding(draft));
-  // The preview shows a button as soon as its label is typed, before the address is valid.
-  const previewRoom = { ...preview, ctas: draft.ctas.filter((c) => c.label.trim()).map((c) => ({ label: c.label.trim(), url: normalizeBranding({ ctas: [c] }).ctas?.[0]?.url ?? "https://tertulia.cloud" })) };
-
   const setAccent = (value: string) => {
     setHexText(value);
     const hex = normalizeHex(value);
@@ -99,7 +87,7 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
 
   return (
     <Card>
-      <CardHeader title="Branding" description="Your colour, your logo, a cover picture and up to three calls to action, on Explore, the invite page and in the room." />
+      <CardHeader title="Branding" description="Your colour, your logo and a cover picture, on Explore, the invite page and in the room." />
 
       <BrandScope branding={preview} className="mt-6 overflow-hidden rounded-xl border border-line">
         <RoomCover branding={preview} name={room.name} className="h-28" />
@@ -109,7 +97,6 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
             <span className={cx("truncate text-base font-semibold text-ink", !showsRoomName(preview) && "sr-only")}>{room.name}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <RoomCtaButtons branding={previewRoom} />
             <Badge tone="brand" dot>
               12 here
             </Badge>
@@ -127,7 +114,7 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
         </div>
       </BrandScope>
 
-      <div className="mt-6 grid gap-6 md:grid-cols-2">
+      <div className="mt-6 max-w-xl">
         <div className="space-y-4">
           <Field label="Accent colour" htmlFor="brand-accent" hint="Buttons, badges, the chosen answer and the result bars. Text on it flips to dark automatically for light colours.">
             <div className="flex items-center gap-2">
@@ -190,27 +177,6 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
           </div>
         </div>
 
-        <div className="space-y-5">
-          {draft.ctas.map((cta, i) => {
-            // Show the next pair once the one before it has a label, so a host with one ask sees one pair.
-            if (i > 0 && !draft.ctas[i - 1].label.trim() && !cta.label.trim() && !cta.url.trim()) return null;
-            const set = (patch: Partial<DraftCta>) => setDraft((d) => ({ ...d, ctas: d.ctas.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
-            return (
-              <div key={i} className="space-y-4">
-                <Field
-                  label={CTA_SLOT[i].label}
-                  htmlFor={`brand-cta-label-${i}`}
-                  hint={i === 0 ? `Up to ${CTA_MAX} buttons as a group in the room header and under the stage, for the whole session. The first is in your accent. Leave a pair empty for none.` : undefined}
-                >
-                  <Input id={`brand-cta-label-${i}`} value={cta.label} onChange={(e) => set({ label: e.target.value })} maxLength={CTA_LABEL_MAX} placeholder={CTA_SLOT[i].placeholder} />
-                </Field>
-                <Field label="Opens" htmlFor={`brand-cta-url-${i}`}>
-                  <Input id={`brand-cta-url-${i}`} type="url" inputMode="url" value={cta.url} onChange={(e) => set({ url: e.target.value })} placeholder="https://" spellCheck={false} />
-                </Field>
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       {msg && (
