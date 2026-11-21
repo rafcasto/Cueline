@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/AppShell";
 import { EventCard, TopicChips } from "@/components/ExploreCards";
-import { BrandScope, RoomCover, RoomCtaButtons, RoomMark } from "@/components/RoomBrand";
+import { BrandScope, RoomCover, RoomMark } from "@/components/RoomBrand";
 import { Badge, ButtonLink, EmptyState, Stat, cx } from "@/components/ui";
 import { showsRoomName } from "@/lib/branding";
 import { formatEventTime, publicRoomBySlug } from "@/lib/explore";
@@ -58,7 +58,6 @@ export default async function PublicRoomPage({ params }: { params: Promise<{ slu
                 </ButtonLink>
               )}
               {!live && upcoming[0] && <ButtonLink href={`/join/${upcoming[0].token}`}>Register for the next event</ButtonLink>}
-              <RoomCtaButtons branding={room.branding} size="md" />
             </div>
           </div>
           <div className="flex gap-8 sm:pt-2">

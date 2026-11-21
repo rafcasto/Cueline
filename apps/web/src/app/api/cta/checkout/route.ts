@@ -1,20 +1,26 @@
 import { handler, json, readJson, requireUser } from "@/lib/auth";
 import { publicEnv } from "@/lib/env";
 import { loadRoomAccess } from "@/lib/billing";
+import { ctaButtons } from "@/lib/cta";
 import { activeStripeMode, stripeFor, stripeKeys } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import type { Activity } from "@/lib/supabase/types";
 
-type Body = { run_id: string; cta_event_id: string; room_slug: string };
+type Body = { run_id: string; cta_event_id: string; room_slug: string; button_index?: number };
 
-/** Stripe Embedded Checkout inside the overlay: returns the client secret; the webhook writes orders. */
+/**
+ * Stripe Embedded Checkout inside the overlay: returns the client secret; the webhook writes
+ * orders. `button_index` says which button of the group was tapped; the first when absent.
+ */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
   const body = await readJson<Body>(req);
   const admin = supabaseAdmin();
 
   const { data: run } = await admin.from("activity_runs").select("id, org_id, session_id, activities(kind, config), sessions(room_id)").eq("id", body.run_id).maybeSingle();
-  const activity = run?.activities as unknown as { kind: string; config: { destination?: string; target?: string } } | null;
-  if (!run || !activity || activity.kind !== "cta" || activity.config.destination !== "stripe" || !activity.config.target) {
+  const activity = run?.activities as unknown as Pick<Activity, "kind" | "config"> | null;
+  const button = activity?.kind === "cta" ? ctaButtons(activity)[Number.isInteger(body.button_index) ? (body.button_index as number) : 0] : undefined;
+  if (!run || !button || button.destination !== "stripe" || !button.target) {
     return json({ error: "not a Stripe CTA" }, { status: 400 });
   }
 
@@ -28,7 +34,7 @@ export const POST = handler(async (req) => {
   const checkout = await stripeFor(mode).checkout.sessions.create({
     ui_mode: "embedded",
     mode: "payment",
-    line_items: [{ price: activity.config.target, quantity: 1 }],
+    line_items: [{ price: button.target, quantity: 1 }],
     return_url: `${publicEnv.appUrl}/r/${encodeURIComponent(body.room_slug)}?checkout={CHECKOUT_SESSION_ID}`,
     metadata: { org_id: run.org_id, session_id: run.session_id, run_id: run.id, cta_event_id: body.cta_event_id, user_id: user.id },
   });

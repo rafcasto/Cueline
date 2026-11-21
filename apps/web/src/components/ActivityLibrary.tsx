@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, Select, cx } from "@/components/ui";
+import { CTA_BUTTONS_MAX, CTA_BUTTON_LABEL_MAX, ctaButtons, emptyCtaButton, parseCtaButtons, type CtaButton } from "@/lib/cta";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Activity, ActivityKind, ActivityOption, CtaDestination } from "@/lib/supabase/types";
 
@@ -23,14 +24,28 @@ const KINDS: { kind: ActivityKind; label: string }[] = [
 
 const kindLabel = (k: ActivityKind) => KINDS.find((x) => x.kind === k)?.label ?? k;
 
-/** Presenter-authored activities: create, edit, delete, and activate at any point. */
+/**
+ * Presenter-authored activities: create, edit, delete, and activate at any point. A call to action
+ * is a title over the slides and a group of up to three buttons, each with its own destination;
+ * the form always edits the buttons as a list (`config.buttons`), reading older rows through
+ * ctaButtons() so their one button appears as the first of the list.
+ */
 export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivate, activeId }: Props) {
   const [editing, setEditing] = useState<Partial<Activity> | null>(null);
   const [busy, setBusy] = useState(false);
   const sb = supabaseBrowser();
 
+  const buttons: CtaButton[] = editing?.kind === "cta" ? ctaButtons({ config: editing.config ?? {} }) : [];
+  const setButtons = (next: CtaButton[]) => setEditing((e) => (e ? { ...e, config: { ...e.config, buttons: next } } : e));
+
   const save = async () => {
     if (!editing?.title?.trim()) return;
+    let config = editing.config ?? {};
+    if (editing.kind === "cta") {
+      const parsed = parseCtaButtons(buttons);
+      if ("error" in parsed) return alert(parsed.error);
+      config = parsed.config;
+    }
     setBusy(true);
     const row = {
       org_id: orgId,
@@ -38,7 +53,7 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
       kind: editing.kind ?? "poll",
       title: editing.title.trim(),
       options: editing.kind === "wordcloud" || editing.kind === "cta" ? [] : (editing.options ?? []).filter((o) => o.label.trim()),
-      config: editing.config ?? {},
+      config,
       timer_seconds: editing.timer_seconds ?? null,
       points: editing.points ?? 1000,
       sort_order: editing.sort_order ?? activities.length,
@@ -68,7 +83,7 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
             key={k.kind}
             variant="secondary"
             size="sm"
-            onClick={() => setEditing({ kind: k.kind, title: "", options: k.kind === "poll" || k.kind === "quiz" ? [opt(), opt()] : [], config: k.kind === "cta" ? { destination: "tab", target: "" } : {} })}
+            onClick={() => setEditing({ kind: k.kind, title: "", options: k.kind === "poll" || k.kind === "quiz" ? [opt(), opt()] : [], config: k.kind === "cta" ? { destination: "tab", target: "", buttons: [emptyCtaButton()] } : {} })}
           >
             + {k.label}
           </Button>
@@ -78,8 +93,8 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
       {editing && (
         <div className="mt-6 space-y-4 rounded-lg bg-surface-inset p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{editing.id ? "Edit" : "New"} {kindLabel(editing.kind ?? "poll").toLowerCase()}</p>
-          <Field label={editing.kind === "cta" ? "Button label" : "Question"} htmlFor="activity-title">
-            <Input id="activity-title" autoFocus value={editing.title ?? ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
+          <Field label={editing.kind === "cta" ? "Title" : "Question"} htmlFor="activity-title" hint={editing.kind === "cta" ? "The heading over the slides, above the buttons." : undefined}>
+            <Input id="activity-title" autoFocus value={editing.title ?? ""} onChange={(e) => setEditing({ ...editing, title: e.target.value })} placeholder={editing.kind === "cta" ? "Next steps" : undefined} />
           </Field>
           {(editing.kind === "poll" || editing.kind === "quiz") && (
             <div className="space-y-1.5">
@@ -111,17 +126,40 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
             </div>
           )}
           {editing.kind === "cta" && (
-            <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
-              <Field label="Opens" htmlFor="cta-destination">
-                <Select id="cta-destination" value={editing.config?.destination ?? "tab"} onChange={(e) => setEditing({ ...editing, config: { ...editing.config, destination: e.target.value as CtaDestination } })}>
-                  <option value="stripe">Stripe checkout</option>
-                  <option value="embed">Embedded page</option>
-                  <option value="tab">New tab</option>
-                </Select>
-              </Field>
-              <Field label={editing.config?.destination === "stripe" ? "Price id" : "URL"} htmlFor="cta-target">
-                <Input id="cta-target" value={editing.config?.target ?? ""} onChange={(e) => setEditing({ ...editing, config: { ...editing.config, target: e.target.value } })} placeholder={editing.config?.destination === "stripe" ? "price_…" : "https://…"} />
-              </Field>
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-ink">
+                Buttons<span className="ml-2 text-xs font-normal text-ink-muted">up to {CTA_BUTTONS_MAX}, as a group; the first is in your accent</span>
+              </p>
+              <ul className="space-y-3">
+                {buttons.map((b, i) => {
+                  const set = (patch: Partial<CtaButton>) => setButtons(buttons.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+                  return (
+                    <li key={i} className="grid gap-3 rounded-lg border border-line bg-surface-raised p-3 sm:grid-cols-[1fr_170px_1fr_auto] sm:items-end">
+                      <Field label={i === 0 ? "Button label" : `Button ${i + 1} label`} htmlFor={`cta-label-${i}`}>
+                        <Input id={`cta-label-${i}`} value={b.label} maxLength={CTA_BUTTON_LABEL_MAX} onChange={(e) => set({ label: e.target.value })} placeholder={buttons.length > 1 ? "Register your interest" : b.destination === "stripe" ? "Buy now" : "Open"} />
+                      </Field>
+                      <Field label="Opens" htmlFor={`cta-destination-${i}`}>
+                        <Select id={`cta-destination-${i}`} value={b.destination} onChange={(e) => set({ destination: e.target.value as CtaDestination })}>
+                          <option value="stripe">Stripe checkout</option>
+                          <option value="embed">Embedded page</option>
+                          <option value="tab">New tab</option>
+                        </Select>
+                      </Field>
+                      <Field label={b.destination === "stripe" ? "Price id" : "URL"} htmlFor={`cta-target-${i}`}>
+                        <Input id={`cta-target-${i}`} value={b.target} onChange={(e) => set({ target: e.target.value })} placeholder={b.destination === "stripe" ? "price_…" : "https://…"} spellCheck={false} />
+                      </Field>
+                      <Button variant="ghost" size="sm" aria-label={`Remove button ${i + 1}`} disabled={buttons.length === 1} className="sm:mb-1" onClick={() => setButtons(buttons.filter((_, j) => j !== i))}>
+                        ✕
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {buttons.length < CTA_BUTTONS_MAX && (
+                <Button variant="ghost" size="sm" onClick={() => setButtons([...buttons, emptyCtaButton()])}>
+                  + Add a button
+                </Button>
+              )}
             </div>
           )}
           {editing.kind !== "cta" && (
@@ -166,6 +204,7 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
                   {kindLabel(a.kind)}
                 </Badge>
                 <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{a.title}</span>
+                {a.kind === "cta" && ctaButtons(a).length > 1 && <span className="hidden text-xs tabular-nums text-ink-muted sm:inline">{ctaButtons(a).length} buttons</span>}
                 {a.timer_seconds && <span className="hidden text-xs tabular-nums text-ink-muted sm:inline">⏱ {a.timer_seconds}s</span>}
                 {onActivate && (
                   <Button variant="success" size="sm" onClick={() => void onActivate(a)} disabled={active}>

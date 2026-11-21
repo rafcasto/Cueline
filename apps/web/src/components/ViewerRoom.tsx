@@ -7,14 +7,14 @@ import { LiveViewer, type Transport } from "@/components/LiveViewer";
 import { PdfPage } from "@/components/PdfPage";
 import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
-import { BrandScope, RoomCtaButtons, RoomMark } from "@/components/RoomBrand";
+import { BrandScope, RoomMark } from "@/components/RoomBrand";
 import { RoomStage } from "@/components/RoomStage";
 import { StageCanvas } from "@/components/StageCanvas";
 import { WaitingRoom } from "@/components/WaitingRoom";
 import { Alert, Badge, Button, Tabs, cx } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
 import { api } from "@/lib/api";
-import { normalizeBranding, showsRoomName } from "@/lib/branding";
+import { showsRoomName } from "@/lib/branding";
 import { chatMessages, currentRun } from "@/lib/session-state";
 import { normalizeStageLayout } from "@/lib/stage-layout";
 import { publicUrl } from "@/lib/storage";
@@ -164,7 +164,6 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
       <RoomFrame room={room} status={<Badge>Not live</Badge>}>
         <WaitingRoom config={room.waiting_room} />
         <p className="mt-4 text-center text-sm text-ink-muted">This session is not live right now. Keep this page open, or come back with the link from your email.</p>
-        <MobileCta room={room} />
       </RoomFrame>
     );
   }
@@ -189,7 +188,6 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
           </Alert>
         )}
         <p className="mt-4 text-center text-sm text-ink-muted">Doors are open. The host will start shortly.</p>
-        <MobileCta room={room} />
         <div className="mt-4 flex justify-center">
           <ReactionBar onFlush={react} lastReaction={state.lastReaction} disabled />
         </div>
@@ -244,7 +242,6 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
           <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
             <ReactionBar onFlush={react} lastReaction={state.lastReaction} />
             <div className="flex flex-wrap items-center gap-2">
-              <RoomCtaButtons branding={room.branding} size="md" className="sm:hidden" buttonClassName="rounded-full" />
               <Button variant={handUp ? "primary" : "secondary"} onClick={() => void toggleHand()} className={cx("rounded-full")}>
                 <span aria-hidden>✋</span> {handUp ? "Lower hand" : "Raise hand"}
               </Button>
@@ -279,12 +276,6 @@ export function ViewerRoom({ room, session: initialSession, presentation: initia
   );
 }
 
-/** The calls to action where the header has no room for them: under the content, phones only. */
-function MobileCta({ room }: { room: Room }) {
-  if (!normalizeBranding(room.branding).ctas?.length) return null;
-  return <RoomCtaButtons branding={room.branding} size="md" className="mt-4 justify-center sm:hidden" buttonClassName="rounded-full" />;
-}
-
 /**
  * Attendee chrome for the room, in the room's branding: its logo (or the product mark) and
  * name on the left, the call to action and the state on the right, nothing else. The accent
@@ -301,7 +292,6 @@ function RoomFrame({ room, status, wide, children }: { room: Room; status: React
             <h1 className={cx("truncate text-base font-semibold text-ink", !showsRoomName(room.branding) && "sr-only")}>{room.name}</h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <RoomCtaButtons branding={room.branding} className="hidden sm:flex" />
             {status}
           </div>
         </div>

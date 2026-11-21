@@ -61,7 +61,7 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 | Deck | yes | yes | yes |
 | Audience video quality | up to 540p | 720p | 720p |
 | Recording | no | MP4 | MP4 + HLS fallback |
-| Branding | Tertulia mark | accent + logo | accent + logo + CTA, no *Powered by* |
+| Branding | Tertulia mark | accent + logo | accent + logo + cover, no *Powered by* |
 | Promote to stage | no | 1 at a time | 3 at a time |
 | Email sequence | welcome and waiting-list note only | welcome, waiting-list note + 4 reminders | welcome, waiting-list note + 4 reminders, editable |
 | Call to action with Stripe checkout | no | no | yes |
