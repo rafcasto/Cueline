@@ -2,10 +2,11 @@
 import Link from "next/link";
 import { Alert, Badge, ButtonLink, Card, CardHeader, EmptyState } from "@/components/ui";
 import type { PlanLimits } from "@/lib/plans";
+import { recordingLength, retention } from "@/lib/recordings";
 import type { Session } from "@/lib/supabase/types";
 
 type Props = {
-  /** Ended sessions with a recording, newest first. */
+  /** Ended sessions whose recording is still on file, newest first. */
   recordings: Session[];
   limits: PlanLimits;
   /** A session is live and being recorded right now. */
@@ -16,23 +17,13 @@ function when(iso: string) {
   return new Date(iso).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function day(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-}
-
-function length(s: Session) {
-  if (!s.started_at || !s.ended_at) return null;
-  const mins = Math.max(1, Math.round((new Date(s.ended_at).getTime() - new Date(s.started_at).getTime()) / 60_000));
-  return mins >= 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`;
-}
-
 /**
  * The room's recordings: one MP4 per session that went live on a plan with recording, as the
  * attendees saw it (deck, presenter video, activities). Each is kept for the plan's retention
- * and removed by the nightly sweep; the row stays, marked, so the host knows where it went.
+ * and removed by the nightly sweep or an admin; once it is gone the row goes with it.
  */
 export function RecordingsList({ recordings, limits, live }: Props) {
-  const retention = limits.recordingDays ? (limits.recordingDays >= 365 ? "a year" : `${limits.recordingDays} days`) : null;
+  const keptFor = limits.recordingDays ? (limits.recordingDays >= 365 ? "a year" : `${limits.recordingDays} days`) : null;
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {!limits.recording && (
@@ -44,47 +35,48 @@ export function RecordingsList({ recordings, limits, live }: Props) {
           and every session from then on is saved as an MP4 of what attendees saw, kept for a year.
         </Alert>
       )}
-      {live && (
-        <Alert tone="success" title="Recording now">
-          This session is being recorded. The file is ready a few moments after you end the session.
-        </Alert>
-      )}
       <Card>
-        <CardHeader
-          title="Recordings"
-          description={retention ? `What attendees saw, as an MP4. Each one is kept for ${retention} after the session, then deleted.` : "What attendees saw, as an MP4."}
-        />
+        <CardHeader title="Recordings" description={keptFor ? `What attendees saw, as an MP4, kept for ${keptFor} after each session.` : "What attendees saw, as an MP4."} />
+        {live && (
+          <div className="mt-6 flex items-center gap-4 rounded-lg bg-surface-inset px-4 py-3">
+            <span className="relative flex size-2.5 shrink-0">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-live opacity-60" />
+              <span className="relative inline-flex size-2.5 rounded-full bg-live" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-ink">Recording now</p>
+              <p className="mt-0.5 text-xs text-ink-muted">The file is ready a few moments after you end the session.</p>
+            </div>
+          </div>
+        )}
         {recordings.length === 0 ? (
-          <EmptyState className="mt-4" title="No recordings yet" description={limits.recording ? "Go live and the session is recorded; it appears here when you end it." : undefined} />
+          <EmptyState className="mt-6" icon={<FilmIcon className="size-5" />} title="No recordings yet" description={limits.recording ? "Go live and the session is recorded; it appears here when you end it." : undefined} />
         ) : (
           <ul className="mt-4 divide-y divide-line">
             {recordings.map((s) => {
-              const gone = !!s.recording_deleted_at;
-              const expired = !gone && !!s.recording_expires_at && new Date(s.recording_expires_at) < new Date();
-              const len = length(s);
+              const len = recordingLength(s);
+              const keep = retention(s.recording_expires_at);
               return (
-                <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+                <li key={s.id} className="flex items-center gap-4 py-4">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-surface-inset text-ink-muted">
+                    <FilmIcon className="size-5" />
+                  </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-ink">{s.started_at ? when(s.started_at) : when(s.created_at)}</p>
-                    <p className="mt-0.5 text-xs text-ink-muted">
-                      {len && <span>{len}</span>}
-                      {len && " · "}
-                      {gone
-                        ? `Deleted ${day(s.recording_deleted_at!)}`
-                        : expired
-                          ? "Past its retention; deleted on the next sweep"
-                          : s.recording_expires_at
-                            ? `Kept until ${day(s.recording_expires_at)}`
-                            : "Kept"}
+                    <p className="truncate text-sm font-semibold text-ink">{when(s.started_at ?? s.created_at)}</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+                      {len && <span className="tabular-nums">{len}</span>}
+                      {len && <span aria-hidden>·</span>}
+                      <span>{keep.label}</span>
+                      {keep.kind === "soon" && <Badge tone="warning">{keep.days === 1 ? "1 day left" : `${keep.days} days left`}</Badge>}
+                      {keep.kind === "expired" && <Badge tone="neutral">Expiring</Badge>}
                     </p>
                   </div>
-                  {gone || expired ? (
-                    <Badge tone="neutral">{gone ? "Deleted" : "Expiring"}</Badge>
-                  ) : (
-                    <ButtonLink href={s.recording_url!} external variant="secondary" size="sm" download>
-                      Download MP4
-                    </ButtonLink>
-                  )}
+                  <ButtonLink href={s.recording_url!} external variant="secondary" size="sm" download>
+                    <DownloadIcon className="size-4" />
+                    <span>
+                      Download<span className="hidden sm:inline"> MP4</span>
+                    </span>
+                  </ButtonLink>
                 </li>
               );
             })}
@@ -92,5 +84,22 @@ export function RecordingsList({ recordings, limits, live }: Props) {
         )}
       </Card>
     </div>
+  );
+}
+
+function FilmIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 9h18M3 15h18M8 5v14M16 5v14" />
+    </svg>
+  );
+}
+
+function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 4v11M7 10l5 5 5-5M4 19h16" />
+    </svg>
   );
 }

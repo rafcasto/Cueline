@@ -22,7 +22,7 @@ export default async function HostRoomPage({ params }: { params: Promise<{ slug:
 
   const [{ data: session }, { data: past }, { data: presentations }, { data: activities }, { data: invites }, { data: registrations }, loaded, platformAdmin] = await Promise.all([
     sb.from("sessions").select("*").eq("room_id", room.id).neq("state", "ended").maybeSingle(),
-    // Past sessions, newest first: the Insights tab scores each one's audience, and the Recordings tab lists the recorded ones with their download and expiry.
+    // Past sessions, newest first: the Insights tab scores each one's audience, and the Recordings tab lists the ones whose recording is still on file, with download and expiry.
     sb.from("sessions").select("*").eq("room_id", room.id).eq("state", "ended").not("started_at", "is", null).order("started_at", { ascending: false }).limit(100),
     sb.from("presentations").select("*").eq("room_id", room.id).order("created_at", { ascending: false }),
     sb.from("activities").select("*").eq("room_id", room.id).order("sort_order").order("created_at"),
@@ -39,7 +39,7 @@ export default async function HostRoomPage({ params }: { params: Promise<{ slug:
     <HostPanel
       room={room as Room}
       initialSession={(session as Session | null) ?? null}
-      recordings={pastSessions.filter((s) => s.recording_url)}
+      recordings={pastSessions.filter((s) => s.recording_url && !s.recording_deleted_at)}
       pastSessions={pastSessions}
       userId={auth.user.id}
       userEmail={auth.user.email ?? null}

@@ -5,7 +5,7 @@ import { deleteSessionRecording } from "@/lib/video";
 /**
  * Platform admins only: delete a session's recording now rather than at the end of its
  * retention. Removes the MP4 and the HLS files from the bucket and marks the session the same
- * way the nightly sweep does, so the host's Recordings tab shows it as deleted.
+ * way the nightly sweep does, so it drops off the host's Recordings tab and this list.
  */
 export const POST = handler(async (req) => {
   const { user } = await requireUser(req);
