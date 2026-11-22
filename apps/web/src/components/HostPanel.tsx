@@ -5,6 +5,7 @@ import { ActivityLibrary } from "@/components/ActivityLibrary";
 import { AppShell } from "@/components/AppShell";
 import { Chat } from "@/components/Chat";
 import { EmailSequence } from "@/components/EmailSequence";
+import { InsightsPanel } from "@/components/InsightsPanel";
 import { InviteCard } from "@/components/InviteCard";
 import { PresenterDeck } from "@/components/PresenterDeck";
 import { Questions } from "@/components/Questions";
@@ -30,6 +31,8 @@ type Props = {
   initialSession: Session | null;
   /** Ended sessions of the room that have a recording, newest first. */
   recordings: Session[];
+  /** Every ended session of the room, newest first; the Insights tab scores each one's audience. */
+  pastSessions: Session[];
   userId: string;
   userEmail: string | null;
   presentations: Presentation[];
@@ -40,22 +43,24 @@ type Props = {
   access: RoomAccess;
 };
 
-type Tab = "live" | "event" | "emails" | "recordings" | "waiting" | "settings";
+type Tab = "live" | "event" | "insights" | "emails" | "recordings" | "waiting" | "settings";
 
 /**
  * Host panel for one room: share the invite link and watch registrations, edit the room's
  * email sequence (inherited by every event), open the room (waiting room), go live, navigate
  * the deck, place the camera on the stage (corner, talking head, side by side, or dragged
  * anywhere), activate activities with timers and reveal results, run the hand-raise queue
- * with promote-to-stage, moderate Q&A, edit the waiting room, and rename or delete the room.
+ * with promote-to-stage, moderate Q&A, read the insights (registered against attended, and the
+ * audience scored for intent and fit), edit the waiting room, and rename or delete the room.
  */
-export function HostPanel({ room: initialRoom, initialSession, recordings: initialRecordings, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations, access }: Props) {
+export function HostPanel({ room: initialRoom, initialSession, recordings: initialRecordings, pastSessions: initialPast, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations, access }: Props) {
   const { limits } = access;
   const [room, setRoom] = useState(initialRoom);
   const [invites, setInvites] = useState(initialInvites);
   const [registrations, setRegistrations] = useState(initialRegistrations);
   const [session, setSession] = useState<Session | null>(initialSession);
   const [recordings, setRecordings] = useState(initialRecordings);
+  const [pastSessions, setPastSessions] = useState(initialPast);
   const [presentations, setPresentations] = useState(initialPresentations);
   const [activities, setActivities] = useState(initialActivities);
   const [deck, setDeck] = useState<Presentation | null>(
@@ -110,7 +115,9 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
       if (!confirm("End the session for everyone? The recording stops and attendees see the waiting room.")) return;
       await api("/api/session/end", { session_id: live.id });
       // The file is in the bucket a few seconds after the egress stops; list it now so the host finds it under Recordings.
-      if (live.state === "live" && live.recording_url) setRecordings((r) => [{ ...live, state: "ended", ended_at: new Date().toISOString() }, ...r]);
+      const ended: Session = { ...live, state: "ended", ended_at: new Date().toISOString() };
+      if (live.state === "live" && live.recording_url) setRecordings((r) => [ended, ...r]);
+      if (live.started_at) setPastSessions((p) => [ended, ...p]);
       setSession(null);
       setStage(null);
     });
@@ -250,6 +257,7 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
           items={[
             { value: "live", label: "Live" },
             { value: "event", label: "Event", count: registrations.filter(isSeated).length },
+            { value: "insights", label: "Insights" },
             { value: "emails", label: "Emails" },
             { value: "recordings", label: "Recordings", count: recordings.filter((r) => !r.recording_deleted_at).length || undefined },
             { value: "waiting", label: "Waiting room" },
@@ -306,6 +314,8 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
           <RoomSettings room={room} hasOpenSession={!!live} onSaved={setRoom} />
         ) : tab === "event" ? (
           <InviteCard room={room} limits={limits} invites={invites} registrations={registrations} participants={state.participants} onInvitesChange={setInvites} onRegistrationsChange={setRegistrations} />
+        ) : tab === "insights" ? (
+          <InsightsPanel room={room} invites={invites} registrations={registrations} pastSessions={pastSessions} live={live} onAddFitScores={() => setTab("live")} />
         ) : tab === "emails" ? (
           <EmailSequence room={room} plan={access.tier} limits={limits} invites={activeInvites} registrations={registrations} />
         ) : tab === "recordings" ? (
