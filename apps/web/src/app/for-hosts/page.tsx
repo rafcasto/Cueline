@@ -175,10 +175,10 @@ export default function ForHostsPage() {
           <dl className="mt-8 grid gap-4 md:grid-cols-2">
             <Faq q="Do attendees need an account?">No. They register for an event with a name and an email. A welcome email brings a personal link and a six-character code; either one gets them into the room from any device.</Faq>
             <Faq q="Does it work with Zoom?">Tertulia is its own room: you present and go on camera in the browser, and your audience watches there too. There is nothing to install and no meeting link to juggle. A Zoom integration is on the roadmap.</Faq>
-            <Faq q="What data do I see?">Who registered against who actually turned up, every answer to every poll, quiz and word cloud, the questions asked and upvoted, and every view and tap of your calls to action, each tied to the person who made it.</Faq>
+            <Faq q="What data do I see?">On Pro, who registered against who actually turned up, every answer to every poll, quiz and word cloud, the questions asked and upvoted, and every view and tap of your calls to action, each tied to the person who made it.</Faq>
             <Faq q="Can I keep my room private?">Yes. A room is unlisted until you tick List on Explore in its settings. Unlisted rooms are reached only through the invite links you share.</Faq>
             <Faq q="Can I use my own colours and logo?">Yes. Every room has an accent colour, a logo and a standing call to action; they apply to the room, the invite pages and every button in them.</Faq>
-            <Faq q="Is there a recording?">Starter and Pro record every session, filmed as the audience saw it, and keep it for {PLAN_LIMITS.starter.recordingDays} and {PLAN_LIMITS.pro.recordingDays} days respectively. Download it from the room.</Faq>
+            <Faq q="Is there a recording?">Pro records every session, filmed as the audience saw it, and keeps it for {PLAN_LIMITS.pro.recordingDays} days. Download it from the room. Free and Starter sessions are not recorded.</Faq>
           </dl>
         </Section>
 
@@ -268,6 +268,7 @@ function planLines(l: PlanLimits): string[] {
   const lines = [sessions, `${l.participants} attendees per session`, length];
   if (l.reminders) lines.push("Reminder emails before every event");
   if (l.recording) lines.push(`Recordings kept ${l.recordingDays} days`);
+  if (l.insights) lines.push("Audience insights: who showed up, engagement and fit scores");
   if (l.stripeCta) lines.push("Stripe checkout on your call to action");
   return lines;
 }

@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { HostPanel } from "@/components/HostPanel";
 import { loadRoomAccess, type RoomAccess } from "@/lib/billing";
+import { isPlatformAdmin } from "@/lib/auth";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -19,7 +20,7 @@ export default async function HostRoomPage({ params }: { params: Promise<{ slug:
   const { data: member } = await sb.from("org_members").select("role").eq("org_id", room.org_id).eq("user_id", auth.user.id).maybeSingle();
   if (!member) redirect("/host?error=not-a-member");
 
-  const [{ data: session }, { data: past }, { data: presentations }, { data: activities }, { data: invites }, { data: registrations }, loaded] = await Promise.all([
+  const [{ data: session }, { data: past }, { data: presentations }, { data: activities }, { data: invites }, { data: registrations }, loaded, platformAdmin] = await Promise.all([
     sb.from("sessions").select("*").eq("room_id", room.id).neq("state", "ended").maybeSingle(),
     // Past sessions, newest first: the Insights tab scores each one's audience, and the Recordings tab lists the recorded ones with their download and expiry.
     sb.from("sessions").select("*").eq("room_id", room.id).eq("state", "ended").not("started_at", "is", null).order("started_at", { ascending: false }).limit(100),
@@ -29,6 +30,7 @@ export default async function HostRoomPage({ params }: { params: Promise<{ slug:
     sb.from("registrations").select("*").eq("room_id", room.id).order("created_at", { ascending: false }),
     // The room's plan: the seat cap on events, the reminder gate on the Emails tab, and whether the room is locked.
     loadRoomAccess(supabaseAdmin(), room.id),
+    isPlatformAdmin(auth.user.id),
   ]);
   const pastSessions = (past as Session[] | null) ?? [];
   const access: RoomAccess = loaded?.access ?? { tier: "free", limits: PLAN_LIMITS.free, locked: false, reason: null, paid: false, complimentary: false };
@@ -41,6 +43,7 @@ export default async function HostRoomPage({ params }: { params: Promise<{ slug:
       pastSessions={pastSessions}
       userId={auth.user.id}
       userEmail={auth.user.email ?? null}
+      platformAdmin={platformAdmin}
       presentations={(presentations as Presentation[] | null) ?? []}
       activities={(activities as Activity[] | null) ?? []}
       invites={(invites as Invite[] | null) ?? []}

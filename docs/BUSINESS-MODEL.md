@@ -60,7 +60,8 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 | Chat, Q&A, reactions, waiting room | yes | yes | yes |
 | Deck | yes | yes | yes |
 | Audience video quality | up to 540p | 720p | 720p |
-| Recording | no | MP4 | MP4 + HLS fallback |
+| Recording | no | no | MP4 + HLS fallback, kept a year |
+| Audience insights (registered against attended, engagement and fit scores) | no | no | yes |
 | Branding | Tertulia mark | accent + logo | accent + logo + cover, no *Powered by* |
 | Promote to stage | no | 1 at a time | 3 at a time |
 | Email sequence | welcome and waiting-list note only | welcome, waiting-list note + 4 reminders | welcome, waiting-list note + 4 reminders, editable |
@@ -80,7 +81,7 @@ There is no per-event pass (removed 25 Oct 2026, after a day). A fourth price sp
 
 **Session caps.** A session counts the moment the host presses *Go live*; opening the waiting room, rehearsing, or scheduling an event does not. The month is the billing period for paid plans and the calendar month for Free. At the cap, *Go live* is refused with the upgrade in its place; the host can still create and schedule events, with a warning that the session will need an upgrade. A session that ends within two minutes with no attendee ever connected is refunded to the count once per month, so a false start does not burn the only free session. Pro is unlimited in count and bounded by the fair-use pool below.
 
-Starter covers the weekly host at $29, which is the buyer Univid and Zoom price at $79–99. What moves a host to Pro is audience (over 50), length (over 2 hours), the fallback stream, more guests on stage and the Stripe call to action, and, for the host who hits four, session count. If Starter hosts regularly hit the cap and churn instead of upgrading, raise the cap rather than cut Pro's price.
+Starter covers the weekly host at $29, which is the buyer Univid and Zoom price at $79–99. What moves a host to Pro is the recording and the audience insights (22 Nov 2026: both moved from Starter to Pro, so Starter is the room and the reminders, Pro is what you learn from it), audience (over 50), length (over 2 hours), the fallback stream, more guests on stage and the Stripe call to action, and, for the host who hits four, session count. If Starter hosts regularly hit the cap and churn instead of upgrading, raise the cap rather than cut Pro's price.
 
 **Fair use, not metering.** DESIGN.md proposed an attendee-hour pool with per-hour overage. With a VPS the marginal hour is free until the node fills, so metered billing adds a Stripe usage pipeline for no revenue. Keep the pool as a stated fair-use line (Pro at 1,200 participant-hours is about 840 GB, so thirty-seven Pro hosts at the full pool fit in the KVM 8's transfer) and enforce the two things that actually protect the node: the participant cap and the session length. Revisit metering if a host regularly exceeds the pool; that host is a candidate for a custom plan on their own node.
 
@@ -96,7 +97,7 @@ Hosts pay through Stripe Billing: a Checkout session in subscription mode for St
 - Free sessions are never recorded and are capped at 540p; no HLS fallback (the fallback is an egress).
 - A hard stop ends the session at the cap with a five-minute warning in the host panel and a countdown for attendees; the recording and room are closed server-side, not by the client.
 - `maxParticipants` is set on the LiveKit room from the plan, and the token endpoint refuses to mint past the cap, so the limit holds even if a client misbehaves.
-- Storage: recordings kept 30 days on Starter, 12 months on Pro (`recordingDays`), downloadable from the host panel's Recordings tab; the nightly sweep (`/api/recordings/sweep`) deletes expired ones and marks the session.
+- Storage: recordings are a Pro feature, kept 12 months (`recordingDays`) and downloadable from the host panel's Recordings tab; the nightly sweep (`/api/recordings/sweep`) deletes expired ones and marks the session. A platform admin can delete any recording early from `/admin`.
 
 ## What to build for this (Phase 3)
 
