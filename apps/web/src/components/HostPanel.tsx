@@ -35,6 +35,8 @@ type Props = {
   pastSessions: Session[];
   userId: string;
   userEmail: string | null;
+  /** Shows the switch to the admin portal in the header. */
+  platformAdmin: boolean;
   presentations: Presentation[];
   activities: Activity[];
   invites: Invite[];
@@ -53,7 +55,7 @@ type Tab = "live" | "event" | "insights" | "emails" | "recordings" | "waiting" |
  * with promote-to-stage, moderate Q&A, read the insights (registered against attended, and the
  * audience scored for intent and fit), edit the waiting room, and rename or delete the room.
  */
-export function HostPanel({ room: initialRoom, initialSession, recordings: initialRecordings, pastSessions: initialPast, userId, userEmail, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations, access }: Props) {
+export function HostPanel({ room: initialRoom, initialSession, recordings: initialRecordings, pastSessions: initialPast, userId, userEmail, platformAdmin, presentations: initialPresentations, activities: initialActivities, invites: initialInvites, registrations: initialRegistrations, access }: Props) {
   const { limits } = access;
   const [room, setRoom] = useState(initialRoom);
   const [invites, setInvites] = useState(initialInvites);
@@ -243,6 +245,7 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
       wide
       crumb={room.name}
       email={userEmail}
+      platformAdmin={platformAdmin}
       right={
         <Badge tone={sessionBadge.tone} dot={!!live}>
           {sessionBadge.label}
@@ -315,7 +318,11 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
         ) : tab === "event" ? (
           <InviteCard room={room} limits={limits} invites={invites} registrations={registrations} participants={state.participants} onInvitesChange={setInvites} onRegistrationsChange={setRegistrations} />
         ) : tab === "insights" ? (
-          <InsightsPanel room={room} invites={invites} registrations={registrations} pastSessions={pastSessions} live={live} onAddFitScores={() => setTab("live")} />
+          limits.insights ? (
+            <InsightsPanel room={room} invites={invites} registrations={registrations} pastSessions={pastSessions} live={live} onAddFitScores={() => setTab("live")} />
+          ) : (
+            <InsightsLocked plan={limits.label} />
+          )
         ) : tab === "emails" ? (
           <EmailSequence room={room} plan={access.tier} limits={limits} invites={activeInvites} registrations={registrations} />
         ) : tab === "recordings" ? (
@@ -434,6 +441,32 @@ function CameraPlaceholder({ live }: { live: boolean }) {
       </svg>
       <p className="text-xs font-medium leading-tight">Your camera</p>
       <p className="hidden text-xs leading-tight text-cream/60 @[12rem]:block">{live ? "Join with camera to put it here." : "Open the room, then join with camera."}</p>
+    </div>
+  );
+}
+
+/** The Insights tab on a room whose plan does not include it: what it would show, and the one step up. */
+function InsightsLocked({ plan }: { plan: string }) {
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <Alert tone="brand" title="Audience insights are a Pro feature">
+        On {plan} this room keeps every registration and answer, but the insights are not shown. Move the room to Pro on{" "}
+        <Link href="/host/billing" className="font-medium underline underline-offset-4">
+          Billing
+        </Link>{" "}
+        and they open for every session, past ones included.
+      </Alert>
+      <Card>
+        <CardHeader title="What Insights shows" description="Two reads of every webinar, each tied to the person who made it." />
+        <ul className="mt-4 space-y-3 text-sm text-ink">
+          <li>
+            <strong className="font-medium">Registered against attended.</strong> Per event: everyone who registered, who actually joined, and the show-up rate.
+          </li>
+          <li>
+            <strong className="font-medium">Engagement and fit scores.</strong> Per session: every attendee scored 0–100 for engagement (polls answered, questions, chat, upvotes, reactions, a hand up, calls to action tapped) and for fit (the answers they picked), split four ways with a <em>Copy emails</em> button on each group and what to do next.
+          </li>
+        </ul>
+      </Card>
     </div>
   );
 }

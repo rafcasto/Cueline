@@ -4,13 +4,18 @@ import { PLAN_LIMITS, PRICE_LOOKUPS, isPriceLookup, planFromPrice, planLimits } 
 describe("plans", () => {
   it("matches the business model", () => {
     expect(PLAN_LIMITS.free).toMatchObject({ sessionsPerMonth: 1, participants: 10, minutes: 20, recording: false });
-    expect(PLAN_LIMITS.starter).toMatchObject({ sessionsPerMonth: 4, participants: 50, minutes: 120, recording: true });
-    expect(PLAN_LIMITS.pro).toMatchObject({ sessionsPerMonth: null, participants: 150, minutes: 240, hlsFallback: true, stripeCta: true });
+    expect(PLAN_LIMITS.starter).toMatchObject({ sessionsPerMonth: 4, participants: 50, minutes: 120, recording: false });
+    expect(PLAN_LIMITS.pro).toMatchObject({ sessionsPerMonth: null, participants: 150, minutes: 240, recording: true, hlsFallback: true, stripeCta: true });
   });
-  it("keeps recordings for the plan's retention", () => {
+  it("records and keeps the recording on Pro only", () => {
     expect(PLAN_LIMITS.free.recordingDays).toBeNull();
-    expect(PLAN_LIMITS.starter.recordingDays).toBe(30);
+    expect(PLAN_LIMITS.starter.recordingDays).toBeNull();
     expect(PLAN_LIMITS.pro.recordingDays).toBe(365);
+  });
+  it("shows the insights on Pro only", () => {
+    expect(PLAN_LIMITS.free.insights).toBe(false);
+    expect(PLAN_LIMITS.starter.insights).toBe(false);
+    expect(PLAN_LIMITS.pro.insights).toBe(true);
   });
   it("sends reminders only on the paid plans", () => {
     expect(PLAN_LIMITS.free.reminders).toBe(false);

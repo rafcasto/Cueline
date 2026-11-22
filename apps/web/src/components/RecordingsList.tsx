@@ -36,12 +36,12 @@ export function RecordingsList({ recordings, limits, live }: Props) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {!limits.recording && (
-        <Alert tone="brand" title="Recording is on the paid plans">
-          Sessions on this room are not recorded. Upgrade on{" "}
+        <Alert tone="brand" title="Recording is a Pro feature">
+          Sessions on this room are not recorded. Move this room to Pro on{" "}
           <Link href="/host/billing" className="font-medium underline underline-offset-4">
             Billing
           </Link>{" "}
-          and every session from then on is saved as an MP4 of what attendees saw.
+          and every session from then on is saved as an MP4 of what attendees saw, kept for a year.
         </Alert>
       )}
       {live && (

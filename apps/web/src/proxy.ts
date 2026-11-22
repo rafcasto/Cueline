@@ -6,7 +6,8 @@ import { publicEnv } from "@/lib/env";
  * Refreshes the Supabase auth cookie on every request so server components see a live session.
  * A browser with no auth cookie at all (a first visit to the landing page, Explore or an invite)
  * has nothing to refresh, so it skips the round trip to Supabase Auth: that call was the
- * largest fixed cost on every navigation for an anonymous visitor.
+ * largest fixed cost on every navigation for an anonymous visitor. Also sends a signed-in host
+ * who opens /login on to their rooms.
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -21,7 +22,17 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  await sb.auth.getUser();
+  const { data } = await sb.auth.getUser();
+  // A host who is already signed in and opens the login page goes straight to their rooms (or
+  // where ?next= points). Attendees' anonymous identities are not sign-ins, so they still see
+  // the form. The cookies refreshed above ride on the redirect.
+  if (request.nextUrl.pathname === "/login" && data.user && !data.user.is_anonymous) {
+    const next = request.nextUrl.searchParams.get("next");
+    const to = next && next.startsWith("/") && !next.startsWith("//") ? next : "/host";
+    const redirect = NextResponse.redirect(new URL(to, request.url));
+    for (const c of response.cookies.getAll()) redirect.cookies.set(c);
+    return redirect;
+  }
   return response;
 }
 

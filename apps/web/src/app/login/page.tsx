@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import { Alert, Button, Card, Field, Input, Logo, TextLink } from "@/components/ui";
+import { api } from "@/lib/api";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 function LoginInner() {
@@ -18,12 +19,19 @@ function LoginInner() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await supabaseBrowser().auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) {
-      setError(error.message);
+    try {
+      // Signed in on the server, so the session cookie is set by a response header and keeps
+      // its full life in every browser; see /api/auth/login.
+      await api("/api/auth/login", { email, password });
+    } catch (err) {
+      setBusy(false);
+      setError((err as Error).message);
       return;
     }
+    // The browser client reads the same cookie; asking it for the session once makes sure the
+    // realtime and query clients on the next page start signed in rather than anonymous.
+    await supabaseBrowser().auth.getSession();
+    setBusy(false);
     router.push(next);
     router.refresh();
   };

@@ -36,7 +36,7 @@ export default async function HostIndex({ searchParams }: { searchParams: Promis
   const roomsOf = (orgId: string) => (rooms ?? []).filter((r) => r.org_id === orgId).length;
 
   return (
-    <AppShell email={auth.user.email}>
+    <AppShell email={auth.user.email} platformAdmin={platformAdmin}>
       <PageHeader
         title="Your rooms"
         description="Each room has its own plan, events and invite links, email sequence, deck, activities and waiting room. Your first room is free; upgrade it, then add rooms on Starter or Pro."
