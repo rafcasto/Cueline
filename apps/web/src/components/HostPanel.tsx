@@ -324,13 +324,13 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
       {access.locked && (
         <Alert tone="warning" className="mt-4" title="This room is locked">
           <p>{access.reason}</p>
-          <ButtonLink href="/host/billing" variant="secondary" size="sm" className="mt-3">
+          <ButtonLink href={`/host/billing#room-${room.id}`} variant="secondary" size="sm" className="mt-3">
             Open billing
           </ButtonLink>
         </Alert>
       )}
       {gate && (
-        <PlanGate stop className="mt-4" title={gate.title} unlock={gate.unlock} current={limits.label}>
+        <PlanGate stop className="mt-4" title={gate.title} unlock={gate.unlock} current={limits.label} roomId={room.id}>
           {gate.body}
         </PlanGate>
       )}
@@ -351,12 +351,12 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
           limits.insights ? (
             <InsightsPanel room={room} invites={invites} registrations={registrations} pastSessions={pastSessions} live={live} onAddFitScores={() => setTab("live")} />
           ) : (
-            <InsightsLocked current={limits.label} />
+            <InsightsLocked current={limits.label} roomId={room.id} />
           )
         ) : tab === "emails" ? (
           <EmailSequence room={room} limits={limits} invites={activeInvites} registrations={registrations} />
         ) : tab === "recordings" ? (
-          <RecordingsList recordings={recordings} limits={limits} live={live?.state === "live" && !!live.recording_url} />
+          <RecordingsList recordings={recordings} limits={limits} roomId={room.id} live={live?.state === "live" && !!live.recording_url} />
         ) : (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
             <section className="space-y-6">
@@ -419,7 +419,7 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
                   }
                 />
                 {!stageOpen && (
-                  <PlanGate variant="inline" className="mt-4" title="Bringing attendees on stage" unlock={nextPlan(access.tier) ?? "starter"} current={limits.label}>
+                  <PlanGate variant="inline" className="mt-4" title="Bringing attendees on stage" unlock={nextPlan(access.tier) ?? "starter"} current={limits.label} roomId={room.id}>
                     is on {PLAN_NAME[nextPlan(access.tier) ?? "starter"]}: a raised hand becomes a guest on camera beside you, {PLAN_LIMITS[nextPlan(access.tier) ?? "starter"].promoteSlots} at a time. Hands still count towards engagement.
                   </PlanGate>
                 )}
@@ -503,10 +503,10 @@ const PLAN_LENGTH: Record<PaidPlan, string> = {
 };
 
 /** The Insights tab on a room whose plan does not include it: the gate, then what it would show. */
-function InsightsLocked({ current }: { current: string }) {
+function InsightsLocked({ current, roomId }: { current: string; roomId: string }) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PlanGate title="Audience insights" unlock={planThatIncludes("insights")} current={current}>
+      <PlanGate title="Audience insights" unlock={planThatIncludes("insights")} current={current} roomId={roomId}>
         This room keeps every registration and every answer already. On {PLAN_NAME[planThatIncludes("insights")]} they are read for you: who registered against who turned up, and every attendee scored for intent and fit, with the people to follow up first. Past sessions open too.
       </PlanGate>
       <Card>

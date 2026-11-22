@@ -103,7 +103,7 @@ export default async function HostIndex({ searchParams }: { searchParams: Promis
                     View as attendee
                   </Link>
                   {!access.paid && !access.complimentary && (
-                    <Link href="/host/billing#rooms" className={buttonClass(access.locked ? "secondary" : "ghost", "sm")}>
+                    <Link href={`/host/billing#room-${r.id}`} className={buttonClass(access.locked ? "secondary" : "ghost", "sm")}>
                       {access.locked ? "Open billing" : "Upgrade"}
                     </Link>
                   )}

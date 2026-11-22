@@ -72,7 +72,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
   return (
     <AppShell email={auth.user.email} crumb="Billing" platformAdmin={platformAdmin}>
-      <PageHeader title="Plan and billing" description="Each room has its own plan: sessions a month, attendees, length and reminder emails. Your first room is free until you upgrade it; every further room is a Starter or Pro subscription. Stripe prorates plan changes." />
+      <PageHeader title="Plan and billing" description="Each room has its own plan. Your first room is free until you upgrade it; every further room is its own Starter or Pro subscription. Payments, plan changes and cancellations go through Stripe, which prorates the difference." />
       {params.checkout === "success" && (
         <Alert tone="success" className="mt-6" title="Payment received">
           Stripe is confirming the subscription; the room&apos;s plan below updates within a few seconds. Reload if it still shows the old one.

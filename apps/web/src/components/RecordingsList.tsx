@@ -12,6 +12,8 @@ type Props = {
   /** Ended sessions whose recording is still on file, newest first. */
   recordings: Session[];
   limits: PlanLimits;
+  /** The room, for the gate's link to its billing row. */
+  roomId: string;
   /** A session is live and being recorded right now. */
   live: boolean;
 };
@@ -25,12 +27,12 @@ function when(iso: string) {
  * attendees saw it (deck, presenter video, activities). Each is kept for the plan's retention
  * and removed by the nightly sweep or an admin; once it is gone the row goes with it.
  */
-export function RecordingsList({ recordings, limits, live }: Props) {
+export function RecordingsList({ recordings, limits, roomId, live }: Props) {
   const keptFor = limits.recordingDays ? (limits.recordingDays >= 365 ? "a year" : `${limits.recordingDays} days`) : null;
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {!limits.recording && (
-        <PlanGate title="Recordings" unlock={planThatIncludes("recording")} current={limits.label}>
+        <PlanGate title="Recordings" unlock={planThatIncludes("recording")} current={limits.label} roomId={roomId}>
           Sessions on this room are not recorded. On {PLAN_LABEL_RECORDING} every session is filmed as the attendees saw it, deck and camera and activities, and kept here as an MP4 for a year, ready to download.
         </PlanGate>
       )}
