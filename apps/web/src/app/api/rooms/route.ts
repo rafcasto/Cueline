@@ -1,5 +1,5 @@
 import { handler, HttpError, isPlatformAdmin, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
-import { parseBranding } from "@/lib/branding";
+import { defaultCoverFor, parseBranding } from "@/lib/branding";
 import { parseTopics } from "@/lib/explore";
 import { cancelRoomEmails } from "@/lib/email/schedule";
 import { SLUG_PATTERN, slugify, uniqueSlug } from "@/lib/rooms";
@@ -7,7 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Room } from "@/lib/supabase/types";
 
 type Body =
-  | { action: "create"; org_id: string; name: string; topics?: unknown; description?: unknown }
+  | { action: "create"; org_id: string; name: string; topics?: unknown; description?: unknown; cover_url?: unknown }
   | { action: "update"; id: string; name?: string; slug?: string; branding?: unknown; chat_enabled?: unknown; is_public?: unknown; description?: unknown; topics?: unknown }
   | { action: "delete"; id: string };
 
@@ -17,7 +17,9 @@ type Body =
  * `/api/billing/checkout`, which creates the room when the payment is through. Platform admins
  * create rooms freely, as complimentary rooms. Creating a room seeds its email sequence (a
  * database trigger); each room then carries its own events, deck, activities, waiting room and
- * emails, and the topics chosen at creation put it under the right filters on Explore. Deleting
+ * emails, and the topics chosen at creation put it under the right filters on Explore. A room
+ * is born with a cover picture (the one the host picked, else a default), so its card never
+ * shows an empty band. Deleting
  * a room cancels the reminders still scheduled for its registrants, then everything under it
  * cascades away. Branding (accent, logo, cover picture) is validated here so a bad colour or a
  * non-http link never reaches attendees.
@@ -40,6 +42,12 @@ export const POST = handler(async (req) => {
     if ("error" in topics) throw new HttpError(400, topics.error);
     const description = body.description === undefined || body.description === null ? null : String(body.description).trim() || null;
     if (description && description.length > 600) throw new HttpError(400, "Description must be 600 characters or fewer.");
+    let cover_url = defaultCoverFor(name);
+    if (body.cover_url !== undefined && body.cover_url !== null && body.cover_url !== "") {
+      const parsed = parseBranding({ cover_url: body.cover_url });
+      if ("error" in parsed) throw new HttpError(400, parsed.error);
+      cover_url = parsed.branding.cover_url ?? cover_url;
+    }
 
     const [platformAdmin, { data: existing }] = await Promise.all([isPlatformAdmin(user.id), admin.from("rooms").select("id, plan, plan_status, complimentary").eq("org_id", body.org_id)]);
     if (!platformAdmin && (existing ?? []).length > 0) {
@@ -57,7 +65,7 @@ export const POST = handler(async (req) => {
     const slug = uniqueSlug(base, (taken ?? []).map((r) => r.slug));
     const { data, error } = await admin
       .from("rooms")
-      .insert({ org_id: body.org_id, name, slug, topics: topics.topics, description, complimentary: platformAdmin })
+      .insert({ org_id: body.org_id, name, slug, topics: topics.topics, description, complimentary: platformAdmin, branding: { cover_url } })
       .select("*")
       .single();
     if (error) throw error;

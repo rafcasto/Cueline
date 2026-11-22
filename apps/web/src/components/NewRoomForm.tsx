@@ -1,9 +1,11 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { CoverPicker } from "@/components/CoverPicker";
 import { TopicPicker } from "@/components/TopicPicker";
 import { Alert, Button, ButtonLink, Field, Input, Select } from "@/components/ui";
 import { api } from "@/lib/api";
+import { DEFAULT_COVERS } from "@/lib/branding";
 import type { Room } from "@/lib/supabase/types";
 
 /** An organisation the host can create rooms in, and why it can or cannot right now. */
@@ -13,8 +15,9 @@ export type RoomOrg = { id: string; name: string; rooms: number; canCreateFree: 
  * Create a room from the host index. A room is a standing space (deck, activities, waiting
  * room, email sequence) that any number of events run in; the new room opens straight away.
  * The host says what it is about on the way in, the way a Meetup group picks its categories,
- * so the room lands under the right filters on Explore from day one. An organisation's first
- * room is free; after that a room is bought on Starter or Pro from the billing page, and a
+ * so the room lands under the right filters on Explore from day one, and picks the cover
+ * picture its card wears (one of the defaults, the first chosen for them, or an upload). An
+ * organisation's first room is free; after that a room is bought on Starter or Pro from the billing page, and a
  * free room must be upgraded before another can be added.
  */
 export function NewRoomForm({ orgs, autoOpen }: { orgs: RoomOrg[]; autoOpen?: boolean }) {
@@ -23,6 +26,7 @@ export function NewRoomForm({ orgs, autoOpen }: { orgs: RoomOrg[]; autoOpen?: bo
   const [open, setOpen] = useState(!!autoOpen && free.length > 0);
   const [name, setName] = useState("");
   const [topics, setTopics] = useState<string[]>([]);
+  const [cover, setCover] = useState(DEFAULT_COVERS[0].url);
   const [orgId, setOrgId] = useState(free[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +36,7 @@ export function NewRoomForm({ orgs, autoOpen }: { orgs: RoomOrg[]; autoOpen?: bo
     setBusy(true);
     setError(null);
     try {
-      const { room } = await api<{ room: Room }>("/api/rooms", { action: "create", org_id: orgId, name, topics });
+      const { room } = await api<{ room: Room }>("/api/rooms", { action: "create", org_id: orgId, name, topics, cover_url: cover });
       router.push(`/host/${room.slug}`);
       router.refresh();
     } catch (err) {
@@ -68,6 +72,9 @@ export function NewRoomForm({ orgs, autoOpen }: { orgs: RoomOrg[]; autoOpen?: bo
       </Field>
       <Field label="What is it about?" hint="Pick the topics that fit, or add your own. People browsing Explore filter by them; you can change them later in Settings.">
         <TopicPicker value={topics} onChange={setTopics} compact />
+      </Field>
+      <Field label="Cover picture" hint="On your card on Explore and at the top of your room's page. One of ours, or a wide photo of your own; you can change it later in Branding.">
+        <CoverPicker value={cover} orgId={orgId} onChange={setCover} disabled={busy} surface="inset" className="pt-1" />
       </Field>
       {free.length > 1 && (
         <Field label="Organisation" htmlFor="room-org">
