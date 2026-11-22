@@ -43,7 +43,7 @@ export default function ForHostsPage() {
             <h1 className="mt-3 text-balance text-5xl leading-[1.02] tracking-tight text-ink sm:text-6xl">Know who&apos;s ready to buy before your event ends</h1>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-ink-muted sm:text-xl">Tertulia turns live reactions into audience insights, so you know exactly who to follow up with.</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <ButtonLink href="/login" size="lg" className="w-full sm:w-auto" data-track="hosts_hero_start">
+              <ButtonLink href="/signup" size="lg" className="w-full sm:w-auto" data-track="hosts_hero_start">
                 Start hosting free
               </ButtonLink>
               <ButtonLink href={DEMO_VIDEO_URL ? "#demo" : "#how"} variant="secondary" size="lg" className="w-full sm:w-auto" data-track="hosts_hero_demo">
@@ -129,7 +129,7 @@ export default function ForHostsPage() {
         {/* Pricing */}
         <Section id="pricing" title="Pay for the room you run, not for the people in it" body="Attendees never pay. Every plan has polls, quizzes, word clouds, chat and Q&A on the slide, raised hands and a stage, seats and a waiting list per event, your colour and logo, and a welcome email on registration. The plans differ in how often, how many and how long.">
           <ul className="mt-10 grid gap-4 md:grid-cols-3">
-            <PlanCard plan="free" blurb="A trial of the whole engagement layer: one real session with a timer and a reveal." price="$0" per="forever" note="No card. Go live today." cta="Start free" href="/login" variant="secondary" />
+            <PlanCard plan="free" blurb="A trial of the whole engagement layer: one real session with a timer and a reveal." price="$0" per="forever" note="No card. Go live today." cta="Start free" href="/signup" variant="secondary" />
             <PlanCard
               plan="starter"
               featured
@@ -138,7 +138,7 @@ export default function ForHostsPage() {
               per="a month"
               note={`Or ${PRICE_LABELS.starter_yearly.amount} a year, two months free.`}
               cta="Start with Starter"
-              href="/login?next=/host/billing"
+              href="/signup?next=/host/billing"
               variant="primary"
             />
             <PlanCard
@@ -148,7 +148,7 @@ export default function ForHostsPage() {
               per="a month"
               note={`Or ${PRICE_LABELS.pro_yearly.amount} a year, two months free.`}
               cta="Go Pro"
-              href="/login?next=/host/billing"
+              href="/signup?next=/host/billing"
               variant="secondary"
             />
           </ul>
@@ -160,7 +160,7 @@ export default function ForHostsPage() {
               <h3 className="mt-2 text-2xl text-ink">Be one of the first 50 rooms</h3>
               <p className="mt-2 max-w-xl text-base leading-relaxed text-ink-muted">Founding hosts shape what the audience insights show, get a direct line to the two of us building it, and are named on this page when they want to be. Open your room, then tell us you want in.</p>
             </div>
-            <ButtonLink href="/login?next=/host" size="lg" className="shrink-0" data-track="hosts_founding">
+            <ButtonLink href="/signup" size="lg" className="shrink-0" data-track="hosts_founding">
               Become a founding host
             </ButtonLink>
           </div>
@@ -189,7 +189,7 @@ export default function ForHostsPage() {
               <h2 className="text-3xl tracking-tight text-cream sm:text-4xl">Open your room today</h2>
               <p className="mt-3 max-w-xl text-lg text-cream/75">Your first room is free. Your first session can be this week.</p>
             </div>
-            <ButtonLink href="/login?next=/host" size="lg" className="w-full shrink-0 sm:w-auto" data-track="hosts_final_founding">
+            <ButtonLink href="/signup" size="lg" className="w-full shrink-0 sm:w-auto" data-track="hosts_final_founding">
               Become a founding host
             </ButtonLink>
           </div>
