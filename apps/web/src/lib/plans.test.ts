@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLAN_LIMITS, PRICE_LOOKUPS, isPriceLookup, planFromPrice, planLimits } from "./plans";
+import { PLAN_LIMITS, PRICE_LOOKUPS, isPriceLookup, planFromPrice, planLimits, planLines } from "./plans";
 
 describe("plans", () => {
   it("matches the business model", () => {
@@ -35,5 +35,18 @@ describe("plans", () => {
   it("treats an unknown plan as free", () => {
     expect(planLimits("gold")).toBe(PLAN_LIMITS.free);
     expect(planLimits(null)).toBe(PLAN_LIMITS.free);
+  });
+});
+
+describe("planLines", () => {
+  it("prints the caps first and only the features a plan has", () => {
+    const free = planLines(PLAN_LIMITS.free);
+    expect(free[0]).toBe("1 session a month");
+    expect(free).toHaveLength(3);
+    const pro = planLines(PLAN_LIMITS.pro);
+    expect(pro[0]).toBe("Unlimited sessions");
+    expect(pro.some((l) => l.startsWith("Recordings"))).toBe(true);
+    expect(pro.some((l) => l.startsWith("Audience insights"))).toBe(true);
+    expect(planLines(PLAN_LIMITS.starter).some((l) => l.startsWith("Recordings"))).toBe(false);
   });
 });

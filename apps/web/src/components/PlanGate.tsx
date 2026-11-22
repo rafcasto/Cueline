@@ -13,6 +13,8 @@ type Props = {
   children: ReactNode;
   /** `block` is a card of its own (a whole tab, a refused action); `inline` is one row inside another card. */
   variant?: "block" | "inline";
+  /** The room the gate is about: the billing page opens on its row. */
+  roomId?: string;
   /** The gate answers something the host just tried (Go live refused, the hard stop): a warning edge, so it reads as the reason and not as an advert. */
   stop?: boolean;
   className?: string;
@@ -26,19 +28,21 @@ type Props = {
  * sentence is tertiary. Nothing else on the host side is terracotta-soft with a lock, so the
  * shape is recognisable at a glance.
  */
-export function PlanGate({ title, unlock, current, children, variant = "block", stop, className }: Props) {
+export function PlanGate({ title, unlock, current, children, variant = "block", stop, roomId, className }: Props) {
   const label = PLAN_LIMITS[unlock].label;
   const monthly = PRICE_LABELS[`${unlock}_monthly`];
   const yearly = PRICE_LABELS[`${unlock}_yearly`];
-  const href = "/host/billing";
+  const href = roomId ? `/host/billing#room-${roomId}` : "/host/billing";
   const cta = `Upgrade to ${label} · ${monthly.amount}/${monthly.period}`;
 
   if (variant === "inline") {
     return (
-      <div role="status" className={cx("flex flex-wrap items-center gap-3 rounded-lg border bg-surface-inset px-4 py-3", stop ? "border-warning" : "border-line", className)}>
+      <div role={stop ? "status" : undefined} className={cx("flex flex-wrap items-center gap-3 rounded-lg border bg-surface-inset px-4 py-3", stop ? "border-warning" : "border-line", className)}>
         <LockIcon className="size-4 shrink-0 text-ink-muted" />
         <p className="min-w-0 flex-1 text-sm leading-relaxed text-ink-muted">
-          <span className="font-medium text-ink">{title}</span> {children}
+          <span className="font-medium text-ink">{title}</span>
+          <span aria-hidden> · </span>
+          {children}
         </p>
         <ButtonLink href={href} size="sm" data-track={`gate_${unlock}`}>
           {cta}
@@ -48,7 +52,7 @@ export function PlanGate({ title, unlock, current, children, variant = "block", 
   }
 
   return (
-    <div role="status" className={cx("rounded-xl border bg-surface-raised p-6 shadow-card", stop ? "border-warning" : "border-line", className)}>
+    <div role={stop ? "status" : undefined} className={cx("rounded-xl border bg-surface-raised p-6 shadow-card", stop ? "border-warning" : "border-line", className)}>
       <div className="flex items-start gap-4">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand-ink">
           <LockIcon className="size-5" />

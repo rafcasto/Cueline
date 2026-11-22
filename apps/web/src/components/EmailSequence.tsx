@@ -169,7 +169,7 @@ export function EmailSequence({ room, limits, invites, registrations }: Props) {
           }
         />
         {remindersLocked && (
-          <PlanGate variant="inline" className="mt-4" title="Reminder emails" unlock={remindersPlan} current={limits.label}>
+          <PlanGate variant="inline" className="mt-4" title="Reminder emails" unlock={remindersPlan} current={limits.label} roomId={room.id}>
             On {limits.label} registrants get the welcome (and the waiting-list note); the reminders below are kept but not sent. On {PLAN_LIMITS[remindersPlan].label} they go out to everyone with a seat, asking the no-shows to free it.
           </PlanGate>
         )}

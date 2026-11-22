@@ -112,6 +112,23 @@ export function planLimits(plan: string | null | undefined): PlanLimits {
   return PLAN_LIMITS[isPlan(plan) ? plan : "free"];
 }
 
+/**
+ * What sets a plan apart, in the order a host weighs it: how often, how many, how long, who
+ * can join them on stage, then the features. Read from PLAN_LIMITS and limited to what the
+ * app enforces, so the host page, the billing panel and the gates never disagree.
+ */
+export function planLines(l: PlanLimits): string[] {
+  const sessions = l.sessionsPerMonth === null ? "Unlimited sessions" : l.sessionsPerMonth === 1 ? "1 session a month" : `${l.sessionsPerMonth} sessions a month`;
+  const length = l.minutes >= 60 ? `${l.minutes / 60} hours per session` : `${l.minutes} minutes per session`;
+  const lines = [sessions, `${l.participants} attendees per session`, length];
+  if (l.promoteSlots > 0) lines.push(l.promoteSlots === 1 ? "1 attendee on stage with you at a time" : `${l.promoteSlots} attendees on stage with you at a time`);
+  if (l.reminders) lines.push("Reminder emails before every event");
+  if (l.recording) lines.push(`Recordings kept ${l.recordingDays} days`);
+  if (l.insights) lines.push("Audience insights: who showed up, engagement and fit scores");
+  if (l.stripeCta) lines.push("Stripe checkout on your call to action");
+  return lines;
+}
+
 export type PaidPlan = Exclude<Plan, "free">;
 
 /** The one step up from a plan: what a gate on a cap (sessions, length, seats) offers. */
