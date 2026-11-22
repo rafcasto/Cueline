@@ -420,7 +420,7 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
                 />
                 {!stageOpen && (
                   <PlanGate variant="inline" className="mt-4" title="Bringing attendees on stage" unlock={nextPlan(access.tier) ?? "starter"} current={limits.label} roomId={room.id}>
-                    is on {PLAN_NAME[nextPlan(access.tier) ?? "starter"]}: a raised hand becomes a guest on camera beside you, {PLAN_LIMITS[nextPlan(access.tier) ?? "starter"].promoteSlots} at a time. Hands still count towards engagement.
+                    On {limits.label} a raised hand is a signal and counts towards engagement. On {PLAN_NAME[nextPlan(access.tier) ?? "starter"]} it can become a guest on camera beside you, {PLAN_LIMITS[nextPlan(access.tier) ?? "starter"].promoteSlots} at a time.
                   </PlanGate>
                 )}
                 {state.handRaises.length > 0 && (

@@ -169,7 +169,7 @@ export function RegisterForm(props: Props) {
                   <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Your join code</p>
                   <p className="mt-0.5 text-sm text-ink-muted">On another device, go to /join and enter your email with this code.</p>
                 </div>
-                <code className="shrink-0 rounded-md bg-surface-raised px-3 py-1.5 font-mono text-lg font-semibold tracking-[0.25em] text-ink shadow-card">{done.code}</code>
+                <code className="shrink-0 rounded-md bg-surface-raised px-3 py-1.5 font-mono text-lg font-semibold tracking-[0.25em] text-ink">{done.code}</code>
               </div>
             </div>
             {sessionState !== "live" &&
@@ -258,7 +258,7 @@ function OptOutConfirm({ text, action, busy, onConfirm, onCancel }: { text: stri
     <div className="rounded-lg border border-line bg-surface-inset px-4 py-3">
       <p className="text-sm leading-relaxed text-ink">{text}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button variant="danger" size="sm" onClick={onConfirm} loading={busy}>
+        <Button variant="secondary" size="sm" onClick={onConfirm} loading={busy}>
           {action}
         </Button>
         <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>

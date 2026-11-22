@@ -37,10 +37,12 @@ export function PlanGate({ title, unlock, current, children, variant = "block", 
 
   if (variant === "inline") {
     return (
-      <div role="status" className={cx("flex flex-wrap items-center gap-3 rounded-lg border bg-surface-inset px-4 py-3", stop ? "border-warning" : "border-line", className)}>
+      <div role={stop ? "status" : undefined} className={cx("flex flex-wrap items-center gap-3 rounded-lg border bg-surface-inset px-4 py-3", stop ? "border-warning" : "border-line", className)}>
         <LockIcon className="size-4 shrink-0 text-ink-muted" />
         <p className="min-w-0 flex-1 text-sm leading-relaxed text-ink-muted">
-          <span className="font-medium text-ink">{title}</span> {children}
+          <span className="font-medium text-ink">{title}</span>
+          <span aria-hidden> · </span>
+          {children}
         </p>
         <ButtonLink href={href} size="sm" data-track={`gate_${unlock}`}>
           {cta}
@@ -50,7 +52,7 @@ export function PlanGate({ title, unlock, current, children, variant = "block", 
   }
 
   return (
-    <div role="status" className={cx("rounded-xl border bg-surface-raised p-6 shadow-card", stop ? "border-warning" : "border-line", className)}>
+    <div role={stop ? "status" : undefined} className={cx("rounded-xl border bg-surface-raised p-6 shadow-card", stop ? "border-warning" : "border-line", className)}>
       <div className="flex items-start gap-4">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand-ink">
           <LockIcon className="size-5" />

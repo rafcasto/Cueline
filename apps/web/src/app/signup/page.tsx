@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
-import { Alert, Button, ButtonLink, Card, Field, Input, Logo, TextLink } from "@/components/ui";
+import { Alert, Button, Card, Field, Input, Logo, TextLink } from "@/components/ui";
 import { api } from "@/lib/api";
 import { PASSWORD_MIN } from "@/lib/signup";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -69,7 +69,7 @@ function SignupInner() {
           <h1 className="text-2xl tracking-tight text-ink">Open your room</h1>
           <p className="mt-1 text-sm text-ink-muted">Your first room is free. No card.</p>
           <form onSubmit={(e) => void signUp(e)} className="mt-6 space-y-4">
-            <Field label="Organisation" htmlFor="signup-org" hint="Shown on your rooms and your invoices. Your own name is fine.">
+            <Field label="Your name or organisation" htmlFor="signup-org" hint="Shown on your rooms and your invoices.">
               <Input id="signup-org" autoComplete="organization" required maxLength={80} autoFocus value={organisation} onChange={(e) => setOrganisation(e.target.value)} placeholder="Tuesday Sessions" />
             </Field>
             <Field label="Email" htmlFor="signup-email">
@@ -80,14 +80,12 @@ function SignupInner() {
             </Field>
             {error && (
               <Alert tone="danger">
-                {error}
-                {/already an account/i.test(error) && (
+                {/already an account/i.test(error) ? (
                   <>
-                    {" "}
-                    <ButtonLink href={`/login?next=${encodeURIComponent(next)}`} variant="ghost" size="sm" className="mt-2 -ml-3">
-                      Go to log in
-                    </ButtonLink>
+                    There is already an account with this email. <TextLink href={`/login?next=${encodeURIComponent(next)}`}>Log in instead</TextLink>.
                   </>
+                ) : (
+                  error
                 )}
               </Alert>
             )}

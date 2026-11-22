@@ -182,7 +182,7 @@ export function InviteCard({ room, limits, invites, registrations, participants,
                 </div>
                 {capped(inv) && (
                   <PlanGate variant="inline" stop className="mt-3" title="Seats" unlock={planWithParticipants(inv.capacity ?? 0)} current={limits.label} roomId={room.id}>
-                    this event was given {inv.capacity}, but {limits.label} seats {limits.participants}: attendees see {limits.participants} and everyone past that waits in line. {PLAN_LIMITS[planWithParticipants(inv.capacity ?? 0)].label} seats {PLAN_LIMITS[planWithParticipants(inv.capacity ?? 0)].participants}.
+                    This event was given {inv.capacity}, but {limits.label} seats {limits.participants}: attendees see {limits.participants} and everyone past that waits in line. {PLAN_LIMITS[planWithParticipants(inv.capacity ?? 0)].label} seats {PLAN_LIMITS[planWithParticipants(inv.capacity ?? 0)].participants}.
                   </PlanGate>
                 )}
                 <div className="mt-4">
