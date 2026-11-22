@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Badge, Button, Card, CardHeader, EmptyState, Eyebrow, Field, Input, Select, Switch, cx } from "@/components/ui";
+import { Badge, Button, Card, CardHeader, EmptyState, Field, Input, Select, Switch, cx } from "@/components/ui";
 import { CTA_BUTTONS_MAX, CTA_BUTTON_LABEL_MAX, ctaButtons, emptyCtaButton, parseCtaButtons, type CtaButton } from "@/lib/cta";
 import { FIT_MAX, hasFitScoring, optionFit, withFit } from "@/lib/insights";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -112,7 +112,9 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
                 <div className="flex items-center gap-2" aria-hidden>
                   {editing.kind === "quiz" && <span className="size-4 shrink-0" />}
                   <span className="flex-1" />
-                  <Eyebrow className="w-14 text-center">Fit</Eyebrow>
+                  <span className="flex-none text-center text-xs font-semibold uppercase tracking-wider text-ink-muted" style={{ width: "3.5rem" }}>
+                    Fit
+                  </span>
                   <Button variant="ghost" size="sm" className="invisible" tabIndex={-1}>
                     ✕
                   </Button>
@@ -130,7 +132,7 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
                         onChange={(e) => setEditing({ ...editing, options: editing.options!.map((x, j) => (j === i ? { ...x, correct: e.target.checked } : x)) })}
                       />
                     )}
-                    <Input value={o.label} onChange={(e) => setEditing({ ...editing, options: editing.options!.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} placeholder={`Option ${i + 1}`} />
+                    <Input value={o.label} onChange={(e) => setEditing({ ...editing, options: editing.options!.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} placeholder={`Option ${i + 1}`} className="min-w-0 flex-1" />
                     {fitOn && (
                       <Input
                         type="number"
@@ -140,7 +142,8 @@ export function ActivityLibrary({ roomId, orgId, activities, onChange, onActivat
                         step={1}
                         aria-label={`Fit score for option ${i + 1}, 0 to ${FIT_MAX}`}
                         value={o.fit ?? 0}
-                        className="w-14 shrink-0 text-center tabular-nums"
+                        className="w-auto flex-none basis-14 text-center tabular-nums"
+                        style={{ width: "3.5rem" }}
                         onChange={(e) => setEditing({ ...editing, options: editing.options!.map((x, j) => (j === i ? { ...x, fit: e.target.value === "" ? 0 : Number(e.target.value) } : x)) })}
                         onBlur={() => setEditing({ ...editing, options: editing.options!.map((x, j) => (j === i ? { ...x, fit: optionFit(x) } : x)) })}
                       />
