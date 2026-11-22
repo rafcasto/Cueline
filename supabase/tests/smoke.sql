@@ -286,3 +286,24 @@ select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222
 select 'attendee cannot read room subscriptions' as check, count(*) = 0 as pass from public.room_subscriptions;
 select 'attendee sees the room plan but no subscription' as check, plan = 'starter' as pass from public.rooms where id = '00000000-0000-0000-0000-000000000003';
 reset role;
+
+-- Insights: reactions are also counted per attendee, and session_engagement adds up every
+-- signal per attendee (Ada sent five chat messages above and the host hid one), with fit points from scored poll answers.
+select 'reactions counted per attendee' as check, count = 5 as pass
+  from public.participant_reactions where session_id = '33333333-3333-3333-3333-333333333333' and user_id = '22222222-2222-2222-2222-222222222222';
+set role authenticated;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+insert into public.activities(id, org_id, room_id, kind, title, options) values
+  ('99999999-9999-9999-9999-999999999999', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002', 'poll', 'Team size?',
+   '[{"id":"a","label":"Just me","fit":2},{"id":"b","label":"2-10","fit":8},{"id":"c","label":"10+","fit":10}]');
+insert into public.activity_runs(id, org_id, session_id, activity_id) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '00000000-0000-0000-0000-000000000001', '33333333-3333-3333-3333-333333333333', '99999999-9999-9999-9999-999999999999');
+select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222', false);
+insert into public.activity_responses(run_id, session_id, user_id, option_ids) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', '{b}');
+select 'attendee cannot read others'' reaction counts' as check, count(*) = 0 as pass from public.participant_reactions;
+select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+select 'session_engagement adds up the signals' as check,
+  runs_total = 2 and cta_runs = 0 and answers = 2 and questions = 1 and hand_raises = 1 and reactions = 5 and chat_messages = 4 and cta_taps = 0 and orders_paid = 0 as pass
+  from public.session_engagement where session_id = '33333333-3333-3333-3333-333333333333' and user_id = '22222222-2222-2222-2222-222222222222';
+select 'fit points from the picked answer, out of the best possible' as check, fit_points = 8 and fit_max = 10 as pass
+  from public.session_engagement where session_id = '33333333-3333-3333-3333-333333333333' and user_id = '22222222-2222-2222-2222-222222222222';
+reset role;

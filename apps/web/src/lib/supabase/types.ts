@@ -140,7 +140,8 @@ export type Session = {
   recording_deleted_at: string | null;
 };
 
-export type ActivityOption = { id: string; label: string; correct?: boolean };
+/** `fit` (0–10) is what picking this answer adds to the attendee's fit score; see lib/insights. */
+export type ActivityOption = { id: string; label: string; correct?: boolean; fit?: number };
 /**
  * A call to action: up to three buttons (`buttons`, see lib/cta). `destination` and `target` are the
  * first button's, kept at the top so rows from before groups, which have only those, read the same.
@@ -189,6 +190,30 @@ export type RunTally = { run_id: string; index: number; option_id: string; label
 export type QuizScore = { session_id: string; user_id: string; display_name: string | null; points: number; correct: number; total_ms: number };
 
 export type Participant = { session_id: string; user_id: string; display_name: string; joined_at: string };
+
+/** One attendee's signals in one session, from the `session_engagement` view; scored in lib/insights. */
+export type SessionEngagement = {
+  session_id: string;
+  user_id: string;
+  display_name: string;
+  joined_at: string;
+  /** Poll, quiz and word-cloud runs in the session, and call-to-action runs; the same on every row. */
+  runs_total: number;
+  cta_runs: number;
+  answers: number;
+  questions: number;
+  upvotes: number;
+  chat_messages: number;
+  hand_raises: number;
+  reactions: number;
+  /** Call-to-action runs this person saw, taps on any button, and Stripe orders paid from them. */
+  cta_views: number;
+  cta_taps: number;
+  orders_paid: number;
+  /** Fit of the options picked, and the best possible over every run with fit scoring; the same `fit_max` on every row. */
+  fit_points: number;
+  fit_max: number;
+};
 export type StageRoster = { id: string; session_id: string; user_id: string; state: StageState; updated_at: string };
 export type SlideEvent = { id: string; session_id: string; presentation_id: string | null; page_index: number; server_ts: string };
 

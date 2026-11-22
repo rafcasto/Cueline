@@ -60,9 +60,12 @@ Every table carries `org_id`; every session-scoped table also carries `session_i
 | `slide_events` | Presenter navigated the deck | session_id, presentation_id, page_index, server_ts |
 | `questions`, `question_votes` | Q&A with upvotes and moderation flag | — |
 | `reactions` | Batched counts per second, not per tap | session_id, kind, count, bucket_ts |
+| `participant_reactions` | Reactions per attendee, kept by `bump_reaction()` alongside the buckets, for the insights | session_id, user_id, count |
 | `hand_raises` | Queue | session_id, user_id, raised_at, cleared_at |
 | `cta_events` | Every view/tap/conversion of a CTA run | user_id, run_id, page_index, offset_seconds, action |
 | `orders` | Stripe outcome | stripe_session_id, status, cta_event_id |
+
+**Insights.** One view, `session_engagement`, gives one row per attendee per session with every signal counted (answers against runs offered, questions, upvotes, chat, hands, reactions, call-to-action views and taps, paid orders) and the fit points from scored answers (`activities.options[].fit`, 0–10) against the best possible. The scores and the intent × fit split are computed in `apps/web/src/lib/insights.ts`, so the weights can change without a migration. Registered against attended matches an event to the sessions that started within twelve hours of its start time.
 
 **Realtime pattern.** Do not have 100 clients subscribe to `postgres_changes` with RLS; Supabase evaluates policies per subscriber per change and it slows down. Instead: write to the table, and a trigger using `realtime.broadcast_changes` pushes to a `session:{id}` broadcast channel that clients listen to. Tallies come from a `run_tallies` view and quiz standings from `quiz_scores`, so the overlay reads a small result set.
 
@@ -92,8 +95,8 @@ Authored in the host panel and stored per room, so they are reusable across sess
 
 | Kind | Options | Timer | Results |
 | --- | --- | --- | --- |
-| Poll | 2–10 options, single choice | optional | bars with percentages |
-| Quiz | 2–10 options, one or more marked correct; points | optional | bars with correct answers marked, plus a leaderboard |
+| Poll | 2–10 options, single choice, each with an optional fit score | optional | bars with percentages |
+| Quiz | 2–10 options, one or more marked correct, each with an optional fit score; points | optional | bars with correct answers marked, plus a leaderboard |
 | Word cloud | free text, up to 80 characters | optional | word cloud sized by frequency |
 | Call to action | a title and up to three buttons, each with a destination (Stripe / embed / tab) and target | none | interactions count |
 
