@@ -1,11 +1,11 @@
 "use client";
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatStart } from "@/components/RegisterForm";
 import { Alert, Badge, Button, Card, CardHeader, EmptyState, Eyebrow, Field, Input, Select, Switch, Textarea, cx } from "@/components/ui";
 import { api } from "@/lib/api";
 import { describeOffset, PLACEHOLDERS, renderTemplate, templateVars } from "@/lib/email/template";
-import type { Plan, PlanLimits } from "@/lib/plans";
+import { PlanGate } from "@/components/PlanGate";
+import { PLAN_LIMITS, planThatIncludes, type PlanLimits } from "@/lib/plans";
 import { isSeated } from "@/lib/seats";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Invite, Registration, RegistrationEmail, Room, RoomEmail } from "@/lib/supabase/types";
@@ -13,7 +13,6 @@ import type { Invite, Registration, RegistrationEmail, Room, RoomEmail } from "@
 type Props = {
   room: Room;
   /** The plan in force: reminders go out on the paid plans only. */
-  plan: Plan;
   limits: PlanLimits;
   /** Open (not revoked) events in the room; delivery is shown for one of them. */
   invites: Invite[];
@@ -51,7 +50,7 @@ const browserZone = () => {
  * paid feature: on the free plan they are shown locked. Delivery counts are shown for one
  * event at a time.
  */
-export function EmailSequence({ room, plan, limits, invites, registrations }: Props) {
+export function EmailSequence({ room, limits, invites, registrations }: Props) {
   const [steps, setSteps] = useState<RoomEmail[] | null>(null);
   // Delivery counts for the event they were loaded for; an event switch shows nothing until its own arrive.
   const [countsFor, setCountsFor] = useState<{ inviteId: string; counts: Counts } | null>(null);
@@ -65,6 +64,7 @@ export function EmailSequence({ room, plan, limits, invites, registrations }: Pr
   const counts: Counts = invite && countsFor?.inviteId === invite.id ? countsFor.counts : {};
   const registrationCount = invite ? registrations.filter((r) => r.invite_id === invite.id && isSeated(r)).length : 0;
   const remindersLocked = !limits.reminders;
+  const remindersPlan = planThatIncludes("reminders");
 
   useEffect(() => {
     let cancelled = false;
@@ -169,9 +169,9 @@ export function EmailSequence({ room, plan, limits, invites, registrations }: Pr
           }
         />
         {remindersLocked && (
-          <Alert tone="brand" className="mt-4" title={plan === "free" ? "Reminders are on Starter and Pro" : "Reminders are not included in this plan"}>
-            On {limits.label} every registrant gets the welcome email (and the waiting-list note when the seats are gone); the reminders below stay as they are and are not sent. <Link href="/host/billing" className="font-medium underline underline-offset-4">Upgrade</Link> and they start going out for everyone with a seat at an upcoming event.
-          </Alert>
+          <PlanGate variant="inline" className="mt-4" title="Reminder emails" unlock={remindersPlan} current={limits.label}>
+            On {limits.label} registrants get the welcome (and the waiting-list note); the reminders below are kept but not sent. On {PLAN_LIMITS[remindersPlan].label} they go out to everyone with a seat, asking the no-shows to free it.
+          </PlanGate>
         )}
         {error && (
           <Alert tone="danger" className="mt-4">
@@ -241,7 +241,7 @@ export function EmailSequence({ room, plan, limits, invites, registrations }: Pr
                     <p className="truncate font-medium text-ink">{renderTemplate(step.subject, previewVars)}</p>
                     <p className="mt-1 line-clamp-2 text-sm text-ink-muted">{renderTemplate(step.body, previewVars)}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {locked && <Badge tone="brand">Paid plans</Badge>}
+                      {locked && <Badge>{PLAN_LIMITS[remindersPlan].label}</Badge>}
                       {c.sent ? <Badge tone="success">{c.sent} sent</Badge> : null}
                       {scheduled ? <Badge tone="brand">{scheduled} scheduled</Badge> : null}
                       {c.failed ? <Badge tone="danger">{c.failed} failed</Badge> : null}

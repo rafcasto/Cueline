@@ -4,7 +4,7 @@ import { TopicPicker } from "@/components/TopicPicker";
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, Select, Stat, cx } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { RoomAccess } from "@/lib/billing";
-import { PLAN_LIMITS, PRICE_LABELS, type Plan, type PriceLookup } from "@/lib/plans";
+import { NEXT_PLAN, PLAN_LIMITS, PRICE_LABELS, type Plan, type PriceLookup } from "@/lib/plans";
 import type { PlanStatus, StripeMode } from "@/lib/supabase/types";
 
 export type BillingRoom = {
@@ -34,9 +34,6 @@ const PLAN_ROWS: { plan: Plan; monthly: PriceLookup; yearly: PriceLookup }[] = [
   { plan: "starter", monthly: "starter_monthly", yearly: "starter_yearly" },
   { plan: "pro", monthly: "pro_monthly", yearly: "pro_yearly" },
 ];
-
-/** The one step up from a room's current plan: the row that gets the emphasis, so the choice is a nudge rather than a menu. */
-const NEXT_PLAN: Record<Plan, Plan | null> = { free: "starter", starter: "pro", pro: null };
 
 /**
  * One organisation's billing: each room with its plan and usage and the buttons that change

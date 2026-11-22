@@ -7,6 +7,7 @@ import { Chat } from "@/components/Chat";
 import { EmailSequence } from "@/components/EmailSequence";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { InviteCard } from "@/components/InviteCard";
+import { PlanGate } from "@/components/PlanGate";
 import { PresenterDeck } from "@/components/PresenterDeck";
 import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
@@ -18,9 +19,10 @@ import { WaitingRoomEditor } from "@/components/WaitingRoomEditor";
 import Link from "next/link";
 import { Alert, Badge, Button, Card, CardHeader, Tabs, type Tone } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { currentRun, latestRun } from "@/lib/session-state";
 import type { RoomAccess } from "@/lib/billing";
+import { PLAN_LIMITS, nextPlan, planThatIncludes, type PaidPlan } from "@/lib/plans";
 import { isSeated } from "@/lib/seats";
 import { normalizeStageLayout, sameLayout } from "@/lib/stage-layout";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -78,6 +80,8 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
   // Start on the event tab until there is a link to share; the live panel is useless without attendees.
   const [tab, setTab] = useState<Tab>(initialInvites.some((i) => !i.revoked_at) ? "live" : "event");
   const [msg, setMsg] = useState<string | null>(null);
+  /** A plan limit the host just ran into (Go live refused, the hard stop): shown as the gate it is, with the step up, not as an error. */
+  const [gate, setGate] = useState<{ title: string; unlock: PaidPlan; body: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const { state, status } = useSession(session?.id ?? null, { userId, roomId: room.id });
   const live = state.session ?? session;
@@ -90,10 +94,13 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setMsg(null);
+    setGate(null);
     try {
       await fn();
     } catch (err) {
-      setMsg((err as Error).message);
+      const up = nextPlan(access.tier);
+      if (err instanceof ApiError && err.code === "plan_limit" && up) setGate({ title: "Another session this month", unlock: up, body: `${err.message} On ${PLAN_NAME[up]} this room ${PLAN_SESSIONS[up]}, so the next one can go live now.` });
+      else setMsg((err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -139,7 +146,10 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
         .then(() => {
           setSession(null);
           setStage(null);
-          setMsg("The session reached the plan's time limit and has ended. Longer sessions are on the next plan at /host/billing.");
+          const up = nextPlan(access.tier);
+          const ran = limits.minutes >= 60 ? `${limits.minutes / 60} hours` : `${limits.minutes} minutes`;
+          if (up) setGate({ title: "Longer sessions", unlock: up, body: `This session reached ${ran}, the ${limits.label} limit, and has ended for everyone. ${PLAN_NAME[up]} sessions run for ${PLAN_LENGTH[up]}.` });
+          else setMsg(`This session reached ${ran}, the ${limits.label} limit, and has ended for everyone.`);
         })
         .catch((err: Error) => setMsg(err.message));
     }, Math.max(0, endsBy - Date.now()) + 2000);
@@ -260,9 +270,9 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
           items={[
             { value: "live", label: "Live" },
             { value: "event", label: "Event", count: registrations.filter(isSeated).length },
-            { value: "insights", label: "Insights" },
-            { value: "emails", label: "Emails" },
-            { value: "recordings", label: "Recordings", count: recordings.length || undefined },
+            { value: "insights", label: "Insights", tag: limits.insights ? undefined : PLAN_NAME[planThatIncludes("insights")] },
+            { value: "emails", label: "Emails", tag: limits.reminders ? undefined : PLAN_NAME[planThatIncludes("reminders")] },
+            { value: "recordings", label: "Recordings", count: recordings.length || undefined, tag: limits.recording ? undefined : PLAN_NAME[planThatIncludes("recording")] },
             { value: "waiting", label: "Waiting room" },
             { value: "settings", label: "Settings" },
           ]}
@@ -304,6 +314,11 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
           </Link>
         </Alert>
       )}
+      {gate && (
+        <PlanGate stop className="mt-4" title={gate.title} unlock={gate.unlock} current={limits.label}>
+          {gate.body}
+        </PlanGate>
+      )}
       {msg && (
         <Alert tone="danger" className="mt-4">
           {msg}
@@ -321,10 +336,10 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
           limits.insights ? (
             <InsightsPanel room={room} invites={invites} registrations={registrations} pastSessions={pastSessions} live={live} onAddFitScores={() => setTab("live")} />
           ) : (
-            <InsightsLocked plan={limits.label} />
+            <InsightsLocked current={limits.label} />
           )
         ) : tab === "emails" ? (
-          <EmailSequence room={room} plan={access.tier} limits={limits} invites={activeInvites} registrations={registrations} />
+          <EmailSequence room={room} limits={limits} invites={activeInvites} registrations={registrations} />
         ) : tab === "recordings" ? (
           <RecordingsList recordings={recordings} limits={limits} live={live?.state === "live" && !!live.recording_url} />
         ) : (
@@ -445,17 +460,24 @@ function CameraPlaceholder({ live }: { live: boolean }) {
   );
 }
 
-/** The Insights tab on a room whose plan does not include it: what it would show, and the one step up. */
-function InsightsLocked({ plan }: { plan: string }) {
+/** The names and the two caps a gate quotes, read from PLAN_LIMITS so the copy never drifts from the gates. */
+const PLAN_NAME: Record<PaidPlan, string> = { starter: PLAN_LIMITS.starter.label, pro: PLAN_LIMITS.pro.label };
+const PLAN_SESSIONS: Record<PaidPlan, string> = {
+  starter: `has ${PLAN_LIMITS.starter.sessionsPerMonth} sessions a month`,
+  pro: "has unlimited sessions",
+};
+const PLAN_LENGTH: Record<PaidPlan, string> = {
+  starter: `${PLAN_LIMITS.starter.minutes / 60} hours`,
+  pro: `${PLAN_LIMITS.pro.minutes / 60} hours`,
+};
+
+/** The Insights tab on a room whose plan does not include it: the gate, then what it would show. */
+function InsightsLocked({ current }: { current: string }) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <Alert tone="brand" title="Audience insights are a Pro feature">
-        On {plan} this room keeps every registration and answer, but the insights are not shown. Move the room to Pro on{" "}
-        <Link href="/host/billing" className="font-medium underline underline-offset-4">
-          Billing
-        </Link>{" "}
-        and they open for every session, past ones included.
-      </Alert>
+      <PlanGate title="Audience insights" unlock={planThatIncludes("insights")} current={current}>
+        This room keeps every registration and every answer already. On {PLAN_NAME[planThatIncludes("insights")]} they are read for you: who registered against who turned up, and every attendee scored for intent and fit, with the people to follow up first. Past sessions open too.
+      </PlanGate>
       <Card>
         <CardHeader title="What Insights shows" description="Two reads of every webinar, each tied to the person who made it." />
         <ul className="mt-4 space-y-3 text-sm text-ink">
