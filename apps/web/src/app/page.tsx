@@ -16,7 +16,9 @@ export const dynamic = "force-dynamic";
  * what is actually happening (the next public events and the rooms running them, read live
  * from the directory), topics to browse, how joining works, one espresso band that sends
  * hosts to /for-hosts (the page that does the selling), and the footer. Cream page, white
- * cards, terracotta for the big marks only, teal for anything you can click.
+ * cards, terracotta for the big marks only, teal for anything you can click. The hero picture
+ * is the room itself, in an espresso frame: the product's screenshot is cream inside, so
+ * without the frame it has no edge against the page.
  *
  * Every line still describes something the product does today: no ratings, logos or
  * percentages until there are real ones. Calls to action carry `data-track` so the analytics
@@ -31,7 +33,7 @@ export default async function Home() {
 
       <main className="flex-1">
         {/* Hero: the promise and the search */}
-        <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-14 pt-12 sm:px-6 sm:pt-16 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-24">
+        <section className="mx-auto grid max-w-6xl items-start gap-10 px-4 pb-14 pt-12 sm:px-6 sm:pt-16 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16 lg:py-24">
           <div>
             <h1 className="text-balance text-5xl leading-[1.02] tracking-tight text-ink sm:text-6xl">Join live conversations that matter</h1>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-ink-muted sm:text-xl">Find a room, meet people who care about the same things, and join the next live session.</p>
@@ -44,15 +46,15 @@ export default async function Home() {
             </form>
             <p className="mt-6 text-sm text-ink-muted">
               Already registered for an event?{" "}
-              <Link href="/join" className="font-semibold text-brand underline-offset-4 hover:text-brand-hover hover:underline" data-track="hero_join_code">
+              <Link href="/join" className="font-medium text-brand underline-offset-4 hover:text-brand-hover hover:underline" data-track="hero_join_code">
                 Join with your email and code
               </Link>
               , or open the personal link from your welcome email.
             </p>
           </div>
-          <figure className="mx-auto w-full max-w-xl lg:max-w-none">
-            <Image src={liveRoom} alt="A live session on Tertulia: a slide with the host on camera in the corner, reactions floating up, a Raise hand button, and the Chat and Q&A panel" priority sizes="(min-width: 1024px) 560px, 100vw" className="rounded-xl shadow-float" />
-            <figcaption className="mt-3 text-center text-sm text-ink-muted">What a session looks like from the room.</figcaption>
+          {/* The room, in an espresso frame so the cream inside it has an edge against the cream page; its top sits on the headline's cap height. */}
+          <figure className="mx-auto w-full max-w-xl rounded-2xl bg-espresso p-2 shadow-float sm:p-3 lg:mt-2 lg:max-w-none">
+            <Image src={liveRoom} alt="A live session on Tertulia: a slide with the host on camera in the corner, reactions floating up, a Raise hand button, and the Chat and Q&A panel" priority sizes="(min-width: 1024px) 560px, 100vw" className="rounded-lg" />
           </figure>
         </section>
 
