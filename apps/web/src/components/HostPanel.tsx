@@ -29,7 +29,7 @@ import type { Activity, ChatMessage, Invite, Presentation, Question, ReactionKin
 type Props = {
   room: Room;
   initialSession: Session | null;
-  /** Ended sessions of the room that have a recording, newest first. */
+  /** Ended sessions of the room whose recording is still on file, newest first. */
   recordings: Session[];
   /** Every ended session of the room, newest first; the Insights tab scores each one's audience. */
   pastSessions: Session[];
@@ -262,7 +262,7 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
             { value: "event", label: "Event", count: registrations.filter(isSeated).length },
             { value: "insights", label: "Insights" },
             { value: "emails", label: "Emails" },
-            { value: "recordings", label: "Recordings", count: recordings.filter((r) => !r.recording_deleted_at).length || undefined },
+            { value: "recordings", label: "Recordings", count: recordings.length || undefined },
             { value: "waiting", label: "Waiting room" },
             { value: "settings", label: "Settings" },
           ]}

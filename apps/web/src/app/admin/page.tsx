@@ -24,7 +24,7 @@ function day(iso: string) {
 /**
  * The platform's own view, for platform admins only (`pnpm admin:create … --super`): who has
  * signed up (host accounts and attendee registrations), every organisation with its rooms and
- * their plans, the sessions that ran, every recording with a delete, and the Stripe mode
+ * their plans, the sessions that ran, every recording on file with a delete, and the Stripe mode
  * switch. Everything is read with the service client after the admin check; nothing here is
  * reachable by an organisation owner.
  */
@@ -65,7 +65,8 @@ export default async function AdminPage() {
     admin.from("sessions").select("id", { count: "exact", head: true }).not("started_at", "is", null),
     admin.from("sessions").select("id", { count: "exact", head: true }).gte("started_at", since30),
     admin.from("sessions").select("id, room_id, state").neq("state", "ended"),
-    admin.from("sessions").select("id, room_id, started_at, ended_at, recording_url, recording_expires_at, recording_deleted_at, rooms(name, slug, org_id)").eq("state", "ended").not("recording_url", "is", null).order("started_at", { ascending: false }).limit(200),
+    // Recordings still on file: a deleted one (nightly sweep or an admin) leaves the list rather than lingering as a marked row.
+    admin.from("sessions").select("id, room_id, started_at, ended_at, recording_url, recording_expires_at, rooms(name, slug, org_id)").eq("state", "ended").not("recording_url", "is", null).is("recording_deleted_at", null).order("started_at", { ascending: false }).limit(200),
     activeStripeMode(),
   ]);
 
@@ -102,7 +103,6 @@ export default async function AdminPage() {
       ended_at: s.ended_at,
       recording_url: s.recording_url!,
       recording_expires_at: s.recording_expires_at,
-      recording_deleted_at: s.recording_deleted_at,
     };
   });
 
