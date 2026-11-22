@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Logo, cx } from "@/components/ui";
-import { brandVars, normalizeBranding } from "@/lib/branding";
+import { brandVars, coverUrl, normalizeBranding } from "@/lib/branding";
 import type { RoomBranding } from "@/lib/supabase/types";
 
 /**
@@ -31,25 +31,17 @@ export function RoomMark({ branding, name, className = "h-8 max-w-40" }: { brand
 }
 
 /**
- * The band across the top of a room's card and page: the cover picture when the host
- * uploaded one, otherwise the accent tint with the room's mark in it, so every card has a
- * band of the same height and the grid stays even. The picture is cropped to the box, never
- * stretched. `className` sets the height.
+ * The band across the top of a room's card and page: the cover picture the host chose or
+ * uploaded, else one of the default pictures (the same one for the same room), so every card
+ * has a band of the same height and the grid stays even. The picture is cropped to the box,
+ * never stretched. `className` sets the height; children sit on top of the picture.
  */
 export function RoomCover({ branding, name, className = "h-24", children }: { branding: RoomBranding; name: string; className?: string; children?: ReactNode }) {
-  const b = normalizeBranding(branding);
-  if (b.cover_url) {
-    return (
-      <div className={cx("relative overflow-hidden", className)}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={b.cover_url} alt="" className="absolute inset-0 size-full object-cover" />
-        {children}
-      </div>
-    );
-  }
+  const src = coverUrl(normalizeBranding(branding), name);
   return (
-    <div className={cx("relative flex items-center bg-brand-soft px-5", className)}>
-      <RoomMark branding={branding} name={name} className="h-9 max-w-full" />
+    <div className={cx("relative overflow-hidden bg-brand-soft", className)}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" className="absolute inset-0 size-full object-cover" />
       {children}
     </div>
   );

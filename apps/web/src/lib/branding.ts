@@ -16,9 +16,41 @@ export type RoomBranding = {
   logo_url?: string;
   /** Leave the room's name out of headers where the logo already says it. Only kept while there is a logo. */
   hide_name?: boolean;
-  /** Public URL of the cover picture (media bucket): the band across the room's card and the top of its page. */
+  /** The cover picture: one of DEFAULT_COVERS (a site path) or the public URL of an upload (media bucket). The band across the room's card and the top of its page. */
   cover_url?: string;
 };
+
+/**
+ * The pictures a room can wear without uploading anything: people around a table in warm
+ * light, the imagery docs/BRAND.md asks for. Served from `public/covers`, so a value is a site
+ * path rather than a bucket link, and the same four files sit behind every room that uses them.
+ */
+export const DEFAULT_COVERS: { url: string; label: string }[] = [
+  { url: "/covers/cafe-laptop.webp", label: "Three friends around a laptop in a café" },
+  { url: "/covers/cafe-sketch.webp", label: "Three people over a sketch at a café table" },
+  { url: "/covers/cafe-portraits.webp", label: "A drawing group sharing portraits" },
+  { url: "/covers/library-reading.webp", label: "A reading group in a library" },
+];
+
+export function isDefaultCover(url: string): boolean {
+  return DEFAULT_COVERS.some((c) => c.url === url);
+}
+
+/**
+ * The default picture for a room that has none (rooms made before covers were set at creation,
+ * or a row whose upload was dropped): the same one every time for the same room, so a card does
+ * not change between visits.
+ */
+export function defaultCoverFor(seed: string): string {
+  let h = 0;
+  for (const ch of seed) h = (h * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
+  return DEFAULT_COVERS[h % DEFAULT_COVERS.length].url;
+}
+
+/** What a room's cover band shows: the chosen or uploaded picture, else the room's default. Never empty. */
+export function coverUrl(b: RoomBranding, seed: string): string {
+  return b.cover_url ?? defaultCoverFor(seed);
+}
 
 /** Tertulia teal, the product's action colour; the editor's "Reset" and the colour picker's initial value. */
 export const DEFAULT_ACCENT = "#17706f";
@@ -48,6 +80,12 @@ export function normalizeUrl(input: string): string | null {
   }
 }
 
+/** A cover is one of the default pictures or an http(s) link to an upload; null for anything else. */
+export function normalizeCoverUrl(input: string): string | null {
+  const s = input.trim();
+  return isDefaultCover(s) ? s : normalizeUrl(s);
+}
+
 /**
  * Strict parse for a save: every field that is present must be valid, so a host reads
  * "The call to action needs a web address" rather than silently losing it.
@@ -72,9 +110,9 @@ export function parseBranding(raw: unknown): { branding: RoomBranding } | { erro
   }
 
   if (r.cover_url !== undefined && r.cover_url !== null && r.cover_url !== "") {
-    if (typeof r.cover_url !== "string") return { error: "The cover picture must be an uploaded picture." };
-    const url = normalizeUrl(r.cover_url);
-    if (!url) return { error: "The cover picture must be an uploaded picture." };
+    if (typeof r.cover_url !== "string") return { error: "The cover picture must be one of ours or an uploaded picture." };
+    const url = normalizeCoverUrl(r.cover_url);
+    if (!url) return { error: "The cover picture must be one of ours or an uploaded picture." };
     out.cover_url = url;
   }
 
@@ -94,7 +132,7 @@ export function normalizeBranding(raw: unknown): RoomBranding {
     out.logo_url = logo;
     if (r.hide_name === true) out.hide_name = true;
   }
-  const cover = typeof r.cover_url === "string" ? normalizeUrl(r.cover_url) : null;
+  const cover = typeof r.cover_url === "string" ? normalizeCoverUrl(r.cover_url) : null;
   if (cover) out.cover_url = cover;
   return out;
 }
@@ -105,9 +143,9 @@ export function showsRoomName(raw: unknown): boolean {
   return !(b.logo_url && b.hide_name);
 }
 
-/** True when the host changed anything from the product default. */
+/** True when the host changed anything from the product default; one of the default covers does not count. */
 export function isBranded(b: RoomBranding): boolean {
-  return !!(b.accent || b.logo_url || b.cover_url);
+  return !!(b.accent || b.logo_url || (b.cover_url && !isDefaultCover(b.cover_url)));
 }
 
 function channel(c: number) {

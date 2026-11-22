@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
+import { CoverPicker } from "@/components/CoverPicker";
 import { BrandScope, RoomCover, RoomMark } from "@/components/RoomBrand";
 import { Alert, Badge, Button, Card, CardHeader, Field, Input, buttonClass, cx } from "@/components/ui";
 import { api } from "@/lib/api";
-import { DEFAULT_ACCENT, normalizeBranding, normalizeHex, parseBranding, showsRoomName } from "@/lib/branding";
+import { DEFAULT_ACCENT, defaultCoverFor, normalizeBranding, normalizeHex, parseBranding, showsRoomName } from "@/lib/branding";
 import { uploadToBucket } from "@/lib/storage";
 import type { Room, RoomBranding } from "@/lib/supabase/types";
 import { MEDIA_PICKER_ACCEPT, checkMediaFile, fileLabel, formatBytes } from "@/lib/waiting-room";
@@ -21,15 +22,15 @@ function toBranding(d: Draft): RoomBranding {
 /**
  * The room's look for attendees: an accent colour that recolours every button, badge and
  * selected answer in the room and on the invite page, a logo in place of the product mark,
- * a cover picture across the room's card on Explore and the top of its public page, and a
- * up to three standing calls to action (a group of buttons in the room header and under the stage). The
+ * a cover picture across the room's card on Explore and the top of its public page (one of
+ * the default photographs or an upload; there is always one), and up to three standing calls to action (a group of buttons in the room header and under the stage). The
  * preview is the real components under the same variables, so what the host sees is what
  * attendees get.
  */
 export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (room: Room) => void }) {
   const [draft, setDraft] = useState<Draft>(() => toDraft(room.branding));
   const [hexText, setHexText] = useState(draft.accent);
-  const [busy, setBusy] = useState<"logo" | "cover" | "save" | null>(null);
+  const [busy, setBusy] = useState<"logo" | "save" | null>(null);
   const [msg, setMsg] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
 
   const savedDraft = toDraft(room.branding);
@@ -41,7 +42,7 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
     if (hex) setDraft((d) => ({ ...d, accent: hex }));
   };
 
-  const uploadImage = async (kind: "logo" | "cover", input: HTMLInputElement) => {
+  const uploadLogo = async (input: HTMLInputElement) => {
     const file = input.files?.[0];
     input.value = "";
     if (!file) return;
@@ -50,11 +51,11 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
       setMsg({ tone: "error", text: check.error });
       return;
     }
-    setBusy(kind);
+    setBusy("logo");
     setMsg(null);
     try {
       const { url } = await uploadToBucket("media", room.org_id, file, check.contentType);
-      setDraft((d) => (kind === "logo" ? { ...d, logo_url: url } : { ...d, cover_url: url }));
+      setDraft((d) => ({ ...d, logo_url: url }));
       setMsg({ tone: "ok", text: `${file.name} (${formatBytes(file.size)}) uploaded. Save to publish it.` });
     } catch (err) {
       setMsg({ tone: "error", text: (err as Error).message });
@@ -140,7 +141,7 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
               </p>
               <label className={buttonClass("secondary", "sm", busy ? "pointer-events-none opacity-50" : undefined)}>
                 {busy === "logo" ? "Uploading…" : draft.logo_url ? "Replace" : "Upload"}
-                <input type="file" accept={MEDIA_PICKER_ACCEPT.image} className="sr-only" disabled={!!busy} onChange={(e) => void uploadImage("logo", e.target)} />
+                <input type="file" accept={MEDIA_PICKER_ACCEPT.image} className="sr-only" disabled={!!busy} onChange={(e) => void uploadLogo(e.target)} />
               </label>
               {draft.logo_url && (
                 <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => setDraft((d) => ({ ...d, logo_url: "" }))}>
@@ -160,20 +161,8 @@ export function RoomBrandingEditor({ room, onSaved }: { room: Room; onSaved: (ro
 
           <div>
             <p className="text-sm font-medium text-ink">Cover picture</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-              <p className="min-w-0 flex-1 truncate text-sm text-ink-muted" title={draft.cover_url ? fileLabel(draft.cover_url) : undefined}>
-                {draft.cover_url ? fileLabel(draft.cover_url) : "Across your card on Explore and the top of your room's page. A wide photo, about 3:1, of real people in your room works best."}
-              </p>
-              <label className={buttonClass("secondary", "sm", busy ? "pointer-events-none opacity-50" : undefined)}>
-                {busy === "cover" ? "Uploading…" : draft.cover_url ? "Replace" : "Upload"}
-                <input type="file" accept={MEDIA_PICKER_ACCEPT.image} className="sr-only" disabled={!!busy} onChange={(e) => void uploadImage("cover", e.target)} />
-              </label>
-              {draft.cover_url && (
-                <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => setDraft((d) => ({ ...d, cover_url: "" }))}>
-                  Remove
-                </Button>
-              )}
-            </div>
+            <p className="mt-1 text-sm text-ink-muted">Across your card on Explore and the top of your room&apos;s page. One of ours, or a wide photo of your own, about 2:1, of real people in your room.</p>
+            <CoverPicker className="mt-3" value={draft.cover_url || defaultCoverFor(room.name)} orgId={room.org_id} disabled={!!busy} onChange={(url) => setDraft((d) => ({ ...d, cover_url: url }))} />
           </div>
         </div>
 

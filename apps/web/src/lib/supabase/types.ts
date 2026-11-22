@@ -77,7 +77,7 @@ export type StageVideoShape = "rect" | "circle";
 export type StageVideoBox = { x: number; y: number; w: number };
 export type StageLayout = { mode: StageLayoutMode; video?: StageVideoBox; shape?: StageVideoShape };
 
-/** Accent colour, logo and cover picture; see normalizeBranding() in lib/branding. Older rows may carry a `cta`, which is ignored. */
+/** Accent colour, logo and cover picture (a default cover's site path or an upload's URL); see normalizeBranding() in lib/branding. Older rows may carry a `cta`, which is ignored. */
 export type RoomBranding = { accent?: string; logo_url?: string; hide_name?: boolean; cover_url?: string };
 
 export type Room = {

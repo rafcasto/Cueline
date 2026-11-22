@@ -49,6 +49,7 @@ Heart `#E8473B` · Happy `#F2B233` · Angry `#B3261E` · Clap or fire `#D9643A` 
 - Rounded corners: 12 px cards, 8 px buttons.
 - Soft shadows, generous white space, a cream background with white cards. Cards carry a shadow rather than a border.
 - Imagery: real people in warm light, candid conversation moments; no stock handshake photos. Until there are photographs, the illustrations are flat shapes in the palette (the hero art on `/` and `/for-hosts`).
+- Room covers: every room wears a cover picture on its Explore card and page. Four default photographs (people around a table in warm light) live in `apps/web/public/covers` and are listed in `DEFAULT_COVERS` (`lib/branding`); a host picks one when creating the room, or uploads their own, and can change it in Branding. A room with none shows a default.
 - Icons: simple rounded line icons.
 
 ## Voice and tone
