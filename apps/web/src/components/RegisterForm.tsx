@@ -2,7 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandScope, RoomMark } from "@/components/RoomBrand";
 import { WaitingRoom } from "@/components/WaitingRoom";
-import { Alert, Badge, Button, ButtonLink, Field, Input, cx } from "@/components/ui";
+import { Alert, Badge, Button, ButtonLink, Field, Input, Stat, cx } from "@/components/ui";
 import { showsRoomName } from "@/lib/branding";
 import { api } from "@/lib/api";
 import type { RegistrationStatus, SeatSummary } from "@/lib/seats";
@@ -47,6 +47,8 @@ export function RegisterForm(props: Props) {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Freeing a seat is asked on the page, in the room's colours, not in a browser dialog.
+  const [confirming, setConfirming] = useState(false);
 
   // The anonymous identity is what the registration binds to; create it before the first submit.
   useEffect(() => {
@@ -89,7 +91,7 @@ export function RegisterForm(props: Props) {
   const optOut = async () => {
     if (!done) return;
     const waiting = done.status === "waitlisted";
-    if (!confirm(waiting ? "Leave the waiting list? You can join it again from this page." : "Free your seat? It goes to the next person on the waiting list. You can register again from this page while seats remain.")) return;
+    setConfirming(false);
     setBusy(true);
     setError(null);
     try {
@@ -136,7 +138,7 @@ export function RegisterForm(props: Props) {
           </div>
         </div>
         <h1 className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-ink">{props.title}</h1>
-        {when && <p className="mt-2 text-sm font-medium text-ink-muted">{when}</p>}
+        {when && <p className="mt-2 text-base font-medium text-ink">{when}</p>}
         <p className="mt-1 text-sm text-ink-muted">
           {seats.full ? `All ${seats.capacity} seats are taken` : `${seats.left} of ${seats.capacity} seats left`}
           {seats.waiting > 0 ? ` · ${seats.waiting} on the waiting list` : ""}
@@ -170,35 +172,54 @@ export function RegisterForm(props: Props) {
                 <code className="shrink-0 rounded-md bg-surface-raised px-3 py-1.5 font-mono text-lg font-semibold tracking-[0.25em] text-ink shadow-card">{done.code}</code>
               </div>
             </div>
-            {sessionState !== "live" && (
-              <p className="text-center text-sm text-ink-muted">
-                Can&apos;t make it?{" "}
-                <button type="button" onClick={() => void optOut()} disabled={busy} className="font-medium text-brand underline-offset-4 hover:underline disabled:opacity-50">
-                  Free your seat
-                </button>{" "}
-                for the next person in line.
-              </p>
-            )}
+            {sessionState !== "live" &&
+              (confirming ? (
+                <OptOutConfirm
+                  text="Free your seat? It goes to the next person on the waiting list. You can register again from this page while seats remain."
+                  action="Free my seat"
+                  busy={busy}
+                  onConfirm={() => void optOut()}
+                  onCancel={() => setConfirming(false)}
+                />
+              ) : (
+                <p className="text-center text-sm text-ink-muted">
+                  Can&apos;t make it?{" "}
+                  <button type="button" onClick={() => setConfirming(true)} disabled={busy} className="font-medium text-brand underline-offset-4 hover:underline disabled:opacity-50">
+                    Free your seat
+                  </button>{" "}
+                  for the next person in line.
+                </p>
+              ))}
             {error && <Alert tone="danger">{error}</Alert>}
           </div>
         ) : waitlisted && done ? (
           <div className="mt-6 space-y-4">
-            <Alert tone="warning" title={done.position ? `You're #${done.position} on the waiting list, ${done.name}.` : `You're on the waiting list, ${done.name}.`}>
-              {justRegistered ? (
-                <>
-                  The seats are taken for now. We sent a note to <strong>{done.email}</strong>; if a seat frees up you get an email with your personal link, and this page updates too.
-                </>
-              ) : (
-                "The seats are taken for now. If one frees up you get an email with your personal link, and this page updates too."
-              )}
-            </Alert>
-            <p className="text-center text-sm text-ink-muted">
-              Plans changed?{" "}
-              <button type="button" onClick={() => void optOut()} disabled={busy} className="font-medium text-brand underline-offset-4 hover:underline disabled:opacity-50">
-                Leave the waiting list
-              </button>
-              .
-            </p>
+            <div role="status" className="flex items-center gap-5 rounded-lg border border-line bg-surface-inset px-4 py-4">
+              {done.position && <Stat value={`#${done.position}`} label="in line" className="shrink-0" />}
+              <div className="min-w-0">
+                <p className="font-semibold text-ink">You&apos;re on the waiting list, {done.name}.</p>
+                <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                  {justRegistered ? (
+                    <>
+                      The seats are taken for now. We sent a note to <strong className="font-medium text-ink">{done.email}</strong>; if a seat frees up you get an email with your personal link, and this page updates too.
+                    </>
+                  ) : (
+                    "The seats are taken for now. If one frees up you get an email with your personal link, and this page updates too."
+                  )}
+                </p>
+              </div>
+            </div>
+            {confirming ? (
+              <OptOutConfirm text="Leave the waiting list? You can join it again from this page." action="Leave the list" busy={busy} onConfirm={() => void optOut()} onCancel={() => setConfirming(false)} />
+            ) : (
+              <p className="text-center text-sm text-ink-muted">
+                Plans changed?{" "}
+                <button type="button" onClick={() => setConfirming(true)} disabled={busy} className="font-medium text-brand underline-offset-4 hover:underline disabled:opacity-50">
+                  Leave the waiting list
+                </button>
+                .
+              </p>
+            )}
             {error && <Alert tone="danger">{error}</Alert>}
           </div>
         ) : (
@@ -228,5 +249,22 @@ export function RegisterForm(props: Props) {
         )}
       </section>
     </BrandScope>
+  );
+}
+
+/** The question before a seat is given up, on the page: what happens, then the two choices. */
+function OptOutConfirm({ text, action, busy, onConfirm, onCancel }: { text: string; action: string; busy: boolean; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="rounded-lg border border-line bg-surface-inset px-4 py-3">
+      <p className="text-sm leading-relaxed text-ink">{text}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button variant="danger" size="sm" onClick={onConfirm} loading={busy}>
+          {action}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={busy}>
+          Keep it
+        </Button>
+      </div>
+    </div>
   );
 }

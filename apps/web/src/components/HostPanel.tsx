@@ -7,6 +7,7 @@ import { Chat } from "@/components/Chat";
 import { EmailSequence } from "@/components/EmailSequence";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { InviteCard } from "@/components/InviteCard";
+import { PlanGate } from "@/components/PlanGate";
 import { PresenterDeck } from "@/components/PresenterDeck";
 import { Questions } from "@/components/Questions";
 import { ReactionBar } from "@/components/ReactionBar";
@@ -15,12 +16,12 @@ import { RoomSettings } from "@/components/RoomSettings";
 import { RoomStage } from "@/components/RoomStage";
 import { RunControls } from "@/components/RunControls";
 import { WaitingRoomEditor } from "@/components/WaitingRoomEditor";
-import Link from "next/link";
-import { Alert, Badge, Button, Card, CardHeader, Tabs, type Tone } from "@/components/ui";
+import { Alert, Badge, Button, ButtonLink, Card, CardHeader, Tabs, type Tone } from "@/components/ui";
 import { useSession } from "@/hooks/useSession";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { currentRun, latestRun } from "@/lib/session-state";
 import type { RoomAccess } from "@/lib/billing";
+import { PLAN_LIMITS, nextPlan, planThatIncludes, type PaidPlan } from "@/lib/plans";
 import { isSeated } from "@/lib/seats";
 import { normalizeStageLayout, sameLayout } from "@/lib/stage-layout";
 import { supabaseBrowser } from "@/lib/supabase/browser";
@@ -78,6 +79,8 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
   // Start on the event tab until there is a link to share; the live panel is useless without attendees.
   const [tab, setTab] = useState<Tab>(initialInvites.some((i) => !i.revoked_at) ? "live" : "event");
   const [msg, setMsg] = useState<string | null>(null);
+  /** A plan limit the host just ran into (Go live refused, the hard stop): shown as the gate it is, with the step up, not as an error. */
+  const [gate, setGate] = useState<{ title: string; unlock: PaidPlan; body: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const { state, status } = useSession(session?.id ?? null, { userId, roomId: room.id });
   const live = state.session ?? session;
@@ -87,13 +90,18 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
   const liveLayoutKey = JSON.stringify(liveLayout);
   const layout = liveLayout ? (pendingLayout?.base === liveLayoutKey ? pendingLayout.layout : liveLayout) : draftLayout;
 
-  const run = async (fn: () => Promise<void>) => {
+  type Gate = { title: string; unlock: PaidPlan; body: string };
+  /** Runs a host action; a plan limit the server refuses (`plan_limit`) is shown as the gate `onLimit` describes, anything else as an error. */
+  const run = async (fn: () => Promise<void>, onLimit?: (message: string) => Gate | null) => {
     setBusy(true);
     setMsg(null);
+    setGate(null);
     try {
       await fn();
     } catch (err) {
-      setMsg((err as Error).message);
+      const g = err instanceof ApiError && err.code === "plan_limit" && onLimit ? onLimit(err.message) : null;
+      if (g) setGate(g);
+      else setMsg((err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -106,11 +114,17 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
       setSession(data as Session);
     });
   const goLive = () =>
-    run(async () => {
-      if (!live) return;
-      await api("/api/session/go-live", { session_id: live.id });
-      await sb.from("slide_events").insert({ org_id: room.org_id, session_id: live.id, presentation_id: deck?.id ?? null, page_index: page });
-    });
+    run(
+      async () => {
+        if (!live) return;
+        await api("/api/session/go-live", { session_id: live.id });
+        await sb.from("slide_events").insert({ org_id: room.org_id, session_id: live.id, presentation_id: deck?.id ?? null, page_index: page });
+      },
+      (m) => {
+        const up = nextPlan(access.tier);
+        return up ? { title: "Another session this month", unlock: up, body: `${m} On ${PLAN_NAME[up]} this room ${PLAN_SESSIONS[up]}, so the next one can go live now.` } : null;
+      },
+    );
   const end = () =>
     run(async () => {
       if (!live) return;
@@ -139,7 +153,10 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
         .then(() => {
           setSession(null);
           setStage(null);
-          setMsg("The session reached the plan's time limit and has ended. Longer sessions are on the next plan at /host/billing.");
+          const up = nextPlan(access.tier);
+          const ran = limits.minutes >= 60 ? `${limits.minutes / 60} hours` : `${limits.minutes} minutes`;
+          if (up) setGate({ title: "Longer sessions", unlock: up, body: `This session reached ${ran}, the ${limits.label} limit, and has ended for everyone. ${PLAN_NAME[up]} sessions run for ${PLAN_LENGTH[up]}.` });
+          else setMsg(`This session reached ${ran}, the ${limits.label} limit, and has ended for everyone.`);
         })
         .catch((err: Error) => setMsg(err.message));
     }, Math.max(0, endsBy - Date.now()) + 2000);
@@ -198,9 +215,17 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
   };
 
   const stageAction = (action: "invite" | "confirm" | "revoke", user_id: string) =>
-    run(async () => {
-      if (live) await api("/api/stage", { action, session_id: live.id, user_id });
-    });
+    run(
+      async () => {
+        if (live) await api("/api/stage", { action, session_id: live.id, user_id });
+      },
+      (m) => {
+        const up = nextPlan(access.tier);
+        return up ? { title: "More people on stage", unlock: up, body: `${m} ${PLAN_NAME[up]} brings ${PLAN_LIMITS[up].promoteSlots} on stage with you at a time.` } : null;
+      },
+    );
+  const onStage = Object.values(state.roster).filter((r) => r.state === "live" || r.state === "invited").length;
+  const stageOpen = limits.promoteSlots > 0;
   const clearHand = (id: string) =>
     run(async () => {
       await sb.from("hand_raises").update({ cleared_at: new Date().toISOString() }).eq("id", id);
@@ -260,9 +285,9 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
           items={[
             { value: "live", label: "Live" },
             { value: "event", label: "Event", count: registrations.filter(isSeated).length },
-            { value: "insights", label: "Insights" },
-            { value: "emails", label: "Emails" },
-            { value: "recordings", label: "Recordings", count: recordings.length || undefined },
+            { value: "insights", label: "Insights", tag: limits.insights ? undefined : PLAN_NAME[planThatIncludes("insights")] },
+            { value: "emails", label: "Emails", tag: limits.reminders ? undefined : PLAN_NAME[planThatIncludes("reminders")] },
+            { value: "recordings", label: "Recordings", count: recordings.length || undefined, tag: limits.recording ? undefined : PLAN_NAME[planThatIncludes("recording")] },
             { value: "waiting", label: "Waiting room" },
             { value: "settings", label: "Settings" },
           ]}
@@ -298,11 +323,16 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
       </div>
       {access.locked && (
         <Alert tone="warning" className="mt-4" title="This room is locked">
-          {access.reason}{" "}
-          <Link href="/host/billing" className="font-medium underline underline-offset-4">
+          <p>{access.reason}</p>
+          <ButtonLink href="/host/billing" variant="secondary" size="sm" className="mt-3">
             Open billing
-          </Link>
+          </ButtonLink>
         </Alert>
+      )}
+      {gate && (
+        <PlanGate stop className="mt-4" title={gate.title} unlock={gate.unlock} current={limits.label}>
+          {gate.body}
+        </PlanGate>
       )}
       {msg && (
         <Alert tone="danger" className="mt-4">
@@ -321,10 +351,10 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
           limits.insights ? (
             <InsightsPanel room={room} invites={invites} registrations={registrations} pastSessions={pastSessions} live={live} onAddFitScores={() => setTab("live")} />
           ) : (
-            <InsightsLocked plan={limits.label} />
+            <InsightsLocked current={limits.label} />
           )
         ) : tab === "emails" ? (
-          <EmailSequence room={room} plan={access.tier} limits={limits} invites={activeInvites} registrations={registrations} />
+          <EmailSequence room={room} limits={limits} invites={activeInvites} registrations={registrations} />
         ) : tab === "recordings" ? (
           <RecordingsList recordings={recordings} limits={limits} live={live?.state === "live" && !!live.recording_url} />
         ) : (
@@ -378,7 +408,21 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
                 </Card>
               )}
               <Card>
-                <CardHeader title="Hands up" description={state.handRaises.length === 0 ? "Nobody has a hand up." : `${state.handRaises.length} waiting. Promote someone to bring them on stage.`} />
+                <CardHeader
+                  title="Hands up"
+                  description={
+                    state.handRaises.length === 0
+                      ? "Nobody has a hand up."
+                      : stageOpen
+                        ? `${state.handRaises.length} waiting. Promote someone to bring them on stage; ${onStage} of ${limits.promoteSlots} on it.`
+                        : `${state.handRaises.length} waiting.`
+                  }
+                />
+                {!stageOpen && (
+                  <PlanGate variant="inline" className="mt-4" title="Bringing attendees on stage" unlock={nextPlan(access.tier) ?? "starter"} current={limits.label}>
+                    is on {PLAN_NAME[nextPlan(access.tier) ?? "starter"]}: a raised hand becomes a guest on camera beside you, {PLAN_LIMITS[nextPlan(access.tier) ?? "starter"].promoteSlots} at a time. Hands still count towards engagement.
+                  </PlanGate>
+                )}
                 {state.handRaises.length > 0 && (
                   <ul className="mt-4 divide-y divide-line">
                     {state.handRaises.map((h) => {
@@ -388,9 +432,11 @@ export function HostPanel({ room: initialRoom, initialSession, recordings: initi
                           <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{nameOf(h.user_id)}</span>
                           {rs !== "viewer" && <Badge tone={rs === "live" ? "success" : rs === "invited" ? "brand" : "neutral"}>{rs === "live" ? "On stage" : rs}</Badge>}
                           {rs === "viewer" || rs === "revoked" ? (
-                            <Button size="sm" variant="secondary" onClick={() => void stageAction("invite", h.user_id)} disabled={busy}>
-                              Promote
-                            </Button>
+                            stageOpen && (
+                              <Button size="sm" variant="secondary" onClick={() => void stageAction("invite", h.user_id)} disabled={busy}>
+                                Promote
+                              </Button>
+                            )
                           ) : rs === "invited" ? (
                             <Button size="sm" variant="success" onClick={() => void stageAction("confirm", h.user_id)} disabled={busy}>
                               Confirm
@@ -445,17 +491,24 @@ function CameraPlaceholder({ live }: { live: boolean }) {
   );
 }
 
-/** The Insights tab on a room whose plan does not include it: what it would show, and the one step up. */
-function InsightsLocked({ plan }: { plan: string }) {
+/** The names and the two caps a gate quotes, read from PLAN_LIMITS so the copy never drifts from the gates. */
+const PLAN_NAME: Record<PaidPlan, string> = { starter: PLAN_LIMITS.starter.label, pro: PLAN_LIMITS.pro.label };
+const PLAN_SESSIONS: Record<PaidPlan, string> = {
+  starter: `has ${PLAN_LIMITS.starter.sessionsPerMonth} sessions a month`,
+  pro: "has unlimited sessions",
+};
+const PLAN_LENGTH: Record<PaidPlan, string> = {
+  starter: `${PLAN_LIMITS.starter.minutes / 60} hours`,
+  pro: `${PLAN_LIMITS.pro.minutes / 60} hours`,
+};
+
+/** The Insights tab on a room whose plan does not include it: the gate, then what it would show. */
+function InsightsLocked({ current }: { current: string }) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <Alert tone="brand" title="Audience insights are a Pro feature">
-        On {plan} this room keeps every registration and answer, but the insights are not shown. Move the room to Pro on{" "}
-        <Link href="/host/billing" className="font-medium underline underline-offset-4">
-          Billing
-        </Link>{" "}
-        and they open for every session, past ones included.
-      </Alert>
+      <PlanGate title="Audience insights" unlock={planThatIncludes("insights")} current={current}>
+        This room keeps every registration and every answer already. On {PLAN_NAME[planThatIncludes("insights")]} they are read for you: who registered against who turned up, and every attendee scored for intent and fit, with the people to follow up first. Past sessions open too.
+      </PlanGate>
       <Card>
         <CardHeader title="What Insights shows" description="Two reads of every webinar, each tied to the person who made it." />
         <ul className="mt-4 space-y-3 text-sm text-ink">

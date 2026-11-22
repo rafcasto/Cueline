@@ -179,7 +179,7 @@ export function EmptyState({ icon, title, description, action, className }: { ic
 }
 
 /** Segmented control / tab strip. */
-export function Tabs<T extends string>({ value, onChange, items, className }: { value: T; onChange: (v: T) => void; items: { value: T; label: ReactNode; count?: number }[]; className?: string }) {
+export function Tabs<T extends string>({ value, onChange, items, className }: { value: T; onChange: (v: T) => void; items: { value: T; label: ReactNode; count?: number; /** A short word after the label ("Pro"): what the tab needs that this room does not have. */ tag?: ReactNode }[]; className?: string }) {
   return (
     <div role="tablist" className={cx("inline-flex max-w-full gap-1 overflow-x-auto rounded-lg bg-surface-inset p-1", className)}>
       {items.map((it) => (
@@ -196,6 +196,7 @@ export function Tabs<T extends string>({ value, onChange, items, className }: { 
         >
           {it.label}
           {it.count !== undefined && <span className={cx("rounded-full px-1.5 text-xs tabular-nums", value === it.value ? "bg-brand-soft text-brand-ink" : "bg-surface-raised text-ink-muted")}>{it.count}</span>}
+          {it.tag !== undefined && <span className="rounded-full bg-brand-soft px-1.5 text-xs font-semibold uppercase tracking-wider text-brand-ink">{it.tag}</span>}
         </button>
       ))}
     </div>

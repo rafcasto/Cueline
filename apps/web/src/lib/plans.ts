@@ -111,3 +111,22 @@ export function planFromPrice(lookupKey: string | null | undefined, productPlan:
 export function planLimits(plan: string | null | undefined): PlanLimits {
   return PLAN_LIMITS[isPlan(plan) ? plan : "free"];
 }
+
+export type PaidPlan = Exclude<Plan, "free">;
+
+/** The one step up from a plan: what a gate on a cap (sessions, length, seats) offers. */
+export const NEXT_PLAN: Record<Plan, PaidPlan | null> = { free: "starter", starter: "pro", pro: null };
+
+export function nextPlan(plan: string | null | undefined): PaidPlan | null {
+  return NEXT_PLAN[isPlan(plan) ? plan : "free"];
+}
+
+/** The cheapest plan that seats this many in a session: what a gate on an event's seats offers. */
+export function planWithParticipants(n: number): PaidPlan {
+  return PLAN_LIMITS.starter.participants >= n ? "starter" : "pro";
+}
+
+/** The cheapest plan that switches a feature on: what a gate on a feature (recording, insights, reminders) offers. */
+export function planThatIncludes(feature: { [K in keyof PlanLimits]: PlanLimits[K] extends boolean ? K : never }[keyof PlanLimits]): PaidPlan {
+  return PLAN_LIMITS.starter[feature] ? "starter" : "pro";
+}

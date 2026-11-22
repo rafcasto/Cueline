@@ -4,6 +4,7 @@ import { formatStart } from "@/components/RegisterForm";
 import { SkeletonLine, SkeletonRegion } from "@/components/Skeleton";
 import { Alert, Badge, Button, Card, CardHeader, EmptyState, Eyebrow, Select, Tabs, cx } from "@/components/ui";
 import { DEFAULT_THRESHOLDS, ENGAGEMENT_WEIGHTS, FIT_MAX, QUADRANTS, average, byQuadrant, eventFunnels, scoreAttendees, totalFunnel, type Quadrant, type ScoredAttendee, type Thresholds } from "@/lib/insights";
+import { api } from "@/lib/api";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Invite, Registration, Room, Session, SessionEngagement } from "@/lib/supabase/types";
 
@@ -90,17 +91,23 @@ export function InsightsPanel({ room, invites, registrations, pastSessions, live
     if (!selectedId) return;
     let cancelled = false;
     (async () => {
-      const { data, error } = await sb.from("session_engagement").select("*").eq("session_id", selectedId);
+      let rows: SessionEngagement[];
+      try {
+        rows = (await api<{ rows: SessionEngagement[] }>("/api/insights", { session_id: selectedId })).rows;
+      } catch (err) {
+        if (cancelled) return;
+        setRefreshing(false);
+        return setError((err as Error).message);
+      }
       if (cancelled) return;
       setRefreshing(false);
-      if (error) return setError(error.message);
       setError(null);
-      setHeld({ sessionId: selectedId, rows: (data as SessionEngagement[]) ?? [] });
+      setHeld({ sessionId: selectedId, rows });
     })();
     return () => {
       cancelled = true;
     };
-  }, [sb, selectedId, reload]);
+  }, [selectedId, reload]);
   const refresh = () => {
     setRefreshing(true);
     setReload((n) => n + 1);

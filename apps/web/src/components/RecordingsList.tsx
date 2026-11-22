@@ -1,9 +1,12 @@
 "use client";
-import Link from "next/link";
-import { Alert, Badge, ButtonLink, Card, CardHeader, EmptyState } from "@/components/ui";
-import type { PlanLimits } from "@/lib/plans";
+import { PlanGate } from "@/components/PlanGate";
+import { Badge, ButtonLink, Card, CardHeader, EmptyState } from "@/components/ui";
+import { planThatIncludes, type PlanLimits } from "@/lib/plans";
 import { recordingLength, retention } from "@/lib/recordings";
 import type { Session } from "@/lib/supabase/types";
+import { PLAN_LIMITS } from "@/lib/plans";
+
+const PLAN_LABEL_RECORDING = PLAN_LIMITS[planThatIncludes("recording")].label;
 
 type Props = {
   /** Ended sessions whose recording is still on file, newest first. */
@@ -27,13 +30,9 @@ export function RecordingsList({ recordings, limits, live }: Props) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {!limits.recording && (
-        <Alert tone="brand" title="Recording is a Pro feature">
-          Sessions on this room are not recorded. Move this room to Pro on{" "}
-          <Link href="/host/billing" className="font-medium underline underline-offset-4">
-            Billing
-          </Link>{" "}
-          and every session from then on is saved as an MP4 of what attendees saw, kept for a year.
-        </Alert>
+        <PlanGate title="Recordings" unlock={planThatIncludes("recording")} current={limits.label}>
+          Sessions on this room are not recorded. On {PLAN_LABEL_RECORDING} every session is filmed as the attendees saw it, deck and camera and activities, and kept here as an MP4 for a year, ready to download.
+        </PlanGate>
       )}
       <Card>
         <CardHeader title="Recordings" description={keptFor ? `What attendees saw, as an MP4, kept for ${keptFor} after each session.` : "What attendees saw, as an MP4."} />

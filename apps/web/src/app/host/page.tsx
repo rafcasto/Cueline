@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { NewOrgForm } from "@/components/NewOrgForm";
 import { NewRoomForm, type RoomOrg } from "@/components/NewRoomForm";
 import { Alert, Badge, PageHeader, buttonClass, type Tone } from "@/components/ui";
 import { isPlatformAdmin } from "@/lib/auth";
@@ -49,10 +50,7 @@ export default async function HostIndex({ searchParams }: { searchParams: Promis
       )}
 
       {orgIds.size === 0 ? (
-        <Alert tone="warning" className="mt-6" title="Signed in, but not in an organisation yet">
-          Phase 1 has one hard-coded organisation. Run the insert in <code className="rounded bg-surface-inset px-1">supabase/seed.sql</code> with your user id{" "}
-          <code className="rounded bg-surface-inset px-1">{auth.user.id}</code>, then reload.
-        </Alert>
+        <NewOrgForm />
       ) : (rooms ?? []).length === 0 ? (
         <div className="mt-6 rounded-xl border border-dashed border-line p-8">
           <h2 className="text-base font-semibold text-ink">Set up your room</h2>
@@ -105,8 +103,8 @@ export default async function HostIndex({ searchParams }: { searchParams: Promis
                     View as attendee
                   </Link>
                   {!access.paid && !access.complimentary && (
-                    <Link href="/host/billing#rooms" className={buttonClass("ghost", "sm")}>
-                      {access.locked ? "Fix on Billing" : "Upgrade"}
+                    <Link href="/host/billing#rooms" className={buttonClass(access.locked ? "secondary" : "ghost", "sm")}>
+                      {access.locked ? "Open billing" : "Upgrade"}
                     </Link>
                   )}
                 </div>

@@ -1,4 +1,5 @@
 import { handler, HttpError, json, readJson, requireOrgRole, requireUser } from "@/lib/auth";
+import { loadRoomAccess } from "@/lib/billing";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { mintRoomToken, removeFromRoom } from "@/lib/video";
 
@@ -20,7 +21,7 @@ export const POST = handler(async (req) => {
 
   const { data: session } = await admin
     .from("sessions")
-    .select("id, org_id, state, rooms(livekit_room)")
+    .select("id, org_id, room_id, state, rooms(livekit_room)")
     .eq("id", body.session_id)
     .maybeSingle();
   if (!session || session.state === "ended") return json({ error: "no open session" }, { status: 404 });
@@ -39,6 +40,19 @@ export const POST = handler(async (req) => {
   }
 
   await requireOrgRole(user.id, session.org_id, ["owner", "host"]);
+  // The plan's stage slots: attendees invited or live at once, this one not counted (a confirm
+  // follows an invite). Free has none, so on Free the first invite is refused with the gate.
+  if (body.action === "invite" || body.action === "confirm") {
+    const loaded = await loadRoomAccess(admin, session.room_id);
+    const limits = loaded?.access.limits;
+    const slots = limits?.promoteSlots ?? 0;
+    const { count } = await admin.from("stage_roster").select("user_id", { count: "exact", head: true }).eq("session_id", session.id).in("state", ["invited", "live"]).neq("user_id", body.user_id);
+    if ((count ?? 0) >= slots) {
+      const label = limits?.label ?? "this plan";
+      const reason = slots === 0 ? `${label} does not bring attendees on stage.` : `${label} brings ${slots} on stage at a time and the stage is full; remove someone first.`;
+      return json({ error: reason, code: "plan_limit" }, { status: 402 });
+    }
+  }
   const state = body.action === "invite" ? "invited" : body.action === "confirm" ? "live" : "revoked";
   const { error } = await admin.from("stage_roster").upsert(
     { org_id: session.org_id, session_id: session.id, user_id: body.user_id, state, updated_at: new Date().toISOString() },

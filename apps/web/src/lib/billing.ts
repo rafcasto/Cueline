@@ -119,8 +119,8 @@ export function decideGoLive(u: Usage): GoLiveDecision {
   const next = u.period.end.toISOString().slice(0, 10);
   const reason =
     u.effectivePlan === "free"
-      ? `A free room includes one session a month and this month's has been used (resets ${next}). Upgrade this room to Starter at /host/billing to go live now.`
-      : `${plan} includes ${cap} sessions a month and all ${cap} have been used in this room (resets ${next}). Move this room to Pro at /host/billing for unlimited sessions.`;
+      ? `A free room includes one session a month and this month's has been used (resets ${next}).`
+      : `${plan} includes ${cap} sessions a month and all ${cap} have been used in this room (resets ${next}).`;
   return { allowed: false, reason, limits: u.limits };
 }
 

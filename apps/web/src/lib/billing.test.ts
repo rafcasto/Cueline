@@ -70,11 +70,11 @@ describe("decideGoLive", () => {
     expect(d.allowed).toBe(false);
     if (!d.allowed) expect(d.reason).toContain("2026-11-01");
   });
-  it("refuses the fifth Starter session and points at Pro", () => {
+  it("refuses the fifth Starter session with the cap and the reset date", () => {
     const starter = roomAccess({ plan: "starter", plan_status: "active" }, 1);
     const d = decideGoLive(usage({ used: 4, limits: PLAN_LIMITS.starter, effectivePlan: "starter", access: starter }));
     expect(d.allowed).toBe(false);
-    if (!d.allowed) expect(d.reason).toContain("Pro");
+    if (!d.allowed) expect(d.reason).toMatch(/4 sessions a month.*resets 2026-11-01/);
     expect(decideGoLive(usage({ used: 3, limits: PLAN_LIMITS.starter, effectivePlan: "starter", access: starter }))).toEqual({ allowed: true, limits: PLAN_LIMITS.starter });
   });
   it("never caps Pro", () => {

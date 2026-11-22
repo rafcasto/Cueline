@@ -59,12 +59,12 @@ Univid's free plan is exactly 20 minutes and 10 live attendees, and its first pa
 | Polls, quizzes, word clouds, timers, reveals | yes | yes | yes |
 | Chat, Q&A, reactions, waiting room | yes | yes | yes |
 | Deck | yes | yes | yes |
-| Audience video quality | up to 540p | 720p | 720p |
+| Audience video quality | 720p | 720p | 720p |
 | Recording | no | no | MP4 + HLS fallback, kept a year |
 | Audience insights (registered against attended, engagement and fit scores) | no | no | yes |
-| Branding | Tertulia mark | accent + logo | accent + logo + cover, no *Powered by* |
+| Branding | accent + logo + cover | accent + logo + cover | accent + logo + cover |
 | Promote to stage | no | 1 at a time | 3 at a time |
-| Email sequence | welcome and waiting-list note only | welcome, waiting-list note + 4 reminders | welcome, waiting-list note + 4 reminders, editable |
+| Email sequence | welcome and waiting-list note only, editable | welcome, waiting-list note + 4 reminders, editable | welcome, waiting-list note + 4 reminders, editable |
 | Call to action with Stripe checkout | no | no | yes |
 | Fair-use pool | — | 300 participant-hours / month | 1,200 participant-hours / month |
 | Support | community | email | email, 1 business day |
@@ -74,6 +74,8 @@ Yearly prices are ten months for twelve ($290 and $790), so the landing page can
 There is no per-event pass (removed 25 Oct 2026, after a day). A fourth price split the decision on the landing page three ways and gave a Starter host at the cap a $19 exit instead of the Pro upgrade; two passes also cost more than a month of Starter, which made it a worse deal the page then had to explain. A host at the cap now sees one step: the next plan. If hosts who run a webinar twice a year turn out to matter, the answer is a monthly plan they cancel, which the portal already allows, not a fourth product.
 
 **Rooms.** A room is the unit a host owns, so the plan is the room's, not the organisation's. An organisation's first room is free; upgrading it is what buying Starter or Pro means, and every further room is its own Starter or Pro subscription. A free room never sits next to a paid one: the second room needs the first upgraded, and a paid room whose subscription lapses while others remain is locked rather than dropped to free. A host who needs several standing communities therefore pays per community; one who runs several kinds of event in one community uses several events in the one room. Platform admins create complimentary rooms (Pro limits, no subscription).
+
+**Branding and the stage.** Every plan brands its room (23 Nov 2026: the Free-tier *Tertulia mark only* and the Pro *no Powered by* rows were dropped; the host page had already promised colour and logo to every plan, and a branded free room is a better advert than a watermarked one; a 540p cap on Free was never built and the row now says what streams). Promote-to-stage is where the plans differ: none on Free, one guest at a time on Starter, three on Pro, enforced by `/api/stage`, which refuses an invite past the plan's slots with the step up. A guest on stage is a publisher, so this is a real cost line, not a nudge.
 
 **Seats and the waiting list.** The participant cap bounds the session; the host chooses how many of those seats an event offers, and registrations beyond it wait in order of arrival. Someone who cannot come frees their seat from any email or the event page, and the first in line takes it with an email to say so. This is what makes the cap livable on Free: ten seats fill, the rest queue, and the reminders (on paid plans) keep asking the no-shows to step aside.
 
@@ -94,14 +96,14 @@ Hosts pay through Stripe Billing: a Checkout session in subscription mode for St
 ## Abuse and cost guardrails
 
 - Hosts sign up with a verified email; Free rooms are created only after verification.
-- Free sessions are never recorded and are capped at 540p; no HLS fallback (the fallback is an egress).
+- Free sessions are never recorded, and there is no HLS fallback (the fallback is an egress). Every plan streams 720p; a 540p cap on Free is not built.
 - A hard stop ends the session at the cap with a five-minute warning in the host panel and a countdown for attendees; the recording and room are closed server-side, not by the client.
 - `maxParticipants` is set on the LiveKit room from the plan, and the token endpoint refuses to mint past the cap, so the limit holds even if a client misbehaves.
 - Storage: recordings are a Pro feature, kept 12 months (`recordingDays`) and downloadable from the host panel's Recordings tab; the nightly sweep (`/api/recordings/sweep`) deletes expired ones and marks the session. A platform admin can delete any recording early from `/admin`.
 
 ## What to build for this (Phase 3)
 
-Built 25 Oct 2026 (items 1–4 and most of 5; see [STRIPE.md](STRIPE.md)): plan limits, the go-live, participant and recording gates, the hard stop, Stripe Checkout and Portal, the webhook, the billing page, and a sandbox/live switch for platform admins. Still open: a per-minute sweep (the hard stop is enforced by the host panel and at the next go-live), the admin capacity view, and the branding, email-step and promote-slot gates.
+Built 25 Oct 2026 (items 1–4 and most of 5; see [STRIPE.md](STRIPE.md)): plan limits, the go-live, participant and recording gates, the hard stop, Stripe Checkout and Portal, the webhook, the billing page, and a sandbox/live switch for platform admins. Still open: a per-minute sweep (the hard stop is enforced by the host panel and at the next go-live) and the admin capacity view. 23 Nov 2026: the promote-slot gate is built (`/api/stage`), the branding and email-step gates are dropped (every plan brands its room and edits its sequence), and the Insights view is readable only through `/api/insights`, which checks the plan.
 
 1. **Plan limits in one place.** A `plan_limits` map (sessions per month, participants, minutes, recording, hls, promote slots, branding, stripe CTA, pool) read by every gate below. The `plan` enum already exists on `organisations`.
 2. **Gates.** `ensureRoom` passes `maxParticipants`; the token route checks the live count; the go-live route counts this period's sessions for the org against the plan's cap before it starts anything; `startSessionEgress` runs only when the plan includes recording; promote, branding, email steps and CTA destinations check the plan at the API.

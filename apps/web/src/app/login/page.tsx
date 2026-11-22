@@ -58,6 +58,9 @@ function LoginInner() {
         </form>
       </Card>
       <p className="mt-6 text-center text-sm text-ink-muted">
+        New here? <TextLink href={`/signup?next=${encodeURIComponent(next)}`}>Open your room</TextLink>
+      </p>
+      <p className="mt-2 text-center text-sm text-ink-muted">
         Attending an event? <TextLink href="/join">Join a room</TextLink>
       </p>
     </main>
