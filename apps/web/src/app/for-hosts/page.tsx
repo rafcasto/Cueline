@@ -127,7 +127,7 @@ export default function ForHostsPage() {
         )}
 
         {/* Pricing */}
-        <Section id="pricing" title="Pay for the room you run, not for the people in it" body="Attendees never pay. Every plan has polls, quizzes, word clouds, chat and Q&A on the slide, raised hands and a stage, seats and a waiting list per event, your colour and logo, and a welcome email on registration. The plans differ in how often, how many and how long.">
+        <Section id="pricing" title="Pay for the room you run, not for the people in it" body="Attendees never pay. Every plan has polls, quizzes, word clouds, chat and Q&A on the slide, raised hands, seats and a waiting list per event, your colour, logo and cover, and a welcome email on registration. The plans differ in how often, how many and how long.">
           <ul className="mt-10 grid gap-4 md:grid-cols-3">
             <PlanCard plan="free" blurb="A trial of the whole engagement layer: one real session with a timer and a reveal." price="$0" per="forever" note="No card. Go live today." cta="Start free" href="/signup" variant="secondary" />
             <PlanCard
@@ -177,7 +177,7 @@ export default function ForHostsPage() {
             <Faq q="Does it work with Zoom?">Tertulia is its own room: you present and go on camera in the browser, and your audience watches there too. There is nothing to install and no meeting link to juggle. A Zoom integration is on the roadmap.</Faq>
             <Faq q="What data do I see?">On Pro, who registered against who actually turned up, every answer to every poll, quiz and word cloud, the questions asked and upvoted, and every view and tap of your calls to action, each tied to the person who made it.</Faq>
             <Faq q="Can I keep my room private?">Yes. A room is unlisted until you tick List on Explore in its settings. Unlisted rooms are reached only through the invite links you share.</Faq>
-            <Faq q="Can I use my own colours and logo?">Yes. Every room has an accent colour, a logo and a standing call to action; they apply to the room, the invite pages and every button in them.</Faq>
+            <Faq q="Can I use my own colours and logo?">Yes, on every plan. A room has an accent colour, a logo and a cover picture; the colour runs through the room, the invite pages and every button in them.</Faq>
             <Faq q="Is there a recording?">Pro records every session, filmed as the audience saw it, and keeps it for {PLAN_LIMITS.pro.recordingDays} days. Download it from the room. Free and Starter sessions are not recorded.</Faq>
           </dl>
         </Section>
@@ -266,6 +266,7 @@ function planLines(l: PlanLimits): string[] {
   const sessions = l.sessionsPerMonth === null ? "Unlimited sessions" : l.sessionsPerMonth === 1 ? "1 session a month" : `${l.sessionsPerMonth} sessions a month`;
   const length = l.minutes >= 60 ? `${l.minutes / 60} hours per session` : `${l.minutes} minutes per session`;
   const lines = [sessions, `${l.participants} attendees per session`, length];
+  if (l.promoteSlots > 0) lines.push(l.promoteSlots === 1 ? "1 attendee on stage with you at a time" : `${l.promoteSlots} attendees on stage with you at a time`);
   if (l.reminders) lines.push("Reminder emails before every event");
   if (l.recording) lines.push(`Recordings kept ${l.recordingDays} days`);
   if (l.insights) lines.push("Audience insights: who showed up, engagement and fit scores");

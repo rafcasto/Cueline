@@ -301,6 +301,12 @@ select set_config('request.jwt.claim.sub', '22222222-2222-2222-2222-222222222222
 insert into public.activity_responses(run_id, session_id, user_id, option_ids) values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222', '{b}');
 select 'attendee cannot read others'' reaction counts' as check, count(*) = 0 as pass from public.participant_reactions;
 select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false);
+do $$ begin
+  perform * from public.session_engagement;
+  raise exception 'session_engagement should not be readable by the API roles (it is read through /api/insights after the plan check)';
+exception when insufficient_privilege then null; end $$;
+reset role;
+set role service_role;
 select 'session_engagement adds up the signals' as check,
   runs_total = 2 and cta_runs = 0 and answers = 2 and questions = 1 and hand_raises = 1 and reactions = 5 and chat_messages = 4 and cta_taps = 0 and orders_paid = 0 as pass
   from public.session_engagement where session_id = '33333333-3333-3333-3333-333333333333' and user_id = '22222222-2222-2222-2222-222222222222';

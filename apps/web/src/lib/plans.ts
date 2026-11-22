@@ -121,6 +121,11 @@ export function nextPlan(plan: string | null | undefined): PaidPlan | null {
   return NEXT_PLAN[isPlan(plan) ? plan : "free"];
 }
 
+/** The cheapest plan that seats this many in a session: what a gate on an event's seats offers. */
+export function planWithParticipants(n: number): PaidPlan {
+  return PLAN_LIMITS.starter.participants >= n ? "starter" : "pro";
+}
+
 /** The cheapest plan that switches a feature on: what a gate on a feature (recording, insights, reminders) offers. */
 export function planThatIncludes(feature: { [K in keyof PlanLimits]: PlanLimits[K] extends boolean ? K : never }[keyof PlanLimits]): PaidPlan {
   return PLAN_LIMITS.starter[feature] ? "starter" : "pro";

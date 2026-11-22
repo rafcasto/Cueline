@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
+import { PlanGate } from "@/components/PlanGate";
 import { formatStart } from "@/components/RegisterForm";
 import { Alert, Badge, Button, ButtonLink, Card, CardHeader, EmptyState, Eyebrow, Field, Input, Stat, Textarea } from "@/components/ui";
 import { api } from "@/lib/api";
-import type { PlanLimits } from "@/lib/plans";
+import { PLAN_LIMITS, planWithParticipants, type PlanLimits } from "@/lib/plans";
 import { capacityFor, isSeated, registrationStatus, seatSummary, waitlistPosition } from "@/lib/seats";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import type { Invite, Participant, Registration, Room } from "@/lib/supabase/types";
@@ -169,7 +170,6 @@ export function InviteCard({ room, limits, invites, registrations, participants,
                       {seats.waiting > 0 ? ` · ${seats.waiting} waiting` : ""}
                       {inv.capacity === null ? " (plan maximum)" : ""}
                     </p>
-                    {capped(inv) && <p className="mt-1 text-xs text-warning-ink">Set to {inv.capacity} seats, but {limits.label} allows {limits.participants}; the lower number applies until the plan changes.</p>}
                   </div>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="sm" onClick={() => setDraft({ id: inv.id, title: inv.title, startsAt: toLocalInput(inv.starts_at), description: inv.description ?? "", isPublic: inv.is_public, capacity: inv.capacity === null ? "" : String(inv.capacity) })} disabled={!!draft}>
@@ -180,6 +180,11 @@ export function InviteCard({ room, limits, invites, registrations, participants,
                     </Button>
                   </div>
                 </div>
+                {capped(inv) && (
+                  <PlanGate variant="inline" stop className="mt-3" title="Seats" unlock={planWithParticipants(inv.capacity ?? 0)} current={limits.label}>
+                    this event was given {inv.capacity}, but {limits.label} seats {limits.participants}: attendees see {limits.participants} and everyone past that waits in line. {PLAN_LIMITS[planWithParticipants(inv.capacity ?? 0)].label} seats {PLAN_LIMITS[planWithParticipants(inv.capacity ?? 0)].participants}.
+                  </PlanGate>
+                )}
                 <div className="mt-4">
                   <Eyebrow>Invite link</Eyebrow>
                   <div className="mt-1.5 flex flex-wrap gap-2">
